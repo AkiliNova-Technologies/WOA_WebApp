@@ -3,7 +3,7 @@ interface Step6Props {
   updateFormData: (data: Partial<FormData>) => void;
 }
 
-export default function Step6({ formData }: Step6Props) {
+export default function Step6({ }: Step6Props) {
     return(
         <div></div>
     )

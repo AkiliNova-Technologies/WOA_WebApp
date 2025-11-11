@@ -11,7 +11,7 @@ interface Step2Props {
   updateFormData: (data: Partial<FormData>) => void;
 }
 
-export default function Step2({ formData, updateFormData }: Step2Props) {
+export default function Step2({ updateFormData }: Step2Props) {
   const handleDocumentsChange = (newDocuments: IdentityDocument[]) => {
     console.log("Current documents:", newDocuments);
     // Update the form data with the new documents
