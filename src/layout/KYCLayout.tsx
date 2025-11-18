@@ -1,7 +1,6 @@
-// import { useState } from "react";
-import NavbarMinimalSection from "@/components/NavbarMinimal";
 import { ConfigProvider } from "antd";
 import { Outlet } from "react-router-dom";
+import NavbarMinimalSection from "@/components/NavbarMinimal";
 
 export default function KYCLayout() {
   return (
@@ -13,17 +12,30 @@ export default function KYCLayout() {
 
         <div className="flex flex-col gap-4 md:gap-6 top-0 relative min-h-screen">
           <ConfigProvider
-          theme={
-            {
-                components:{
-                    Steps: {
-                        colorPrimary: "#CC5500",
-                        iconSize: 42,
-                    }
-
-                }
-            }
-          }>
+            theme={{
+              components: {
+                Steps: {
+                  colorPrimary: "#CC5500",
+                  colorPrimaryBg: "#CC5500",
+                  colorPrimaryBgHover: "#CC5500",
+                  colorPrimaryBorder: "#CC5500",
+                  colorPrimaryText: "#FFFFFF",
+                  colorText: "#666666",
+                  colorTextDescription: "#999999",
+                  colorTextLabel: "#333333",
+                  colorTextQuaternary: "#CCCCCC",
+                  // colorFillContent: "#F5F5F5",
+                  controlItemBgActive: "#CC5500",
+                  iconSize: 42,
+                  // Customize the done step icon
+                  // customIconColor: "#CC5500",
+                  // customIconBgColor: "#CC5500",
+                  // customIconBorderColor: "#CC5500",
+                  
+                },
+              },
+            }}
+          >
             <Outlet />
           </ConfigProvider>
         </div>

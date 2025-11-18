@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Upload, X, Play, Pause } from "lucide-react";
+import { X, Play, Pause, FolderUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -119,24 +119,30 @@ export function VideoUpload({
         <div
           className={cn(
             "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-gray-300 hover:border-[#CC5500] hover:bg-primary/5"
+             isDragging
+              ? "border-blue-500 bg-blue-50"
+              : "border-gray-300 bg-[#F5F5F5] hover:border-[#CC5500]",
           )}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => document.getElementById("video-upload-input")?.click()}
         >
-          <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+          <div className="flex justify-center">
+            <div className="p-3 bg-white rounded-full">
+              <FolderUp className="w-6 h-6" />
+            </div>
+          </div>
           <div className="space-y-2">
             <p className="text-lg font-medium text-gray-900">
               Upload a Short Story
             </p>
-            <p className="text-md text-gray-500">
-              or 
+            <p className="text-md text-gray-500">or</p>
+            <p>
+              <span className="text-gray-500 text-sm font-medium">
+                Drag and Drop Intro Video
+              </span>
             </p>
-            <p><span className="text-gray-500 text-sm font-medium">Drag and Drop Intro Video</span></p>
           </div>
           <input
             id="video-upload-input"
@@ -148,7 +154,8 @@ export function VideoUpload({
         </div>
       )}
       <p className="text-xs text-gray-400">
-        Recommended size: 1920x1080px • Format: MP4, AVI, MOV, WMV, FLV, WebM • Max {maxSize}MB
+        Recommended size: 1920x1080px • Format: MP4, AVI, MOV, WMV, FLV, WebM •
+        Max {maxSize}MB
       </p>
 
       {/* Video Preview */}

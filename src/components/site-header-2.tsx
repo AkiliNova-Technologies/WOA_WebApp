@@ -3,7 +3,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, MessageSquareText } from "lucide-react";
+import { Bell, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/hooks/useTheme";
 import { Search, type SearchResult } from "./ui/search";
 import { useState, type ReactNode } from "react";
 import { useReduxAuth } from "@/hooks/useReduxAuth";
@@ -15,6 +16,7 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,8 +31,8 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
     if (
       pathname === "/admin" ||
       pathname === "/admin/" ||
-      pathname === "/seller" ||
-      pathname === "/seller/"
+      pathname === "/business" ||
+      pathname === "/business/"
     )
       return "Dashboard";
 
@@ -89,26 +91,24 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
   const getInitials = (): string => {
     // Use first and last name initials if available
     if (user?.firstName && user?.lastName) {
-      return `${user.firstName.charAt(0).toUpperCase()}${user.lastName
-        .charAt(0)
-        .toUpperCase()}`;
+      return `${user.firstName.charAt(0).toUpperCase()}${user.lastName.charAt(0).toUpperCase()}`;
     }
-
+    
     // Fallback to first name only
     if (user?.firstName) {
       return user.firstName.charAt(0).toUpperCase();
     }
-
+    
     // Fallback to last name only
     if (user?.lastName) {
       return user.lastName.charAt(0).toUpperCase();
     }
-
+    
     // Fallback to username if no names available
     if (user?.username) {
       return user.username.charAt(0).toUpperCase();
     }
-
+    
     // Final fallback
     return "U";
   };
@@ -118,12 +118,12 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
       <div className="flex w-full items-center justify-between px-4 lg:px-6">
         {/* Left side - Page title and sidebar trigger */}
         <div className="flex items-center gap-1 lg:gap-2">
-          <SidebarTrigger className="-ml-10 bg-[#303030] border border-white text-white p-4 hover:bg-[#303030] dark:hover:bg-[#303030] hover:text-white" />
+          <SidebarTrigger className="-ml-1" />
           <Separator
             orientation="vertical"
             className="mx-2 data-[orientation=vertical]:h-4"
           />
-          <h1 className="text-2xl font-medium">{label ? label : pageTitle}</h1>
+          <h1 className="text-2xl font-medium">{label ? label :pageTitle}</h1>
         </div>
 
         {/* Middle - Search input */}
@@ -133,9 +133,9 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
             isLoading={isLoading}
             onSearchChange={handleSearchChange}
             onResultSelect={handleResultSelect}
-            placeholder="Search or type a command"
+            placeholder="Search businesses, users, events..."
             maxResults={5}
-            className="rounded-md"
+            className="rounded-full"
           />
         </div>
 
@@ -151,12 +151,29 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
 
           {/* Notifications button */}
           <Button variant="ghost" size="icon" className="h-10 w-10">
-            <MessageSquareText className="h-6 w-6" />
+            <Bell className="h-6 w-6" />
           </Button>
 
-          {/* Notifications button */}
-          <Button variant="ghost" size="icon" className="h-10 w-10">
-            <Bell className="h-6 w-6" />
+          {/* Theme toggle button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 relative"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${
+              theme === "light" ? "dark" : "light"
+            } mode`}
+          >
+            <Sun
+              className={`h-6 w-6 transition-all duration-300 ${
+                theme === "light" ? "scale-100 rotate-0" : "scale-0 -rotate-90"
+              }`}
+            />
+            <Moon
+              className={`h-6 w-6 absolute transition-all duration-300 ${
+                theme === "dark" ? "scale-100 rotate-0" : "scale-0 rotate-90"
+              }`}
+            />
           </Button>
 
           {/* User avatar with name */}
@@ -165,6 +182,9 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
               <AvatarImage src="/avatars/user.jpg" alt="User" />
               <AvatarFallback>{getInitials()}</AvatarFallback>
             </Avatar>
+            <span className="text-sm font-medium hidden sm:block">
+              {user?.username}
+            </span>
           </div>
         </div>
       </div>

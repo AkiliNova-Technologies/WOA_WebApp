@@ -6,6 +6,10 @@ import images from "@/assets/images";
 import { useNavigate } from "react-router-dom";
 import { PasswordInput } from "@/components/ui/password";
 import { useState } from "react";
+import icons from "@/assets/icons";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 export default function SignInPage() {
   const [password, setPassword] = useState("");
@@ -16,7 +20,7 @@ export default function SignInPage() {
     e.preventDefault();
     console.log("Sign in attempted with:", { email, password });
     // TODO: Add sign in logic here
-    
+
     // For now, navigate to dashboard or next page
     navigate("/profile");
   };
@@ -68,13 +72,33 @@ export default function SignInPage() {
       <div className="flex justify-center items-center w-full p-6 md:p-12">
         <Card className="w-full max-w-xl shadow-xs rounded-xs bg-[#F5F5F5] py-8 px-8">
           <CardHeader>
-            <CardTitle className="text-3xl font-semibold text-gray-800">
+            <CardTitle className="text-3xl font-semibold text-center text-gray-800">
               Welcome to World of Afrika
             </CardTitle>
-            <p className="text-sm text-gray-500 mt-1">
-              Log in to manage your shop.
-            </p>
+            <p className="mt-3 text-center font-medium text-lg">Sign in</p>
+            <div className="flex flex-row justify-center items-center gap-2 -mt-2 ">
+              <p className="text-sm text-gray-500">Need an account?</p>
+              <Button variant={"link"} className="p-0 text-[#1B84FF]" onClick={()=>navigate("/auth/signup")}>
+                Sign up
+              </Button>
+            </div>
+            <div className="flex flex-row justify-center gap-2">
+              <Button variant={"outline"} className="h-11 shadow-xs px-10 text-[#4B5675]">
+                <img src={icons.Google} />
+                Use Google
+              </Button>
+              <Button variant={"outline"} className="h-11 shadow-xs px-10 text-[#4B5675]">
+                <img src={icons.Apple} />
+                Use Apple
+              </Button>
+            </div>
           </CardHeader>
+
+          <div className="flex flex-row gap-4 items-center px-4">
+            <Separator className="flex-1" />
+            <p className="text-[#78829D] text-sm">OR</p>
+            <Separator className="flex-1" />
+          </div>
 
           <CardContent>
             <form className="space-y-4" onSubmit={handleSignIn}>
@@ -93,7 +117,16 @@ export default function SignInPage() {
 
               {/* Password */}
               <div>
-                <label className="text-sm text-gray-700">Password</label>
+                <div>
+                  <label className="text-sm text-gray-700">Password</label>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-sm text-[#3B82F6] float-right hover:underline p-0"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
                 <PasswordInput
                   placeholder="Enter your password"
                   value={password}
@@ -101,17 +134,14 @@ export default function SignInPage() {
                   className="mt-1 bg-[#FCFCFC]"
                   required
                 />
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-xs text-[#3B82F6] float-right mt-5 hover:underline"
-                >
-                  Forgot Password?
-                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <Checkbox id="terms" className="bg-white"/>
+                <Label htmlFor="terms" className="text-sm text-gray-700">Remember me</Label>
               </div>
 
               {/* Button */}
-              <Button 
+              <Button
                 type="submit"
                 className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm mt-5"
               >

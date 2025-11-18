@@ -7,6 +7,8 @@ import Pinterest from "@/assets/icons/pinterest.png";
 import Facebook from "@/assets/icons/facebook.png";
 import Instagram from "@/assets/icons/instagram.png";
 import Twitter from "@/assets/icons/twitter.png";
+import Google from "@/assets/icons/google.png"
+import Apple from "@/assets/icons/apple.png"
 
 
 const icons = {
@@ -19,6 +21,8 @@ const icons = {
   Facebook,
   Twitter,
   Instagram,
+  Google,
+  Apple,
 };
 
 export default icons;

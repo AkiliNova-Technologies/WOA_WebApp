@@ -19,6 +19,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ProfileImage } from "@/components/profile-image";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 const reasons = [
   {
@@ -68,6 +69,7 @@ const subReasons: Record<string, string[]> = {
 };
 
 export default function AccountSettingsPage() {
+  const navigate = useNavigate();
   const [countries, setCountries] = React.useState<Country[]>([]);
   const [cities, setCities] = React.useState<City[]>([]);
   const [selectedCountry, setSelectedCountry] = React.useState<string>("");
@@ -433,6 +435,7 @@ export default function AccountSettingsPage() {
             <Button
               variant={"secondary"}
               className="h-11 rounded-full px-6 bg-[#CCCCCC] hover:bg-[#CCCCCC]/60 text-white font-semibold"
+              onClick={()=> navigate("/seller")}
             >
               Go to Dashboard
             </Button>

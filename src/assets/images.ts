@@ -7,6 +7,7 @@ import Cart from "@/assets/images/Cart.png";
 import MasterCard from "@/assets/images/Mastercard.png";
 import SigninIMG from "@/assets/images/SigninImg.png";
 import VerifyIMG from "@/assets/images/Verify.png";
+import Placeholder from "@/assets/images/placeholder.jpg"
 
 const images = {
   logo,
@@ -18,6 +19,7 @@ const images = {
   Visa,
   SigninIMG,
   VerifyIMG,
+  Placeholder
 };
 
 export default images;

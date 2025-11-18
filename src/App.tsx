@@ -13,6 +13,15 @@ import ProfileLayout from "./layout/ProfileLayout";
 import AccountSettingsPage from "./pages/seller/AccountSetting";
 import KYCLayout from "./layout/KYCLayout";
 import StepsContainer from "./pages/KYC/StepsContainer";
+import DashboardPage from "./pages/seller/dashboard/Dashboard";
+import ProductsPage from "./pages/seller/dashboard/Products";
+import RevenuePage from "./pages/seller/dashboard/Revenue";
+import InventoryPage from "./pages/seller/dashboard/Inventory";
+import OrdersPage from "./pages/seller/dashboard/Orders";
+import SettingsPage from "./pages/seller/dashboard/Settings";
+import SellerSettingsDashboardLayout from "./layout/SellerSettingsDashboardLayout";
+import CreatePassword from "./pages/seller/dashboard/CreatePassword";
+import { EditStore } from "./pages/seller/dashboard/EditStore";
 
 function App() {
   return (
@@ -34,11 +43,24 @@ function App() {
               <Route path="verify" element={<EmailOTPPage />} />
               <Route path="signup" element={<SignupPage />} />
             </Route>
-            <Route path="/kyc" element={<KYCLayout />}>
+            <Route path="kyc" element={<KYCLayout />}>
               <Route index element={<StepsContainer />} />
             </Route>
-            <Route path="/seller-dashboard" element={<DashboardLayout />}>
-              <Route index element={<ConsumerHomePage />} />
+            <Route path="/seller" element={<DashboardLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="products" element={<ProductsPage />} />
+              <Route path="revenue" element={<RevenuePage />} />
+              <Route path="inventory" element={<InventoryPage />} />
+              <Route path="orders" element={<OrdersPage />} />
+
+              <Route
+                path="settings"
+                element={<SellerSettingsDashboardLayout />}
+              >
+                <Route index element={<SettingsPage />} />
+                <Route path="edit-store" element={<EditStore />} />
+                <Route path="change-password" element={<CreatePassword />} />
+              </Route>
             </Route>
           </Routes>
         </Router>

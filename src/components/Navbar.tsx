@@ -3,8 +3,8 @@ import {
   Heart,
   ShoppingCart,
   ArrowUpRight,
-  ChevronDown,
   X,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import images from "../assets/images";
@@ -15,8 +15,6 @@ import { useNavigate } from "react-router-dom";
 interface Category {
   id: string;
   name: string;
-  subcategories?: string[];
-  featured?: boolean;
 }
 
 export default function NavbarSection() {
@@ -47,80 +45,36 @@ export default function NavbarSection() {
     {
       id: "fashion",
       name: "Fashion & Apparel",
-      subcategories: [
-        "Men's Clothing",
-        "Women's Clothing",
-        "Children's Wear",
-        "Traditional Attire",
-        "Shoes & Footwear",
-      ],
-      featured: true,
+      
     },
     {
       id: "home",
       name: "Home & Living",
-      subcategories: [
-        "Home Decor",
-        "Furniture",
-        "Kitchenware",
-        "Bedding",
-        "Lighting",
-      ],
-      featured: true,
     },
     {
       id: "jewelry",
       name: "Jewelry & Accessories",
-      subcategories: [
-        "Necklaces",
-        "Bracelets",
-        "Earrings",
-        "Rings",
-        "Traditional Jewelry",
-      ],
+      
     },
     {
       id: "art",
       name: "Art & Crafts",
-      subcategories: [
-        "Paintings",
-        "Sculptures",
-        "Pottery",
-        "Textile Art",
-        "Wood Carvings",
-      ],
+      
     },
     {
       id: "beauty",
       name: "Beauty & Wellness",
-      subcategories: [
-        "Skincare",
-        "Hair Care",
-        "Body Care",
-        "Natural Oils",
-        "Wellness Products",
-      ],
+      
     },
     {
       id: "food",
       name: "Food & Beverages",
-      subcategories: [
-        "Spices",
-        "Coffee & Tea",
-        "Traditional Foods",
-        "Organic Products",
-        "Beverages",
-      ],
+      
     },
     {
       id: "tourism",
       name: "Tourism & Experiences",
-      subcategories: [
-        "Tour Packages",
-        "Cultural Experiences",
-        "Adventure Tours",
-        "Safari Packages",
-      ],
+      
     },
   ];
 
@@ -210,11 +164,6 @@ export default function NavbarSection() {
     }
   };
 
-  const handleSubcategoryClick = (subcategory: string) => {
-    console.log("Navigating to subcategory:", subcategory);
-    setIsCategoriesOpen(false);
-    setActiveCategory(null);
-  };
 
   return (
     <nav className="w-full bg-[#2D2D2D] px-4 sm:px-12 py-4 relative">
@@ -282,76 +231,14 @@ export default function NavbarSection() {
                               <span className="font-medium">
                                 {category.name}
                               </span>
-                              {category.featured && (
-                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                                  Popular
-                                </span>
-                              )}
-                              <ChevronDown className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
+                              <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
                             </button>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    {/* Subcategories Panel - Absolute positioned */}
-                    {activeCategory && (
-                      <div className="absolute left-full top-0 ml-px w-64 bg-gray-50 rounded-r-lg border border-gray-200 shadow-lg max-h-96 overflow-y-auto">
-                        <div className="p-4 border-b border-gray-200">
-                          <h3 className="font-semibold text-gray-900">
-                            {
-                              categories.find((c) => c.id === activeCategory)
-                                ?.name
-                            }
-                          </h3>
-                        </div>
-                        <div className="p-4">
-                          <div className="space-y-2">
-                            {categories
-                              .find((c) => c.id === activeCategory)
-                              ?.subcategories?.map((subcategory, index) => (
-                                <button
-                                  key={index}
-                                  onClick={() =>
-                                    handleSubcategoryClick(subcategory)
-                                  }
-                                  className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:text-yellow-600 hover:bg-yellow-50 rounded-md transition-all duration-200 group"
-                                >
-                                  <span className="group-hover:underline">
-                                    {subcategory}
-                                  </span>
-                                </button>
-                              ))}
-                          </div>
-
-                          {/* Featured Categories Quick Links */}
-                          {categories.find((c) => c.id === activeCategory)
-                            ?.featured && (
-                            <div className="mt-6 pt-4 border-t border-gray-200">
-                              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                                Quick Links
-                              </h4>
-                              <div className="space-y-1">
-                                <button className="text-xs text-yellow-600 hover:text-yellow-700 transition-colors">
-                                  Shop All{" "}
-                                  {
-                                    categories.find(
-                                      (c) => c.id === activeCategory
-                                    )?.name
-                                  }
-                                </button>
-                                <button className="block text-xs text-yellow-600 hover:text-yellow-700 transition-colors">
-                                  New Arrivals
-                                </button>
-                                <button className="block text-xs text-yellow-600 hover:text-yellow-700 transition-colors">
-                                  Best Sellers
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                  
                   </div>
                 )}
 
@@ -387,12 +274,8 @@ export default function NavbarSection() {
                           >
                             <span className="font-medium">{category.name}</span>
                             <div className="flex items-center gap-2">
-                              {category.featured && (
-                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                                  Popular
-                                </span>
-                              )}
-                              <ChevronDown
+                             
+                              <ChevronRight
                                 className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
                                   activeCategory === category.id
                                     ? "rotate-180"
@@ -402,62 +285,12 @@ export default function NavbarSection() {
                             </div>
                           </button>
 
-                          {/* Mobile Subcategories - Expandable */}
-                          {activeCategory === category.id &&
-                            category.subcategories && (
-                              <div className="pl-6 pr-4 pb-3 bg-gray-50 border-t border-gray-100">
-                                <div className="space-y-2 pt-2">
-                                  {category.subcategories.map(
-                                    (subcategory, index) => (
-                                      <button
-                                        key={index}
-                                        onClick={() =>
-                                          handleSubcategoryClick(subcategory)
-                                        }
-                                        className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:text-yellow-600 hover:bg-yellow-50 rounded-md transition-all duration-200 group"
-                                      >
-                                        <span className="group-hover:underline">
-                                          {subcategory}
-                                        </span>
-                                      </button>
-                                    )
-                                  )}
-                                </div>
-
-                                {/* Mobile Quick Links */}
-                                {category.featured && (
-                                  <div className="mt-4 pt-3 border-t border-gray-200">
-                                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                                      Quick Links
-                                    </h4>
-                                    <div className="space-y-1">
-                                      <button className="text-xs text-yellow-600 hover:text-yellow-700 transition-colors">
-                                        Shop All {category.name}
-                                      </button>
-                                      <button className="block text-xs text-yellow-600 hover:text-yellow-700 transition-colors">
-                                        New Arrivals
-                                      </button>
-                                      <button className="block text-xs text-yellow-600 hover:text-yellow-700 transition-colors">
-                                        Best Sellers
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Footer */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50">
-                  <button className="text-sm text-yellow-600 hover:text-yellow-700 font-medium transition-colors flex items-center gap-1">
-                    View All Categories
-                    <ArrowUpRight className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
             )}
           </div>
