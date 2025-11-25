@@ -18,8 +18,6 @@ function SettingsMiniSidebarDrawer() {
   const isActive = (href: string) => {
     // For exact matches
     if (currentPath === href) return true;
-    
-    
     return false;
   };
 
@@ -40,11 +38,11 @@ function SettingsMiniSidebarDrawer() {
       {/* Sidebar */}
       <div
         className={cn(
-          "relative rounded-sm top-0 left-0 h-full w-80 bg-[#303030] shadow-2xl z-10 transform transition-transform duration-300 ease-in-out flex flex-col"
+          "rounded-sm bg-[#303030] shadow-2xl flex flex-col h-fit" // Changed h-full to h-fit
         )}
       >
         {/* Menu Items */}
-        <nav className="flex-1 py-4 overflow-y-auto">
+        <nav className="py-4">
           <ul className="space-y-1">
             {menuItems.map((item, index) => {
               const active = isActive(item.href);
