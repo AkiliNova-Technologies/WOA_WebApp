@@ -27,6 +27,7 @@ import EmptyOrder from "@/assets/images/EmptyOrders.png"
 import EmptyInbox from "@/assets/images/EmptyInbox.png"
 import EmptyWallet from "@/assets/images/EmptyWallet.png"
 import EmptyReviews from "@/assets/images/EmptyReviews.png"
+import EmptyMessages from "@/assets/images/EmptyMessages.png"
 import Banner1 from "@/assets/images/Banner1.jpg"
 import Banner2 from "@/assets/images/Banner2.jpg"
 import SellerProfile1 from "@/assets/images/SellerProfile.png"
@@ -51,6 +52,7 @@ const images = {
   EmptyReviews,
   EmptyInbox,
   EmptyWallet,
+  EmptyMessages,
   Product1,
   Product2,
   Product3,

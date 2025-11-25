@@ -6,6 +6,9 @@ import {
   DollarSign,
   ImageIcon,
   Info,
+  ListFilter,
+  Reply,
+  ThumbsUp,
   X,
 } from "lucide-react";
 import Steps from "@/components/steps";
@@ -34,6 +37,8 @@ import { CountrySelect } from "@/components/country-select";
 import { useNavigate } from "react-router-dom";
 import { ImageUpload } from "@/components/image-upload";
 import { VideoUpload } from "@/components/video-upload";
+import { Search } from "@/components/ui/search";
+import images from "@/assets/images";
 
 type FormData = {
   title: string;
@@ -899,55 +904,57 @@ const AddProductPage = () => {
                     value="product-details"
                     className="space-y-8 m-0"
                   >
-                    {/* Description Section */}
-                    <div className="">
-                      <h3 className="text-xl font-semibold mb-4">
-                        Description
-                      </h3>
-                      <Card className="p-6 shadow-none">
-                        <div
-                          className="prose max-w-none text-foreground"
-                          dangerouslySetInnerHTML={{
-                            __html:
-                              formData.description ||
-                              `Whether you're navigating city streets or strolling through weekend markets, these handcrafted leather sandals offer breathable comfort and effortless style. Made by skilled African artisans using locally sourced materials, each pair reflects a deep respect for tradition and a commitment to quality.
+                    <Card className="shadow-none py-8 px-6 border-none">
+                      <CardContent className="space-y-6">
+                        {/* Description Section */}
+                        <div className="">
+                          <h3 className="text-xl font-semibold mb-4">
+                            Description
+                          </h3>
+                          <Card className="p-6 shadow-none">
+                            <div
+                              className="prose max-w-none text-foreground"
+                              dangerouslySetInnerHTML={{
+                                __html:
+                                  formData.description ||
+                                  `Whether you're navigating city streets or strolling through weekend markets, these handcrafted leather sandals offer breathable comfort and effortless style. Made by skilled African artisans using locally sourced materials, each pair reflects a deep respect for tradition and a commitment to quality.
                         
                         The minimalist design pairs beautifully with jeans, linen trousers, or vibrant kitenge prints—making them a versatile staple for sunny getaways, casual outings, or cultural celebrations. More than footwear, they're a wearable tribute to African craftsmanship and everyday elegance.`,
-                          }}
-                        />
-                      </Card>
-                    </div>
-
-                    {/* Product Story Section */}
-                    <div>
-                      <h3 className="text-xl font-semibold mb-4">
-                        Product Story
-                      </h3>
-                      <Card className="overflow-hidden">
-                        <div className="bg-muted rounded-lg h-64 flex items-center justify-center">
-                          <div className="text-center">
-                            <ImageIcon className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                            <p className="text-muted-foreground">
-                              Product story video preview
-                            </p>
-                          </div>
+                              }}
+                            />
+                          </Card>
                         </div>
-                      </Card>
-                    </div>
 
-                    {/* Specifications Section */}
-                    <div>
-                      <h3 className="text-xl font-semibold mb-4">
-                        Specifications
-                      </h3>
-                      <div className="grid grid-cols-2 gap-6">
-                        <Card className="p-6">
-                          <div
-                            className="prose max-w-none text-foreground"
-                            dangerouslySetInnerHTML={{
-                              __html:
-                                formData.specifications ||
-                                `• Handcrafted from genuine African leather<br/>
+                        {/* Product Story Section */}
+                        <div>
+                          <h3 className="text-xl font-semibold mb-4">
+                            Product Story
+                          </h3>
+                          <Card className="overflow-hidden shadow-none p-0">
+                            <div className="bg-muted rounded-lg h-64 flex items-center justify-center">
+                              <div className="text-center">
+                                <ImageIcon className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                                <p className="text-muted-foreground">
+                                  Product story video preview
+                                </p>
+                              </div>
+                            </div>
+                          </Card>
+                        </div>
+
+                        {/* Specifications Section */}
+                        <div>
+                          <h3 className="text-xl font-semibold mb-4">
+                            Specifications
+                          </h3>
+                          <div className="grid grid-cols-2 gap-6">
+                            <Card className="p-6 shadow-none">
+                              <div
+                                className="prose max-w-none text-foreground"
+                                dangerouslySetInnerHTML={{
+                                  __html:
+                                    formData.specifications ||
+                                    `• Handcrafted from genuine African leather<br/>
                            • Durable rubber sole (recycled or eco option available)<br/>
                            • Breathable open-toe design for all-day comfort<br/>
                            • Unisex sizing (EU 39–46 / US 6–12)<br/>
@@ -956,39 +963,41 @@ const AddProductPage = () => {
                            • Locally made by artisans in Uganda<br/>
                            • Lightweight and travel-friendly<br/>
                            • Ethically sourced and eco-conscious materials`,
-                            }}
-                          />
-                        </Card>
-                        <Card className="p-6">
-                          <div className="space-y-4">
-                            <div>
-                              <Label className="font-semibold mb-2 block">
-                                SKU
-                              </Label>
-                              <p className="text-foreground">
-                                UG-SNDL-LTHR-BRN-42
-                              </p>
-                            </div>
-                            <div>
-                              <Label className="font-semibold mb-2 block">
-                                Production Method
-                              </Label>
-                              <p className="text-foreground capitalize">
-                                {formData.productionMethod || "Handmade"}
-                              </p>
-                            </div>
-                            <div>
-                              <Label className="font-semibold mb-2 block">
-                                Country of Origin
-                              </Label>
-                              <p className="text-foreground">
-                                {formData.country || "Uganda"}
-                              </p>
-                            </div>
+                                }}
+                              />
+                            </Card>
+                            <Card className="p-6 shadow-none">
+                              <div className="space-y-4">
+                                <div>
+                                  <Label className="font-semibold mb-2 block">
+                                    SKU
+                                  </Label>
+                                  <p className="text-foreground">
+                                    UG-SNDL-LTHR-BRN-42
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="font-semibold mb-2 block">
+                                    Production Method
+                                  </Label>
+                                  <p className="text-foreground capitalize">
+                                    {formData.productionMethod || "Handmade"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="font-semibold mb-2 block">
+                                    Country of Origin
+                                  </Label>
+                                  <p className="text-foreground">
+                                    {formData.country || "Uganda"}
+                                  </p>
+                                </div>
+                              </div>
+                            </Card>
                           </div>
-                        </Card>
-                      </div>
-                    </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
                   <TabsContent value="additional-info">
@@ -1057,189 +1066,189 @@ const AddProductPage = () => {
 
                   {/* Reviews Tab */}
                   <TabsContent value="reviews" className="m-0">
-                    <div className="space-y-6">
-                      {/* Search and Filter */}
-                      <div className="flex gap-4">
-                        <div className="flex-1 relative">
-                          <Input
-                            type="text"
-                            placeholder="Search reviews"
-                            className="pl-10"
-                          />
-                          <ImageIcon className="w-5 h-5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                        </div>
-                        <Button
-                          variant="outline"
-                          className="flex items-center gap-2"
-                        >
-                          <span>Filter</span>
-                          <ChevronDown className="w-4 h-4" />
-                        </Button>
-                      </div>
+                    <Card className="shadow-none border-none py-8 px-6">
+                      <CardContent>
+                        <div className="space-y-6">
+                          {/* Search and Filter */}
+                          <div className="flex gap-4">
+                            <Search />
+                            <Button
+                              variant="outline"
+                              className="flex items-center gap-2 h-11 px-8"
+                            >
+                              <span>Filter</span>
+                              <ListFilter className="w-4 h-4" />
+                            </Button>
+                          </div>
 
-                      {/* Reviews List */}
-                      <div className="space-y-6">
-                        {/* Review 1 */}
-                        <Card className="p-6">
-                          <div className="flex justify-between items-start mb-4">
-                            <h4 className="font-semibold">Annette Black</h4>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                Apr 11 2025
-                              </span>
-                              <div className="flex text-yellow-400">
-                                {[1, 2, 3, 4].map((i) => (
-                                  <svg
-                                    key={i}
-                                    className="w-5 h-5 fill-current"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                                  </svg>
-                                ))}
-                                <svg
-                                  className="w-5 h-5 fill-current opacity-50"
-                                  viewBox="0 0 20 20"
+                          {/* Reviews List */}
+                          <div className="space-y-6">
+                            {/* Review 1 */}
+                            <Card className="p-6 shadow-none border-0 border-b rounded-none">
+                              <div className="flex justify-between items-start mb-2">
+                                <h4 className="font-semibold">Annette Black</h4>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground">
+                                    Apr 11 2025
+                                  </span>
+                                  <div className="flex text-yellow-400">
+                                    {[1, 2, 3, 4].map((i) => (
+                                      <svg
+                                        key={i}
+                                        className="w-5 h-5 fill-current"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                                      </svg>
+                                    ))}
+                                    <svg
+                                      className="w-5 h-5 fill-current opacity-50"
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                                    </svg>
+                                  </div>
+                                  <span className="text-sm font-semibold">
+                                    4.5
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="text-foreground mb-2">
+                                I bought these for a weekend trip and ended up
+                                wearing them every day. The leather is soft but
+                                sturdy, and the sole feels surprisingly durable.
+                                You can tell they were made with care—every
+                                stitch is clean. I love that they're locally
+                                made and support Ugandan artisans. Will
+                                definitely be buying another pair in a different
+                                color!
+                              </p>
+                              <div className="flex gap-4 text-sm">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center gap-1"
                                 >
-                                  <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                                </svg>
+                                  <ThumbsUp className="w-4 h-4" />
+                                  Like
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center gap-1"
+                                >
+                                  <Reply className="w-4 h-4" />
+                                  Reply
+                                </Button>
                               </div>
-                              <span className="text-sm font-semibold">4.5</span>
-                            </div>
-                          </div>
-                          <p className="text-foreground mb-4">
-                            I bought these for a weekend trip and ended up
-                            wearing them every day. The leather is soft but
-                            sturdy, and the sole feels surprisingly durable. You
-                            can tell they were made with care—every stitch is
-                            clean. I love that they're locally made and support
-                            Ugandan artisans. Will definitely be buying another
-                            pair in a different color!
-                          </p>
-                          <div className="flex gap-4 text-sm">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="flex items-center gap-1"
-                            >
-                              <ImageIcon className="w-4 h-4" />
-                              Like
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="flex items-center gap-1"
-                            >
-                              <ImageIcon className="w-4 h-4" />
-                              Reply
-                            </Button>
-                          </div>
-                        </Card>
+                            </Card>
 
-                        {/* Review 2 */}
-                        <Card className="p-6">
-                          <div className="flex justify-between items-start mb-4">
-                            <h4 className="font-semibold">James Doe</h4>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                Nov 11 2025
-                              </span>
-                              <div className="flex text-yellow-400">
-                                {[1, 2, 3, 4].map((i) => (
-                                  <svg
-                                    key={i}
-                                    className="w-5 h-5 fill-current"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                                  </svg>
-                                ))}
-                                <svg className="w-5 h-5" viewBox="0 0 20 20">
-                                  <path
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"
-                                  />
-                                </svg>
+                            {/* Review 2 */}
+                            <Card className="p-6 shadow-none border-0 border-b rounded-none">
+                              <div className="flex justify-between items-start mb-2">
+                                <h4 className="font-semibold">James Doe</h4>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground">
+                                    Nov 11 2025
+                                  </span>
+                                  <div className="flex text-yellow-400">
+                                    {[1, 2, 3, 4].map((i) => (
+                                      <svg
+                                        key={i}
+                                        className="w-5 h-5 fill-current"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                                      </svg>
+                                    ))}
+                                    <svg
+                                      className="w-5 h-5"
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"
+                                      />
+                                    </svg>
+                                  </div>
+                                  <span className="text-sm font-semibold">
+                                    4
+                                  </span>
+                                </div>
                               </div>
-                              <span className="text-sm font-semibold">4</span>
-                            </div>
+                              <p className="text-foreground mb-2">
+                                These sandals are perfect for casual wear. I
+                                paired them with my kitenge trousers and got so
+                                many compliments. They're breathable and easy to
+                                slip on, and the fit was just right. I
+                                appreciate the eco-conscious materials too. Only
+                                wish they came in more vibrant colors!
+                              </p>
+                              <div className="flex gap-4 text-sm">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center gap-1"
+                                >
+                                  <ThumbsUp className="w-4 h-4" />
+                                  Like
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center gap-1"
+                                >
+                                  <Reply className="w-4 h-4" />
+                                  Reply
+                                </Button>
+                              </div>
+                            </Card>
                           </div>
-                          <p className="text-foreground mb-4">
-                            These sandals are perfect for casual wear. I paired
-                            them with my kitenge trousers and got so many
-                            compliments. They're breathable and easy to slip on,
-                            and the fit was just right. I appreciate the
-                            eco-conscious materials too. Only wish they came in
-                            more vibrant colors!
-                          </p>
-                          <div className="flex gap-4 text-sm">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="flex items-center gap-1"
-                            >
-                              <ImageIcon className="w-4 h-4" />
-                              Like
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="flex items-center gap-1"
-                            >
-                              <ImageIcon className="w-4 h-4" />
-                              Reply
-                            </Button>
-                          </div>
-                        </Card>
-                      </div>
 
-                      {/* Pagination */}
-                      <div className="flex justify-end items-center gap-2">
-                        <Button variant="outline" size="sm">
-                          Prev
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-primary text-primary-foreground"
-                        >
-                          1
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          2
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          3
-                        </Button>
-                        <span className="px-2 text-muted-foreground">...</span>
-                        <Button variant="outline" size="sm">
-                          10
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          Next
-                        </Button>
-                      </div>
-                    </div>
+                          {/* Pagination */}
+                          <div className="flex justify-end items-center gap-2">
+                            <Button variant="outline" size="sm">
+                              Prev
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="bg-[#CC5500] text-primary-foreground"
+                            >
+                              1
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              2
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              3
+                            </Button>
+                            <span className="px-2 text-muted-foreground">
+                              ...
+                            </span>
+                            <Button variant="outline" size="sm">
+                              10
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
                   {/* Messages Tab */}
                   <TabsContent value="messages" className="m-0">
-                    <Card className="flex flex-col items-center justify-center py-16">
+                    <Card className="flex flex-col items-center justify-center py-16 shadow-none border-none">
                       <CardContent className="text-center">
                         <div className="w-48 h-48 mb-6 mx-auto">
-                          <div className="w-full h-full bg-muted rounded-full flex items-center justify-center">
-                            <ImageIcon className="w-16 h-16 text-muted-foreground" />
+                          <div className="w-full h-full flex items-center justify-center">
+                            <img src={images.EmptyMessages} alt="Empty Message Fallback image" className=""/>
                           </div>
                         </div>
-                        <p className="text-xl font-medium text-foreground mb-2">
-                          No Messages
-                        </p>
-                        <p className="text-muted-foreground">
-                          You don't have any messages yet. They will appear here
-                          when customers contact you.
-                        </p>
                       </CardContent>
                     </Card>
                   </TabsContent>
