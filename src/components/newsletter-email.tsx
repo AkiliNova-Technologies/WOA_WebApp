@@ -129,9 +129,10 @@ function NewsletterEmail({
     <div className="relative w-full">
       <div
         className={cn(
-          "flex items-center w-full transition-all duration-200 bg-[#FFFFFF]",
+          "flex items-center w-full transition-all duration-200 bg-[#FFFFFF] py-0",
           variant === "default" && "rounded-full overflow-hidden",
           variant === "minimal" && "rounded-none",
+          isFocused && "ring ring-[#CC5500]",
           !isValid && "ring-2 ring-red-500 ring-opacity-50"
         )}
       >
@@ -156,11 +157,12 @@ function NewsletterEmail({
             disabled={disabled || isSubmitting || showSuccess}
             placeholder="Your email address"
             className={cn(
-              "w-full outline-none bg-transparent transition-colors shadow-0 duration-200 text-[#1A1A1A] placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed border-none shadow-none",
+              "w-full h-12 outline-none bg-transparent transition-colors shadow-0 duration-200 text-[#1A1A1A] placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed border-none shadow-none",
               showIcon ? "pl-10 pr-4" : "px-4",
+              isFocused && "ring-[#CC5500]",
               sizeClasses[inputSize],
               variantClasses[variant],
-              !isValid && " text-red-500 placeholder-red-300",
+              // !isValid && " text-red-500 placeholder-red-300",
               className
             )}
             {...props}
@@ -172,11 +174,11 @@ function NewsletterEmail({
           onClick={handleSubmit}
           disabled={disabled || isSubmitting || showSuccess || !localValue.trim()}
           className={cn(
-            "flex items-center justify-center font-medium transition-all duration-200 rounded-full disabled:opacity-100 disabled:cursor-not-allowed whitespace-nowrap",
+            "flex items-center min-h-12 justify-center font-medium transition-all duration-200 rounded-full disabled:opacity-100 disabled:cursor-not-allowed whitespace-nowrap",
             buttonSizeClasses[inputSize],
             buttonVariantClasses[variant],
             variant === "default" && "rounded-full",
-            "min-w-[120px]"
+            "min-w-[110px]"
           )}
         >
           {isSubmitting ? (

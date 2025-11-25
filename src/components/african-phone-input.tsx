@@ -44,7 +44,7 @@ export function AfricanPhoneInput({
   // Set default to Nigeria if no country code is provided
   React.useEffect(() => {
     if (!countryCode) {
-      onCountryCodeChange("+234"); // Nigeria as default
+      onCountryCodeChange("+256"); // Nigeria as default
     }
   }, [countryCode, onCountryCodeChange]);
 

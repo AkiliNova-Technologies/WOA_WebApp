@@ -167,7 +167,7 @@ export default function NavbarSection() {
 
   return (
     <nav className="w-full bg-[#2D2D2D] px-4 sm:px-12 py-4 relative">
-      <div className="text-white flex items-center justify-between max-w-8xl mx-auto gap-4">
+      <div className="text-white flex items-center justify-between max-w-7xl mx-auto gap-4">
         {/* Left section: Logo + Categories */}
         <div className="flex items-center gap-4 sm:gap-6">
           <div className="flex items-center gap-2">
@@ -311,14 +311,14 @@ export default function NavbarSection() {
 
         {/* Right: Icons + Sign In */}
         <div className="flex items-center gap-4 sm:gap-6">
-          <button className="relative p-2 hover:text-yellow-400 transition-colors duration-200 group">
+          <button className="relative p-2 hover:text-yellow-400 transition-colors duration-200 group" onClick={()=> navigate("/wishlist")}>
             <Heart className="h-5 w-5" />
             <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs rounded-full h-4 w-4 flex items-center justify-center font-medium">
               3
             </span>
           </button>
 
-          <button className="relative p-2 hover:text-yellow-400 transition-colors duration-200 group">
+          <button className="relative p-2 hover:text-yellow-400 transition-colors duration-200 group" onClick={()=> navigate("/cart")}>
             <ShoppingCart className="h-5 w-5" />
             <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs rounded-full h-4 w-4 flex items-center justify-center font-medium">
               2

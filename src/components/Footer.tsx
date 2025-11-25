@@ -6,11 +6,11 @@ export default function FooterSection() {
   return (
     <footer className="w-full text-gray-300 bg-[#1E1E1E]">
       {/* Newsletter Section */}
-      <div className="bg-[#F7F7F7] py-8 md:py-12 px-4 sm:px-6 lg:px-20">
-        <div className="max-w-7xl mx-auto">
+      <div className="bg-[#F7F7F7] py-8 md:py-12 px-4 sm:px-6 lg:px-20 ">
+        <div className="max-w-6xl mx-auto">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-10">
             {/* Text Content */}
-            <div className="text-center lg:text-left flex-1 max-w-md">
+            <div className="text-center lg:text-left max-w-md">
               <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-2">
                 Subscribe our Newsletter
               </h2>
@@ -20,16 +20,16 @@ export default function FooterSection() {
             </div>
 
             {/* Newsletter Form */}
-            <div className="w-full lg:flex-1 max-w-lg">
+            <div className="w-full flex-1 lg:flex-1 max-w-lg">
               <NewsletterEmail
                 showIcon={false}
-                inputSize="lg"
+                inputSize="md"
                 onSubmit={async (email) => {
                   // Handle subscription
                   console.log("Footer subscription:", email);
                 }}
                 placeholder="Email address"
-                className="h-12 bg-white border-gray-200"
+                className="h-12 bg-white border-gray-200 flex-1"
               />
             </div>
 
@@ -62,14 +62,14 @@ export default function FooterSection() {
 
       {/* Main Footer */}
       <div className="px-4 sm:px-6 lg:px-20 py-8 md:py-12">
-        <div className="max-w-8xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="flex flex-col xl:flex-row gap-8 lg:gap-12 xl:gap-16 border-b border-gray-700 pb-8 md:pb-12">
             {/* Logo and Info */}
             <div className="flex-1 max-w-md">
               <img
                 src={images.logo}
                 alt="World of Afrika"
-                className="h-8 sm:h-10 mb-4"
+                className="h-10 sm:h-14 mb-4"
               />
               <p className="text-sm leading-relaxed text-gray-400 mb-4">
                 We are a digital marketplace platform designed to connect local
@@ -79,13 +79,28 @@ export default function FooterSection() {
 
               <div className="text-sm text-white">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-                  <span className="border-b-2 border-[#C75A00] pb-1 inline-block w-fit">
-                    (256) 760 979023
-                  </span>
-                  <span className="text-gray-400 hidden sm:block">or</span>
-                  <span className="border-b-2 border-[#C75A00] pb-1 inline-block w-fit">
-                    WOA@gmail.com
-                  </span>
+                  <div className="bg-[#FFE7D6] hover:bg-[#FFE7D6]/90 flex flex-1 justify-center items-center h-17 gap-4 p-6 rounded-sm">
+                    <img
+                      src={icons.Apple}
+                      alt="Apple Logo"
+                      className="h-6 w-6"
+                    />
+                    <div className="flex flex-col items-start">
+                      <p className="text-[#303030]">Get it now</p>
+                      <h1 className="font-bold text-lg text-[#303030]">Apple Store</h1>
+                    </div>
+                  </div>
+                   <div className="bg-[#FFE7D6] hover:bg-[#FFE7D6]/90 flex flex-1 justify-center items-center h-17 gap-4 p-6 rounded-sm">
+                    <img
+                      src={icons.PlayStore}
+                      alt="Apple Logo"
+                      className="h-6 w-6"
+                    />
+                    <div className="flex flex-col items-start">
+                      <p className="text-[#303030]">Get it now</p>
+                      <h1 className="font-bold text-lg text-[#303030]">Google Play</h1>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -3,28 +3,52 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check } from "lucide-react";
 import images from "@/assets/images";
-import { Link, useNavigate } from "react-router-dom";
-import { PasswordInput } from "@/components/ui/password";
+import { useNavigate } from "react-router-dom";
+
 import { useState } from "react";
 import icons from "@/assets/icons";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { AfricanPhoneInput } from "@/components/african-phone-input";
+
+interface FormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  countryCode: string;
+  password: string;
+}
 
 export default function SignUpPage() {
-  const [password, setPassword] = useState("");
-  const [email, setEmail] = useState("");
+  const [formData, setFormData] = useState<FormData>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    countryCode: "",
+    password: "",
+  });
+
   const navigate = useNavigate();
+
+  const updateFormData = (updates: Partial<FormData>) => {
+    setFormData((prev) => ({ ...prev, ...updates }));
+  };
+
+  const handleInputChange = (field: keyof FormData, value: string) => {
+    updateFormData({ [field]: value });
+  };
 
   const handleSignUp = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Sign in attempted with:", { email, password });
-    // TODO: Add sign in logic here
+    console.log("Sign up attempted with:", formData);
+    // TODO: Add sign up logic here
 
     // For now, navigate to dashboard or next page
-    navigate("/kyc");
+    navigate("/auth/verify");
   };
-
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
@@ -111,27 +135,31 @@ export default function SignUpPage() {
               {/* Full Names */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5">
                 <div>
-                <label className="text-sm text-gray-700">First name</label>
-                <Input
-                  type="text"
-                  placeholder="John"
-                  className="mt-1 h-11 bg-[#FCFCFC]"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-700">Last name</label>
-                <Input
-                  type="text"
-                  placeholder="Doe"
-                  className="mt-1 h-11 bg-[#FCFCFC]"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
+                  <label className="text-sm text-gray-700">First name</label>
+                  <Input
+                    type="text"
+                    placeholder="John"
+                    className="mt-1 h-11 bg-[#FCFCFC]"
+                    value={formData.firstName}
+                    onChange={(e) =>
+                      handleInputChange("firstName", e.target.value)
+                    }
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-700">Last name</label>
+                  <Input
+                    type="text"
+                    placeholder="Doe"
+                    className="mt-1 h-11 bg-[#FCFCFC]"
+                    value={formData.lastName}
+                    onChange={(e) =>
+                      handleInputChange("lastName", e.target.value)
+                    }
+                    required
+                  />
+                </div>
               </div>
 
               {/* Email */}
@@ -141,56 +169,33 @@ export default function SignUpPage() {
                   type="email"
                   placeholder="email@email.com"
                   className="mt-1 h-11 bg-[#FCFCFC]"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={formData.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
                   required
                 />
               </div>
 
-              {/* Password */}
-              <div>
-                <label className="text-sm text-gray-700">Password</label>
-                <PasswordInput
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 bg-[#FCFCFC]"
-                  required
+              {/* Phone Number */}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <AfricanPhoneInput
+                  value={formData.phoneNumber}
+                  onChange={(value) => handleInputChange("phoneNumber", value)}
+                  countryCode={formData.countryCode}
+                  onCountryCodeChange={(value) =>
+                    handleInputChange("countryCode", value)
+                  }
+                  placeholder="Enter your phone number"
+                  className="bg-white shadow-none"
                 />
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="text-sm text-gray-700">
-                  Confirm Password
-                </label>
-                <PasswordInput
-                  placeholder="Re-enter password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 bg-[#FCFCFC]"
-                  required
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <Checkbox id="terms" className="bg-white" />
-                <div className="flex flex-row gap-2">
-                  <Label htmlFor="terms" className="text-sm text-gray-700">
-                    I accept
-                  </Label>
-                  <Link to={"/t&c"} className="text-[#1B84FF] text-sm ">
-                    Terms & Conditions
-                  </Link>
-                </div>
               </div>
 
               {/* Button */}
               <Button
                 type="submit"
                 className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm mt-5"
-                onClick={handleSignUp}
               >
-                Sign up
+                Continue
               </Button>
             </form>
           </CardContent>

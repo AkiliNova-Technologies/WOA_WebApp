@@ -9,6 +9,7 @@ import Instagram from "@/assets/icons/instagram.png";
 import Twitter from "@/assets/icons/twitter.png";
 import Google from "@/assets/icons/google.png"
 import Apple from "@/assets/icons/apple.png"
+import PlayStore from "@/assets/icons/playstore.png"
 
 
 const icons = {
@@ -23,6 +24,7 @@ const icons = {
   Instagram,
   Google,
   Apple,
+  PlayStore,
 };
 
 export default icons;
