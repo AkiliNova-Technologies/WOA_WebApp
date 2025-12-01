@@ -1,4 +1,3 @@
-// contexts/BreadcrumbContext.tsx
 import React, { createContext, useContext, useState, type ReactNode } from 'react';
 
 export interface BreadcrumbItem {

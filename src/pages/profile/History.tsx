@@ -48,64 +48,66 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="min-h-screen px-8">
+    <div className="min-h-screen ">
       {/* Header */}
-      <div className=" p-6 rounded-md mb-6">
+      <div className=" p-6 rounded-md mb-6 bg-[#FFFFFF]">
         <h1 className="text-2xl text-center font-medium">
           Recently Viewed products
         </h1>
       </div>
 
-      {/* Active Filters Display */}
-      <ActiveFilters
-        filters={filters}
-        categories={categories}
-        onClearCategory={handleClearCategory}
-        onClearProductionMethod={handleClearProductionMethod}
-        onClearPriceRange={handleClearPriceRange}
-        onClearAll={handleClearAll}
-      />
+      <div className="bg-[#FFFFFF] p-8 rounded-md space-y-6">
+        {/* Active Filters Display */}
+        <ActiveFilters
+          filters={filters}
+          categories={categories}
+          onClearCategory={handleClearCategory}
+          onClearProductionMethod={handleClearProductionMethod}
+          onClearPriceRange={handleClearPriceRange}
+          onClearAll={handleClearAll}
+        />
 
-      {/* Reusable Filter Sheet Component */}
-      <FilterSheet
-        categories={categories}
-        allVendors={allVendors}
-        productionMethods={productionMethods}
-        products={products}
-        filters={filters}
-        sortOption={sortOption}
-        filteredProductsCount={filteredProductsCount}
-        updateFilter={updateFilter}
-        resetFilters={resetFilters}
-        setSortOption={handleSetSortOption} // Use the wrapper function
-      />
+        {/* Reusable Filter Sheet Component */}
+        <FilterSheet
+          categories={categories}
+          allVendors={allVendors}
+          productionMethods={productionMethods}
+          products={products}
+          filters={filters}
+          sortOption={sortOption}
+          filteredProductsCount={filteredProductsCount}
+          updateFilter={updateFilter}
+          resetFilters={resetFilters}
+          setSortOption={handleSetSortOption} // Use the wrapper function
+        />
 
-      {/* Products Grid */}
-      {products.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-          {products.map((product) => (
-            <ProductCard
-              key={product.id}
-              id={parseInt(product.id)}
-              name={product.name}
-              rating={product.rating}
-              reviews={product.reviews}
-              price={product.price}
-              vendor={product.vendor}
-              image={product.image}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <p className="text-[#666] text-lg">
-            No products found matching your criteria.
-          </p>
-          <Button variant="outline" onClick={handleClearAll} className="mt-4">
-            Clear all filters
-          </Button>
-        </div>
-      )}
+        {/* Products Grid */}
+        {products.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 md:gap-6">
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                id={parseInt(product.id)}
+                name={product.name}
+                rating={product.rating}
+                reviews={product.reviews}
+                price={product.price}
+                vendor={product.vendor}
+                image={product.image}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-[#666] text-lg">
+              No products found matching your criteria.
+            </p>
+            <Button variant="outline" onClick={handleClearAll} className="mt-4">
+              Clear all filters
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

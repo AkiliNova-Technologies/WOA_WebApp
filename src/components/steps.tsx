@@ -1,5 +1,5 @@
-import { CheckIcon } from 'lucide-react';
-import React from 'react';
+import { CheckIcon } from "lucide-react";
+import React from "react";
 
 export interface StepItem {
   title: string;
@@ -11,18 +11,18 @@ interface CustomStepsProps {
   current: number;
   items: StepItem[];
   onChange?: (current: number) => void;
-  direction?: 'horizontal' | 'vertical';
+  direction?: "horizontal" | "vertical";
   responsive?: boolean;
-  contentAlignment?: 'left' | 'center' | 'right';
+  contentAlignment?: "left" | "center" | "right";
 }
 
 export const Steps: React.FC<CustomStepsProps> = ({
   current,
   items,
   onChange,
-  direction = 'horizontal',
+  direction = "horizontal",
   responsive = true,
-  contentAlignment = 'center',
+  contentAlignment = "center",
 }) => {
   const isStepCompleted = (stepIndex: number) => stepIndex < current;
   const isStepInProgress = (stepIndex: number) => stepIndex === current;
@@ -55,8 +55,12 @@ export const Steps: React.FC<CustomStepsProps> = ({
     <div
       className={`
         custom-steps 
-        ${direction === 'vertical' ? 'flex flex-col' : 'flex flex-row justify-between'}
-        ${responsive ? 'responsive-steps' : ''}
+        ${
+          direction === "vertical"
+            ? "flex flex-col"
+            : "flex flex-row justify-between"
+        }
+        ${responsive ? "responsive-steps" : ""}
         w-full
       `}
     >
@@ -71,13 +75,22 @@ export const Steps: React.FC<CustomStepsProps> = ({
             key={index}
             className={`
               step-item 
-              ${direction === 'horizontal' ? 'flex flex-col items-center text-center relative flex-1' : 'flex items-start mb-6'}
-              ${onChange && index <= current ? 'cursor-pointer' : 'cursor-default'}
+              ${
+                direction === "horizontal"
+                  ? "flex flex-col items-center text-center relative flex-1"
+                  : "flex flex-col items-center text-center relative"
+              }
+              ${
+                onChange && index <= current
+                  ? "cursor-pointer"
+                  : "cursor-default"
+              }
+              ${direction === "vertical" ? "min-h-20" : ""}
             `}
             onClick={() => handleStepClick(index)}
           >
             {/* Horizontal Layout */}
-            {direction === 'horizontal' && (
+            {direction === "horizontal" && (
               <>
                 {/* Left Connector Line (except for first item) */}
                 {index > 0 && (
@@ -85,12 +98,12 @@ export const Steps: React.FC<CustomStepsProps> = ({
                     className={`
                       absolute left-0 top-6 h-0.5 w-1/2 -translate-x-full
                       transition-all duration-200
-                      ${leftConnectorCompleted ? 'bg-[#CC5500]' : 'bg-gray-200'}
+                      ${leftConnectorCompleted ? "bg-[#CC5500]" : "bg-gray-200"}
                       z-0
                     `}
                   />
                 )}
-                
+
                 {/* Step Icon */}
                 <div
                   className={`
@@ -101,10 +114,10 @@ export const Steps: React.FC<CustomStepsProps> = ({
                     relative z-10 mb-3
                     ${
                       completed
-                        ? 'bg-[#CC5500] text-white'
+                        ? "bg-[#CC5500] text-white"
                         : inProgress
-                        ? 'bg-[#CC5500] text-white'
-                        : 'bg-white border border-gray-300 text-gray-400'
+                        ? "bg-[#CC5500] text-white"
+                        : "bg-white border border-gray-300 text-gray-400 dark:bg-[#00000040]"
                     }
                   `}
                 >
@@ -117,7 +130,11 @@ export const Steps: React.FC<CustomStepsProps> = ({
                     className={`
                       step-title 
                       text-sm font-medium block
-                      ${completed || inProgress ? 'text-gray-500' : 'text-gray-500'}
+                      ${
+                        completed || inProgress
+                          ? "text-gray-500"
+                          : "text-gray-500"
+                      }
                     `}
                   >
                     {item.title}
@@ -135,7 +152,9 @@ export const Steps: React.FC<CustomStepsProps> = ({
                     className={`
                       absolute right-0 top-6 h-0.5 w-1/2 translate-x-full
                       transition-all duration-200
-                      ${rightConnectorCompleted ? 'bg-[#CC5500]' : 'bg-gray-200'}
+                      ${
+                        rightConnectorCompleted ? "bg-[#CC5500]" : "bg-gray-200"
+                      }
                       z-0
                     `}
                   />
@@ -144,9 +163,10 @@ export const Steps: React.FC<CustomStepsProps> = ({
             )}
 
             {/* Vertical Layout */}
-            {direction === 'vertical' && (
-              <div className="flex w-full">
-                <div className="flex flex-col items-center mr-4">
+            {direction === "vertical" && (
+              <>
+                {/* Step Icon and Connector Container */}
+                <div className="flex flex-col items-center w-full">
                   {/* Step Icon */}
                   <div
                     className={`
@@ -154,53 +174,67 @@ export const Steps: React.FC<CustomStepsProps> = ({
                       flex items-center justify-center 
                       w-10 h-10 rounded-full border-2 
                       transition-all duration-200
-                      z-10
+                      z-10 mb-3 mt-3
                       ${
                         completed
-                          ? 'bg-[#CC5500] border-[#CC5500] text-white'
+                          ? "bg-[#CC5500] border-[#CC5500] text-white"
                           : inProgress
-                          ? 'bg-[#CC5500] border-[#CC5500] text-white'
-                          : 'bg-white border-gray-300 text-gray-400'
+                          ? "bg-[#CC5500] border-[#CC5500] text-white"
+                          : "bg-white border border-gray-300 text-gray-400 dark:bg-[#00000040] dark:border-[#00000040]"
                       }
                     `}
                   >
                     {item.icon || defaultIcon(index)}
                   </div>
 
-                  {/* Connector Line (except for last item) */}
+                  {/* Step Content - Title below the step number */}
+                  <div
+                    className={`w-full mb-4 ${
+                      contentAlignment === "center"
+                        ? "text-center"
+                        : contentAlignment === "right"
+                        ? "text-right"
+                        : "text-left"
+                    }`}
+                  >
+                    {/* Show title only on larger screens */}
+                    <span
+                      className={`
+                        step-title 
+                        text-sm font-medium hidden sm:block
+                        ${
+                          completed || inProgress
+                            ? "text-[#CC5500]"
+                            : "text-gray-500"
+                        }
+                      `}
+                    >
+                      {item.title}
+                    </span>
+                    {item.description && (
+                      <span className="step-description text-xs text-gray-400 hidden sm:block">
+                        {item.description}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Vertical Connector Line (except for last item) */}
                   {index < items.length - 1 && (
                     <div
                       className={`
                         step-connector 
-                        w-0.5 flex-1 mt-2 
+                        w-0.5 h-8
                         transition-all duration-200
-                        ${rightConnectorCompleted ? 'bg-[#CC5500]' : 'bg-gray-200'}
+                        ${
+                          rightConnectorCompleted
+                            ? "bg-[#CC5500]"
+                            : "bg-gray-200"
+                        }
                       `}
                     />
                   )}
                 </div>
-
-                {/* Step Content */}
-                <div className={`flex flex-col pb-6 flex-1 ${
-                  contentAlignment === 'center' ? 'text-center' : 
-                  contentAlignment === 'right' ? 'text-right' : 'text-left'
-                }`}>
-                  <span
-                    className={`
-                      step-title 
-                      text-sm font-medium
-                      ${completed || inProgress ? 'text-[#CC5500]' : 'text-gray-500'}
-                    `}
-                  >
-                    {item.title}
-                  </span>
-                  {item.description && (
-                    <span className="step-description text-xs text-gray-400 mt-1">
-                      {item.description}
-                    </span>
-                  )}
-                </div>
-              </div>
+              </>
             )}
           </div>
         );

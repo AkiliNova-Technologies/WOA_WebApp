@@ -114,7 +114,7 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-50 flex h-18 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear bg-background/80 backdrop-blur-md supports-backdrop-filter:bg-background/60 group-has-data-[collapsible=icon]/sidebar-wrapper:h-18">
+    <header className="sticky top-0 z-50 flex h-18 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear bg-background/80 backdrop-blur-md supports-backdrop-filter:bg-background/60 group-has-data-[collapsible=icon]/sidebar-wrapper:h-18 dark:bg-[#121212]">
       <div className="flex w-full items-center justify-between px-4 lg:px-6">
         {/* Left side - Page title and sidebar trigger */}
         <div className="flex items-center gap-1 lg:gap-2">

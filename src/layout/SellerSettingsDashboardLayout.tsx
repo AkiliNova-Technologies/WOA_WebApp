@@ -9,8 +9,8 @@ export default function SellerSettingsDashboardLayout() {
 
       <div className="min-h-screen">
         <div className="flex flex-1">
-          <div className="container mx-auto px-4 py-8">
-            <div className="flex flex-col md:flex-row gap-6">
+          <div className="mx-auto max-w-7xl px-4 py-8">
+            <div className="flex flex-col md:flex-row gap-6 px-4">
               <div className="w-full md:w-80 shrink-0">
                 <SettingsMiniSidebarDrawer />
               </div>

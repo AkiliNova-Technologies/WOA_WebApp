@@ -233,7 +233,7 @@ export function TextEditor({
       <Card className={`overflow-hidden ${className} shadow-none p-0`}>
         <CardContent className="p-0">
           {/* Toolbar */}
-          <div className="bg-muted/50 p-2 flex flex-wrap items-center gap-1 border-b">
+          <div className="bg-muted/50 p-2 flex flex-wrap items-center gap-1 border-b dark:bg-[#00000040]">
             {/* Text Formatting */}
             <div className="flex items-center border-r pr-2 mr-2">
               {toolbarButtons.map(({ command, icon: Icon, title, active }) => (
@@ -405,7 +405,7 @@ export function TextEditor({
           <div
             ref={editorRef}
             contentEditable
-            className="min-h-[200px] p-4 outline-none prose max-w-none bg-background"
+            className="min-h-[200px] p-4 outline-none prose max-w-none dark:bg-[#242424]"
             onPaste={handlePaste}
             onInput={handleInput}
             onFocus={() => {

@@ -98,7 +98,7 @@ export function SectionCards({
           <Card
             key={index}
             className={cn(
-              "@container/card w-full h-full",
+              "@container/card w-full h-full shadow-none",
               "flex flex-col",
               backgroundColor && "border-0", // Remove border if background is set
               textColor

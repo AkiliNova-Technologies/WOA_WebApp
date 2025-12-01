@@ -89,7 +89,7 @@ export function EditStore() {
   return (
     <div className="space-y-6">
       {/* ================= STORE DETAILS ================= */}
-      <Card className="max-w-6xl mx-auto shadow-xs border bg-white">
+      <Card className="max-w-8xl mx-auto shadow-xs border bg-white">
         <CardContent className="px-6">
           <div className="space-y-6">
             {/* Header */}

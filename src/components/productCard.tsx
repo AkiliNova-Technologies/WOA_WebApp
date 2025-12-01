@@ -34,7 +34,7 @@ export function ProductCard(product: Product) {
   };
   return (
     <Card
-      className="relative w-2xs p-2 mx-auto shadow-none cursor-pointer border-none transition-shadow"
+      className="relative w-3xs p-2 mx-auto shadow-none cursor-pointer border-none hover:shadow-lg transition-shadow dark:bg-[#303030]"
       onClick={handleCardClick}
     >
       <div className="relative rounded-sm overflow-hidden w-full">

@@ -16,6 +16,7 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   Product,
   ProductStatus,
@@ -24,17 +25,16 @@ import type {
 import { useProducts } from "@/hooks/useProducts";
 
 import {
-  CreditCard,
-  DollarSign,
   EyeIcon,
   FilterIcon,
   GridIcon,
   ListIcon,
   PenIcon,
   Plus,
-  Star,
-  Trash2Icon,
-  Users,
+  Package,
+  CheckCircle,
+  AlertTriangle,
+  Archive,
 } from "lucide-react";
 import { DashboardProductCard } from "@/components/dashboard-product-card";
 import { cn } from "@/lib/utils";
@@ -42,12 +42,14 @@ import { SiteHeader } from "@/components/site-header";
 
 interface ProductStats {
   totalProducts: number;
-  totalSales: number;
-  storeRating: number;
+  activeProducts: number;
+  draftProducts: number;
+  outOfStockProducts: number;
+  archivedProducts: number;
   totalRevenue: number;
 }
 
-// Add this interface to match DashboardProductCard props
+// Update DashboardProduct to match your existing ProductStatus
 interface DashboardProduct {
   id: string;
   image: string;
@@ -57,51 +59,59 @@ interface DashboardProduct {
   price: number;
   originalPrice?: number;
   vendor: string;
-  status: "active" | "draft" | "out-of-stock" | "archived";
+  status: ProductStatus;
   stockQuantity: number;
   sales: number;
   createdAt: string;
   category?: string;
+  revenue?: number;
 }
 
-export default function ProductsPage() {
+type ProductTab = "all" | "active" | "draft" | "out-of-stock" | "archived";
+
+export default function AdminProductsPage() {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ProductViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<ProductStatus[]>([]);
+  const [activeTab, setActiveTab] = useState<ProductTab>("all");
 
   // Get both products and categories from the hook
   const { products, getCategoryById } = useProducts();
 
-  // Calculate correct stats
+  // Calculate product statistics based on your actual ProductStatus
   const stats: ProductStats = {
     totalProducts: products.length,
-    totalSales: products.reduce((sum, p) => sum + (p.sales || 0), 0),
-    storeRating:
-      products.length > 0
-        ? Number(
-            (
-              products.reduce((sum, p) => sum + p.rating, 0) / products.length
-            ).toFixed(1)
-          )
-        : 0, // Average rating across all products
-    totalRevenue: products.reduce(
-      (sum, p) => sum + p.price * (p.sales || 0),
-      0
-    ), // Total revenue (price * sales)
+    activeProducts: products.filter(p => p.status === "active").length,
+    draftProducts: products.filter(p => p.status === "draft").length,
+    outOfStockProducts: products.filter(p => p.status === "out-of-stock").length,
+    archivedProducts: products.filter(p => p.status === "archived").length,
+    totalRevenue: products.reduce((sum, p) => sum + (p.sales || 0) * (p.price || 0), 0),
   };
 
-  // Filter products based on search and status filters
+  // Filter products based on active tab, search, and status filters
   const filteredProducts = products.filter((product) => {
+    // Tab filtering
+    const matchesTab = 
+      activeTab === "all" ||
+      (activeTab === "active" && product.status === "active") ||
+      (activeTab === "draft" && product.status === "draft") ||
+      (activeTab === "out-of-stock" && product.status === "out-of-stock") ||
+      (activeTab === "archived" && product.status === "archived");
+
+    // Search filtering
     const matchesSearch =
       searchQuery === "" ||
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.vendor.toLowerCase().includes(searchQuery.toLowerCase());
+      product.vendor.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (product.category && product.category.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    // Status filter (additional to tab filter)
     const matchesStatus =
       selectedStatuses.length === 0 ||
       selectedStatuses.includes(product.status);
 
-    return matchesSearch && matchesStatus;
+    return matchesTab && matchesSearch && matchesStatus;
   });
 
   // Convert Product to DashboardProduct for the card component
@@ -120,11 +130,12 @@ export default function ProductsPage() {
       stockQuantity: product.stockQuantity,
       sales: product.sales,
       createdAt: product.createdAt,
-      category: category?.name, // Use actual category name
+      category: category?.name,
+      revenue: (product.sales || 0) * (product.price || 0),
     };
   };
 
-  // Available status options for filter
+  // Available status options for filter - using your actual ProductStatus
   const statusOptions: { value: ProductStatus; label: string }[] = [
     { value: "active", label: "Active" },
     { value: "draft", label: "Draft" },
@@ -145,17 +156,17 @@ export default function ProductsPage() {
     setSearchQuery("");
   };
 
-  const formatMoneyShort = (amount: number): string => {
-    if (amount >= 1_000_000) {
-      return `$${(amount / 1_000_000).toFixed(
-        amount % 1_000_000 === 0 ? 0 : 1
-      )}M`;
-    }
-    if (amount >= 1_000) {
-      return `$${(amount / 1_000).toFixed(amount % 1_000 === 0 ? 0 : 1)}K`;
-    }
-    return `$${amount.toLocaleString()}`;
-  };
+  // const formatMoneyShort = (amount: number): string => {
+  //   if (amount >= 1_000_000) {
+  //     return `$${(amount / 1_000_000).toFixed(
+  //       amount % 1_000_000 === 0 ? 0 : 1
+  //     )}M`;
+  //   }
+  //   if (amount >= 1_000) {
+  //     return `$${(amount / 1_000).toFixed(amount % 1_000 === 0 ? 0 : 1)}K`;
+  //   }
+  //   return `$${amount.toLocaleString()}`;
+  // };
 
   const formatNumberShort = (num: number): string => {
     if (num >= 1_000_000) {
@@ -167,30 +178,31 @@ export default function ProductsPage() {
     return num.toString();
   };
 
+  // Updated product cards with your actual status types
   const productCards: CardData[] = [
     {
       title: "Total Products",
       value: formatNumberShort(stats.totalProducts),
-      rightIcon: <CreditCard className="h-4 w-4 text-[#303030]" />,
+      rightIcon: <Package className="h-4 w-4 text-[#303030]" />,
       iconBgColor: "bg-[#D7FFC3]",
     },
     {
-      title: "Total Sales",
-      value: formatNumberShort(stats.totalSales),
-      rightIcon: <Users className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#DECCFE]",
+      title: "Active Products",
+      value: formatNumberShort(stats.activeProducts),
+      rightIcon: <CheckCircle className="h-4 w-4 text-[#303030]" />,
+      iconBgColor: "bg-[#C4E8D1]",
     },
     {
-      title: "Store Rating",
-      value: `${stats.storeRating}/5.0`,
-      rightIcon: <Star className="h-4 w-4 text-[#303030]" />,
+      title: "Out of Stock",
+      value: formatNumberShort(stats.outOfStockProducts),
+      rightIcon: <AlertTriangle className="h-4 w-4 text-[#303030]" />,
       iconBgColor: "bg-[#FFE4C4]",
     },
     {
-      title: "Total Revenue",
-      value: formatMoneyShort(stats.totalRevenue),
-      rightIcon: <DollarSign className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#C4E8D1]",
+      title: "Archived Products",
+      value: formatNumberShort(stats.archivedProducts),
+      rightIcon: <Archive className="h-4 w-4 text-[#303030]" />,
+      iconBgColor: "bg-[#FFC4C4]",
     },
   ];
 
@@ -203,7 +215,7 @@ export default function ProductsPage() {
   };
 
   const formatAmount = (amount: number): string => {
-    return `$${amount.toLocaleString("en-US")}`;
+    return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Updated function to get category name instead of ID
@@ -214,19 +226,19 @@ export default function ProductsPage() {
 
   // Update the handler functions to use DashboardProduct
   const handleViewProduct = (product: DashboardProduct) => {
-    navigate(`/seller/products/${product.id}/view`);
+    navigate(`/admin/products/${product.id}/view`);
   };
 
   const handleEditProduct = (product: DashboardProduct) => {
-    navigate(`/seller/products/${product.id}/edit`);
+    navigate(`/admin/products/${product.id}/edit`);
   };
 
   const handleToggleStatus = (product: DashboardProduct) => {
-    // Implement status toggle logic
-    console.log("Toggle status for:", product.id);
+    // Implement status toggle logic for admin
+    console.log("Toggle status for:", product.id, product.status);
   };
 
-  // Table fields for list view
+  // Table fields for list view with requested columns
   const productFields: TableField<Product>[] = [
     {
       key: "image",
@@ -264,8 +276,21 @@ export default function ProductsPage() {
     },
     {
       key: "stockQuantity",
-      header: "Stock count",
+      header: "Stock Count",
       cell: (value) => <span className="font-medium">{value as number}</span>,
+      align: "right",
+    },
+    {
+      key: "revenue",
+      header: "Revenue Generated",
+      cell: (_, row) => {
+        const revenue = (row.sales || 0) * (row.price || 0);
+        return (
+          <span className="font-medium text-green-600">
+            {formatAmount(revenue)}
+          </span>
+        );
+      },
       align: "right",
     },
     {
@@ -324,7 +349,7 @@ export default function ProductsPage() {
       label: "View Details",
       icon: <EyeIcon className="size-5" />,
       onClick: (product) => {
-        navigate(`/seller/products/${product.id}/view`);
+        navigate(`/admin/products/${product.id}/view`);
       },
     },
     {
@@ -332,15 +357,7 @@ export default function ProductsPage() {
       label: "Edit Product",
       icon: <PenIcon className="size-5" />,
       onClick: (product) => {
-        navigate(`/seller/products/${product.id}/edit`);
-      },
-    },
-    {
-      type: "delete",
-      label: "Delete Product",
-      icon: <Trash2Icon className="size-5" />,
-      onClick: (product) => {
-        navigate(`/seller/products/${product.id}/edit`);
+        navigate(`/admin/products/${product.id}/edit`);
       },
     },
   ];
@@ -352,9 +369,9 @@ export default function ProductsPage() {
           <Button
             variant={"secondary"}
             className="bg-[#CC5500] text-white h-11 hover:bg-[#CC5500]/80"
-            onClick={() => navigate("/seller/products/add-product")}
+            onClick={() => navigate("/admin/products/add-product")}
           >
-            <Plus /> Add product
+            <Plus /> Add Product
           </Button>
         }
       />
@@ -366,6 +383,45 @@ export default function ProductsPage() {
             <div className="space-y-6">
               {/* Products Section */}
               <div className="rounded-lg border bg-card py-6 mb-6 dark:bg-[#303030]">
+                
+                {/* Tab Navigation */}
+                <div className="px-6 mb-6">
+                  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProductTab)}>
+                    <TabsList className="grid w-full grid-cols-5">
+                      <TabsTrigger value="all">
+                        All Products
+                        <Badge variant="secondary" className="ml-2">
+                          {stats.totalProducts}
+                        </Badge>
+                      </TabsTrigger>
+                      <TabsTrigger value="active">
+                        Active Products
+                        <Badge variant="secondary" className="ml-2">
+                          {stats.activeProducts}
+                        </Badge>
+                      </TabsTrigger>
+                      <TabsTrigger value="draft">
+                        Draft Products
+                        <Badge variant="secondary" className="ml-2">
+                          {stats.draftProducts}
+                        </Badge>
+                      </TabsTrigger>
+                      <TabsTrigger value="out-of-stock">
+                        Out of Stock
+                        <Badge variant="secondary" className="ml-2">
+                          {stats.outOfStockProducts}
+                        </Badge>
+                      </TabsTrigger>
+                      <TabsTrigger value="archived">
+                        Archived Products
+                        <Badge variant="secondary" className="ml-2">
+                          {stats.archivedProducts}
+                        </Badge>
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+
                 {/* Search and Filter Section */}
                 <div className="px-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                   <div className="w-full">

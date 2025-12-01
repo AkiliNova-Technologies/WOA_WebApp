@@ -50,7 +50,7 @@ export default function ConsumerHomePage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-[#121212]">
       {/* Header Section */}
       <div className="mb-8 md:mb-12 bg-[#F7F7F7] flex flex-1 flex-col py-8 w-full">
         <h2 className="text-3xl md:text-4xl text-center mb-2 font-semibold text-[#1A1A1A]">

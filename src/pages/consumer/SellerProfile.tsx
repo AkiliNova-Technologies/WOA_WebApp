@@ -124,9 +124,9 @@ export default function SellerProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-[#121212]">
       {/* Header */}
-      <div className="bg-[#F7F7F7] sticky py-3 top-0 z-10">
+      <div className="bg-[#F7F7F7] sticky py-3 top-0 z-10 dark:bg-[#121212]">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button

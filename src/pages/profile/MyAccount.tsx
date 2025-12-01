@@ -32,7 +32,7 @@ export default function MyAccountPage() {
   return (
     <div className="space-y-6">
       {/* Account Settings */}
-      <Card className="shadow-xs">
+      <Card className="shadow-xs ">
         <CardHeader className="border-b">
           <CardTitle>
             <h1 className="text-2xl font-medium">Account Settings</h1>

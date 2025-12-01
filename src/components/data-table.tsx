@@ -83,7 +83,7 @@ interface DataTableProps<TData extends TableData> {
   enablePagination?: boolean;
   pageSize?: number;
   onRowClick?: (row: TData) => void;
-  onSelectionChange?: (selectedRows: TData[]) => void; // Add this
+  onSelectionChange?: (selectedRows: TData[]) => void;
 }
 
 // Default action icons
@@ -137,6 +137,19 @@ const renderValue = (value: unknown): React.ReactNode => {
   return <span>{String(value)}</span>;
 };
 
+// Helper function to get alignment classes
+const getAlignmentClass = (align?: "left" | "center" | "right"): string => {
+  switch (align) {
+    case "center":
+      return "text-center justify-center";
+    case "right":
+      return "text-right justify-end";
+    case "left":
+    default:
+      return "text-left justify-start";
+  }
+};
+
 function DataTable<TData extends TableData>({
   title,
   description,
@@ -148,7 +161,7 @@ function DataTable<TData extends TableData>({
   enablePagination = true,
   pageSize = 10,
   onRowClick,
-  onSelectionChange, // Add this
+  onSelectionChange,
 }: DataTableProps<TData>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -162,6 +175,15 @@ function DataTable<TData extends TableData>({
     pageSize,
   });
 
+  // Create a map of field alignments for easy access
+  const fieldAlignments = React.useMemo(() => {
+    const alignments: Record<string, "left" | "center" | "right"> = {};
+    fields.forEach((field) => {
+      alignments[field.key as string] = field.align || "left";
+    });
+    return alignments;
+  }, [fields]);
+
   // Generate columns dynamically based on fields
   const columns = React.useMemo<ColumnDef<TData>[]>(() => {
     const baseColumns: ColumnDef<TData>[] = [];
@@ -170,9 +192,9 @@ function DataTable<TData extends TableData>({
     if (enableSelection) {
       baseColumns.push({
         id: "select",
-        header: ({}) => (
+        header: ({ table }) => (
           <div className="flex items-center justify-center">
-            {/* <Checkbox
+            <Checkbox
               checked={
                 table.getIsAllPageRowsSelected() ||
                 (table.getIsSomePageRowsSelected() && "indeterminate")
@@ -181,7 +203,7 @@ function DataTable<TData extends TableData>({
                 table.toggleAllPageRowsSelected(!!value)
               }
               aria-label="Select all"
-            /> */}
+            />
           </div>
         ),
         cell: ({ row }) => (
@@ -190,8 +212,6 @@ function DataTable<TData extends TableData>({
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
               aria-label="Select row"
-              className="mr-2"
-
             />
           </div>
         ),
@@ -202,18 +222,30 @@ function DataTable<TData extends TableData>({
 
     // Data columns
     fields.forEach((field) => {
+      const alignment = field.align || "left";
+
       baseColumns.push({
         accessorKey: field.key as string,
-        header: field.header,
+        header: ({}) => {
+          return (
+            <div className={`flex ${getAlignmentClass(alignment)}`}>
+              {field.header}
+            </div>
+          );
+        },
         cell: ({ row }) => {
           const value = row.original[field.key];
 
           if (field.cell) {
-            return field.cell(value, row.original);
+            return (
+              <div className={`flex ${getAlignmentClass(alignment)}`}>
+                {field.cell(value, row.original)}
+              </div>
+            );
           }
 
           return (
-            <div className={`text-${field.align || "left"}`}>
+            <div className={`flex ${getAlignmentClass(alignment)}`}>
               {renderValue(value)}
             </div>
           );
@@ -227,6 +259,7 @@ function DataTable<TData extends TableData>({
     if (actions.length > 0) {
       baseColumns.push({
         id: "actions",
+        header: () => <div className="flex justify-end"></div>,
         cell: ({ row }) => (
           <div className="flex items-center gap-3 justify-end">
             {actions.map((action, index) => (
@@ -234,7 +267,10 @@ function DataTable<TData extends TableData>({
                 key={index}
                 variant="ghost"
                 size="icon"
-                onClick={() => action.onClick(row.original)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  action.onClick(row.original);
+                }}
                 title={action.label || action.type}
                 className="size-8 hover:bg-muted text-[#8C8C8C]"
                 disabled={
@@ -287,7 +323,9 @@ function DataTable<TData extends TableData>({
   // Add selection change handler
   React.useEffect(() => {
     if (onSelectionChange) {
-      const selectedRows = table.getSelectedRowModel().rows.map(row => row.original);
+      const selectedRows = table
+        .getSelectedRowModel()
+        .rows.map((row) => row.original);
       onSelectionChange(selectedRows);
     }
   }, [rowSelection, onSelectionChange, table]);
@@ -295,21 +333,28 @@ function DataTable<TData extends TableData>({
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex items-center justify-between">
-        <div className=" flex-col items-start">
+        <div className="flex flex-col items-start">
           <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
           <p className="text-muted-foreground">{description}</p>
         </div>
       </div>
 
-      <div className="relative flex flex-col gap-4 overflow-auto ">
-        <div className="overflow-hidden rounded-lg border">
+      <div className="relative flex flex-col gap-4 overflow-auto">
+        <div className="overflow-hidden rounded-none border">
           <Table>
-            <TableHeader className="sticky top-0 z-10 bg-muted">
+            <TableHeader className="sticky top-0 z-10 bg-[#FAFAFA] dark:bg-[#00000040]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
+                    const fieldKey = header.column.id;
+                    const alignment = fieldAlignments[fieldKey] || "left";
+
                     return (
-                      <TableHead key={header.id} colSpan={header.colSpan}>
+                      <TableHead
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        className={getAlignmentClass(alignment)}
+                      >
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -344,14 +389,22 @@ function DataTable<TData extends TableData>({
                     }
                     onClick={() => onRowClick?.(row.original)}
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-4">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
+                    {row.getVisibleCells().map((cell) => {
+                      const fieldKey = cell.column.id;
+                      const alignment = fieldAlignments[fieldKey] || "left";
+
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          className={`py-4 ${getAlignmentClass(alignment)}`}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                 ))
               ) : (

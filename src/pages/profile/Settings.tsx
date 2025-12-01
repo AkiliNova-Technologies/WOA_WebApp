@@ -1004,13 +1004,13 @@ export default function ProfileSettingsPage() {
           <TabsContent value="payment" className="mt-8">
             <div>
               <Card className="shadow-none">
-                <div className="flex flex-col items-center justify-center py-6">
+                <div className="flex flex-col items-center justify-center p-6">
                   <img
                     src={images.EmptyWallet}
                     alt=""
                     className="h-3xs w-3xs mb-6"
                   />
-                  <h2 className="text-lg">
+                  <h2 className="text-md text-center">
                     It seems you don't have a payment method yet. You can add a
                     new payment method during a purchase.
                   </h2>

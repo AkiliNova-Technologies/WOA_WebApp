@@ -6,8 +6,8 @@ import { Separator } from "@/components/ui/separator";
 
 export default function CreatePassword() {
   return (
-    <div>
-      <Card className="shadow-none">
+    <div className="flex flex-1 w-full max-w-8xl">
+      <Card className="shadow-none w-2xl max-w-6xl">
         <CardHeader>
           <CardTitle className="text-lg">Create Your Password</CardTitle>
           <p className="text-sm text-gray-500">

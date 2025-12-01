@@ -1,4 +1,4 @@
-// import './App.css'
+import "./App.css";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import WebsiteLayout from "./layout/WebsiteLayout";
 import PageNotFound from "./pages/PageNotFound";
@@ -8,7 +8,6 @@ import SigninPage from "./pages/auth/Signin";
 import SignupPage from "./pages/auth/Signup";
 import ForgotPasswordPage from "./pages/auth/forgot-password";
 import EmailOTPPage from "./pages/auth/email-otp";
-import DashboardLayout from "./layout/DashboardLayout";
 import ProfileLayout from "./layout/ProfileLayout";
 import KYCLayout from "./layout/KYCLayout";
 import StepsContainer from "./pages/KYC/StepsContainer";
@@ -40,19 +39,41 @@ import ProfileSettingsPage from "./pages/profile/Settings";
 import { BreadcrumbProvider } from "./context/BreadcrumbContext";
 import TypePage from "./pages/consumer/Type";
 import AddProductPage from "./pages/seller/dashboard/AddProduct";
+import SellerDashboardLayout from "./layout/SellerDashboardLayout";
+
+// Import admin-specific pages
+import AdminDashboardLayout from "./layout/AdminDashboardLayout";
+import AdminUsersPage from "./pages/admin/Users";
+import AdminCustomersPage from "./pages/admin/Customers";
+import AdminStaffPage from "./pages/admin/Staff";
+import AdminCategoriesPage from "./pages/admin/Categories";
+import AdminProductApprovalsPage from "./pages/admin/ProductApprovals";
+import AdminWishlistPage from "./pages/admin/Wishlist";
+import AdminOrdersPage from "./pages/admin/Orders";
+import AdminLogisticsPage from "./pages/admin/Logistics";
+import AdminRevenuePage from "./pages/admin/Revenue";
+import AdminSettingsPage from "./pages/admin/Settings";
+import AdminSimpleLayout from "./layout/AdminSimpleLayout";
+import AdminCreateCategoriesPage from "./pages/admin/CreateCategories";
+import AdminProductDetailsPage from "./pages/admin/ProductDetails";
+import AdminCartPage from "./pages/admin/Cart";
+import AdminCartDetailPage from "./pages/admin/CartDetails";
+import AdminWishlistDetailPage from "./pages/admin/WishlistDetails";
 
 function App() {
   return (
     <div>
-      <main>
+      <main className="min-h-screen p-0">
         <BreadcrumbProvider>
           <Router>
             <Routes>
               <Route path="" element={<WebsiteLayout />}>
                 <Route index element={<ConsumerHomePage />} />
+
                 <Route path="/profile" element={<ProfileLayout />}>
                   <Route index element={<MyAccountPage />} />
                   <Route path="inbox" element={<InboxPage />} />
+
                   <Route path="orders" element={<SimpleLayout />}>
                     <Route index element={<OrderHistoryPage />} />
                     <Route
@@ -60,13 +81,16 @@ function App() {
                       element={<OrderHistoryDetailPage />}
                     />
                   </Route>
+
                   <Route path="history" element={<HistoryPage />} />
                   <Route path="following" element={<FollowingPage />} />
                   <Route path="settings" element={<ProfileSettingsPage />} />
                   <Route path="reviews" element={<ReviewsPage />} />
                 </Route>
+
                 <Route path="/wishlist" element={<WishListPage />} />
                 <Route path="/cart" element={<CartPage />} />
+
                 <Route path="/category" element={<CategoryLayout />}>
                   <Route index element={<CategoryPage />} />
                   <Route
@@ -89,6 +113,7 @@ function App() {
                 </Route>
                 <Route path="/*" element={<PageNotFound />} />
               </Route>
+
               <Route path="/auth" element={<AuthLayout />}>
                 <Route index element={<SigninPage />} />
                 <Route path="signin" element={<SigninPage />} />
@@ -99,10 +124,12 @@ function App() {
                 />
                 <Route path="signup" element={<SignupPage />} />
               </Route>
+
               <Route path="kyc" element={<KYCLayout />}>
                 <Route index element={<StepsContainer />} />
               </Route>
-              <Route path="/seller" element={<DashboardLayout />}>
+
+              <Route path="/seller" element={<SellerDashboardLayout />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="products" element={<SimpleLayout />}>
                   <Route index element={<ProductsPage />} />
@@ -120,6 +147,68 @@ function App() {
                   <Route path="edit-store" element={<EditStore />} />
                   <Route path="change-password" element={<CreatePassword />} />
                 </Route>
+              </Route>
+
+              {/* Admin Routes - Updated to match AdminNavMain structure */}
+              <Route path="/admin" element={<AdminDashboardLayout />}>
+                <Route index element={<DashboardPage />} />
+
+                <Route path="users" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminUsersPage />} />
+                  <Route path="customers" element={<AdminCustomersPage />} />
+                  <Route path="admins" element={<AdminStaffPage />} />
+                </Route>
+
+                <Route path="categories" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminCategoriesPage />} />
+                  <Route
+                    path="create-category"
+                    element={<AdminCreateCategoriesPage />}
+                  />
+                </Route>
+
+                <Route path="products" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminProductApprovalsPage />} />
+                  <Route
+                    path="approvals"
+                    element={<AdminProductApprovalsPage />}
+                  />
+                  <Route
+                    path=":productId/details"
+                    element={<AdminProductDetailsPage />}
+                  />
+                  <Route path="wishlist" element={<AdminSimpleLayout />}>
+                    <Route index element={<AdminWishlistPage />} />
+                    <Route
+                      path=":productId/details"
+                      element={<AdminWishlistDetailPage />}
+                    />
+                  </Route>
+                  <Route path="cart" element={<AdminSimpleLayout />}>
+                    <Route index element={<AdminCartPage />} />
+                    <Route
+                      path=":productId/details"
+                      element={<AdminCartDetailPage />}
+                    />
+                  </Route>
+                  <Route path="orders" element={<AdminOrdersPage />} />
+                </Route>
+
+                <Route path="logistics" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminLogisticsPage />} />
+                  <Route
+                    path="create-dropoff"
+                    element={<AdminLogisticsPage />}
+                  />
+                  <Route
+                    path=":dropoffId/details"
+                    element={<AdminLogisticsPage />}
+                  />
+                </Route>
+
+                <Route path="revenue" element={<AdminRevenuePage />} />
+
+                <Route path="settings" element={<AdminSettingsPage />} />
               </Route>
             </Routes>
           </Router>
