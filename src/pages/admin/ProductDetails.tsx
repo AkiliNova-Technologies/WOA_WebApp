@@ -578,9 +578,9 @@ export default function AdminProductDetailPage() {
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6">
                     {/* Left Column */}
-                    <div className="border p-4 rounded-lg">
+                    <div className="flex flex-row justify-between border p-4 rounded-lg">
                       <div className="p-4 rounded-lg">
                         <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
                           Category
@@ -610,16 +610,7 @@ export default function AdminProductDetailPage() {
                     </div>
 
                     {/* Right Column */}
-                    <div className="border p-4 rounded-lg">
-                      <div className="p-4 rounded-lg">
-                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
-                          Price
-                        </Label>
-                        <p className="text-muted-foreground">
-                          ${product.price}
-                        </p>
-                      </div>
-
+                    <div className="flex flex-row justify-between border p-4 rounded-lg">
                       <div className="p-4 rounded-lg">
                         <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
                           Available Stock
