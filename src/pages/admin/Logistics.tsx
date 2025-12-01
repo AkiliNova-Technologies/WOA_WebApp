@@ -349,7 +349,10 @@ export default function AdminLogisticsPage() {
       label: "View Details",
       icon: <EyeIcon className="size-5" />,
       onClick: (point) => {
-        navigate(`/admin/logistics/${point.id}`);
+        // navigate(`/admin/logistics/${point.id}`);
+        navigate(`/admin/logistics/details`);
+        console.log("Viewing details for point:", point);
+
       },
     },
     {
@@ -365,7 +368,7 @@ export default function AdminLogisticsPage() {
   return (
     <>
       <SiteHeader label="Logistics Studio" rightActions={
-        <Button variant={"secondary"} className="h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white" > 
+        <Button variant={"secondary"} className="h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white" onClick={()=> navigate("/admin/logistics/create-dropoff")} > 
           <Plus className="h-4 w-4"/> Create dropoff point
         </Button>
       } />

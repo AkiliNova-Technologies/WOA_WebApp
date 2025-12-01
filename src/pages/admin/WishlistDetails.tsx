@@ -34,6 +34,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PieDonutChartComponent } from "@/components/charts/pie-chart";
 import type { ChartConfig } from "@/components/ui/chart";
 import { AreaChartComponent } from "@/components/charts/area-chart";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useState } from "react";
 
 // Extended status type for the drawer
 type ExtendedProductStatus =
@@ -377,6 +385,7 @@ export default function AdminWishlistDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { getProductById } = useProducts();
+  const [timeRange, setTimeRange] = useState("90d");
 
   const product = getProductById(productId!);
 
@@ -580,16 +589,18 @@ export default function AdminWishlistDetailPage() {
     { month: "April", saves: 73, purchases: 190 },
     { month: "May", saves: 209, purchases: 130 },
     { month: "June", saves: 214, purchases: 140 },
+    { month: "July", saves: 186, purchases: 80 },
+    { month: "August", saves: 305, purchases: 200 },
+    { month: "September", saves: 237, purchases: 120 },
+    { month: "October", saves: 73, purchases: 190 },
+    { month: "November", saves: 209, purchases: 130 },
+    { month: "December", saves: 214, purchases: 140 },
   ];
 
   const savesOverTimeConfig = {
     saves: {
       label: "Saves",
       color: "var(--chart-1)",
-    },
-    purchases: {
-      label: "Purchases",
-      color: "var(--chart-2)",
     },
   } satisfies ChartConfig;
 
@@ -715,9 +726,9 @@ export default function AdminWishlistDetailPage() {
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6">
                     {/* Left Column */}
-                    <div className="border p-4 rounded-lg">
+                    <div className="flex flex-row justify-between border p-4 rounded-lg">
                       <div className="p-4 rounded-lg">
                         <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
                           Category
@@ -747,16 +758,7 @@ export default function AdminWishlistDetailPage() {
                     </div>
 
                     {/* Right Column */}
-                    <div className="border p-4 rounded-lg">
-                      <div className="p-4 rounded-lg">
-                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
-                          Price
-                        </Label>
-                        <p className="text-muted-foreground">
-                          ${product.price}
-                        </p>
-                      </div>
-
+                    <div className="flex flex-row justify-between border p-4 rounded-lg">
                       <div className="p-4 rounded-lg">
                         <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
                           Available Stock
@@ -828,9 +830,28 @@ export default function AdminWishlistDetailPage() {
                           Saves Overview
                         </h2>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm">
-                            Last 30 days
-                          </Button>
+                          <Select
+                            value={timeRange}
+                            onValueChange={setTimeRange}
+                          >
+                            <SelectTrigger
+                              className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
+                              aria-label="Select a value"
+                            >
+                              <SelectValue placeholder="Last 3 months" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              <SelectItem value="90d" className="rounded-lg">
+                                Last 3 months
+                              </SelectItem>
+                              <SelectItem value="30d" className="rounded-lg">
+                                Last 30 days
+                              </SelectItem>
+                              <SelectItem value="7d" className="rounded-lg">
+                                Last 7 days
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
                           <Button variant="outline" size="sm">
                             All regions
                           </Button>
@@ -840,7 +861,7 @@ export default function AdminWishlistDetailPage() {
                         <AreaChartComponent
                           data={savesOverTimeData}
                           config={savesOverTimeConfig}
-                          chartHeight="250px"
+                          chartHeight="350px"
                         />
                       </div>
                     </div>
@@ -854,15 +875,33 @@ export default function AdminWishlistDetailPage() {
                         <h2 className="font-semibold text-xl">
                           Saves by Country
                         </h2>
-                        <Button variant="outline" size="sm">
-                          Last 3 months
-                        </Button>
+                        <Select value={timeRange} onValueChange={setTimeRange}>
+                          <SelectTrigger
+                            className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
+                            aria-label="Select a value"
+                          >
+                            <SelectValue placeholder="Last 3 months" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="90d" className="rounded-lg">
+                              Last 3 months
+                            </SelectItem>
+                            <SelectItem value="30d" className="rounded-lg">
+                              Last 30 days
+                            </SelectItem>
+                            <SelectItem value="7d" className="rounded-lg">
+                              Last 7 days
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="w-full">
                         <PieDonutChartComponent
                           data={savesByCountryData}
                           config={savesByCountryConfig}
-                          chartHeight="250px"
+                          chartHeight="350px"
+                          showKey={true}
+                          keyPosition="right"
                         />
                       </div>
                     </div>
@@ -905,15 +944,13 @@ export default function AdminWishlistDetailPage() {
 
               {/* Sizes Saved Tab */}
               <TabsContent value="sizes-saved" className="space-y-8 m-0">
-                <Card className="shadow-none border">
-                  <CardContent className="p-6">
-                    <div className="space-y-6">
-                      {sizeVariants.map((variant, index) => (
-                        <SizeVariantSection key={index} variant={variant} />
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="">
+                  <div className="space-y-6">
+                    {sizeVariants.map((variant, index) => (
+                      <SizeVariantSection key={index} variant={variant} />
+                    ))}
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </div>

@@ -59,6 +59,8 @@ import AdminProductDetailsPage from "./pages/admin/ProductDetails";
 import AdminCartPage from "./pages/admin/Cart";
 import AdminCartDetailPage from "./pages/admin/CartDetails";
 import AdminWishlistDetailPage from "./pages/admin/WishlistDetails";
+import AdminCreateDropoffPage from "./pages/admin/CreateDropoff";
+import AdminViewDropoffPage from "./pages/admin/ViewDropoff";
 
 function App() {
   return (
@@ -198,7 +200,11 @@ function App() {
                   <Route index element={<AdminLogisticsPage />} />
                   <Route
                     path="create-dropoff"
-                    element={<AdminLogisticsPage />}
+                    element={<AdminCreateDropoffPage />}
+                  />
+                  <Route
+                    path="details"
+                    element={<AdminViewDropoffPage />}
                   />
                   <Route
                     path=":dropoffId/details"

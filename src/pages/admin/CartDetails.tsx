@@ -27,15 +27,18 @@ import {
 } from "@/components/data-table";
 import { Search } from "@/components/ui/search";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-// import {
-//   Table,
-//   TableBody,
-//   TableCell,
-//   TableHead,
-//   TableHeader,
-//   TableRow,
-// } from "@/components/ui/table";
-// import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AreaChartComponent } from "@/components/charts/area-chart";
+import { PieDonutChartComponent } from "@/components/charts/pie-chart";
+import type { ChartConfig } from "@/components/ui/chart";
+// import { BarChartComponent } from "@/components/charts/bar-chart";
+
 
 // Extended status type for the drawer
 type ExtendedProductStatus =
@@ -88,6 +91,8 @@ const convertToExtendedStatus = (
       return "active";
   }
 };
+
+// Add this somewhere to test
 
 // Mock buyers data
 const mockBuyers = [
@@ -346,6 +351,7 @@ export default function AdminCartDetailPage() {
   const navigate = useNavigate();
   const { getProductById, updateProduct } = useProducts();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [timeRange, setTimeRange] = useState("90d");
 
   const handleStatusChange = (newStatus: ProductStatus) => {
     if (product) {
@@ -492,6 +498,81 @@ export default function AdminCartDetailPage() {
     },
   ];
 
+  const savesOverTimeData = [
+    { month: "January", saves: 186, purchases: 80 },
+    { month: "February", saves: 305, purchases: 200 },
+    { month: "March", saves: 237, purchases: 120 },
+    { month: "April", saves: 73, purchases: 190 },
+    { month: "May", saves: 209, purchases: 130 },
+    { month: "June", saves: 214, purchases: 140 },
+    { month: "July", saves: 186, purchases: 80 },
+    { month: "August", saves: 305, purchases: 200 },
+    { month: "September", saves: 237, purchases: 120 },
+    { month: "October", saves: 73, purchases: 190 },
+    { month: "November", saves: 209, purchases: 130 },
+    { month: "December", saves: 214, purchases: 140 },
+  ];
+
+  const savesOverTimeConfig = {
+    saves: {
+      label: "Saves",
+      color: "var(--chart-1)",
+    },
+  } satisfies ChartConfig;
+
+  const savesByCountryData = [
+    { name: "Ghana", value: 275, fill: "var(--color-ghana)" },
+    { name: "Nigeria", value: 200, fill: "var(--color-nigeria)" },
+    { name: "Kenya", value: 187, fill: "var(--color-kenya)" },
+    { name: "South Africa", value: 173, fill: "var(--color-south-africa)" },
+    { name: "Other", value: 90, fill: "var(--color-other)" },
+  ];
+
+  const savesByCountryConfig = {
+    value: {
+      label: "Saves",
+    },
+    ghana: {
+      label: "Ghana",
+      color: "var(--chart-1)",
+    },
+    nigeria: {
+      label: "Nigeria",
+      color: "var(--chart-2)",
+    },
+    kenya: {
+      label: "Kenya",
+      color: "var(--chart-3)",
+    },
+    "south-africa": {
+      label: "South Africa",
+      color: "var(--chart-4)",
+    },
+    other: {
+      label: "Other",
+      color: "var(--chart-5)",
+    },
+  } satisfies ChartConfig;
+
+  // Update your cartStatusData in CartDetails.tsx
+  const cartStatusData = [
+    { category: "Active", value: 140 },
+    { category: "Abandoned", value: 75 },
+    { category: "Checkout Failure", value: 100 },
+    { category: "Purchased", value: 200 },
+    { category: "Recovered", value: 20 },
+  ];
+
+  const cartStatusConfig = {
+    value: {
+      label: "Cart Count",
+      color: "#4CAF50",
+    },
+  } satisfies ChartConfig;
+
+  console.log("Data passed to chart:", cartStatusData);
+  console.log("Config passed to chart:", cartStatusConfig);
+
   return (
     <div>
       <SiteHeader label="Product Management" />
@@ -574,9 +655,9 @@ export default function AdminCartDetailPage() {
                   <div className="flex items-start flex-col justify-between mb-6">
                     <h3 className="text-2xl font-semibold">{product.name}</h3>
                   </div>
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6">
                     {/* Left Column */}
-                    <div className="border p-4 rounded-lg">
+                    <div className="flex flex-row justify-between border p-4 rounded-lg">
                       <div className="p-4 rounded-lg">
                         <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
                           Category
@@ -606,16 +687,7 @@ export default function AdminCartDetailPage() {
                     </div>
 
                     {/* Right Column */}
-                    <div className="border p-4 rounded-lg">
-                      <div className="p-4 rounded-lg">
-                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
-                          Price
-                        </Label>
-                        <p className="text-muted-foreground">
-                          ${product.price}
-                        </p>
-                      </div>
-
+                    <div className="flex flex-row justify-between border p-4 rounded-lg">
                       <div className="p-4 rounded-lg">
                         <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
                           Available Stock
@@ -659,10 +731,171 @@ export default function AdminCartDetailPage() {
               </TabsList>
 
               {/* Product Metrics Tab */}
-              <TabsContent
-                value="product-metrics"
-                className="space-y-8 m-0"
-              ></TabsContent>
+              <TabsContent value="product-metrics" className="space-y-8 m-0">
+                <Card className="shadow-none border">
+                  <CardContent className="">
+                    <div className="flex flex-row justify-between items-center">
+                      <h2 className="text-xl font-semibold">
+                        Product Overview
+                      </h2>
+                      <Button variant={"secondary"}>
+                        <ExternalLink className="" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-none border">
+                  <CardContent className="">
+                    <div className="flex flex-row justify-between items-center">
+                      <h2 className="text-xl font-semibold">Seller Overview</h2>
+                      <Button variant={"secondary"}>
+                        <ExternalLink className="" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-none border">
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex flex-row items-center justify-between">
+                        <h2 className="font-semibold text-xl">Cart Overview</h2>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={timeRange}
+                            onValueChange={setTimeRange}
+                          >
+                            <SelectTrigger
+                              className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
+                              aria-label="Select a value"
+                            >
+                              <SelectValue placeholder="Last 3 months" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              <SelectItem value="90d" className="rounded-lg">
+                                Last 3 months
+                              </SelectItem>
+                              <SelectItem value="30d" className="rounded-lg">
+                                Last 30 days
+                              </SelectItem>
+                              <SelectItem value="7d" className="rounded-lg">
+                                Last 7 days
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button variant="outline" size="sm">
+                            All regions
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="w-full">
+                        <AreaChartComponent
+                          data={savesOverTimeData}
+                          config={savesOverTimeConfig}
+                          chartHeight="350px"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 space-x-8">
+                  <Card className="shadow-none border">
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex flex-row items-center justify-between">
+                          <h2 className="font-semibold text-xl">
+                            Cart by Country
+                          </h2>
+                          <Select
+                            value={timeRange}
+                            onValueChange={setTimeRange}
+                          >
+                            <SelectTrigger
+                              className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
+                              aria-label="Select a value"
+                            >
+                              <SelectValue placeholder="Last 3 months" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              <SelectItem value="90d" className="rounded-lg">
+                                Last 3 months
+                              </SelectItem>
+                              <SelectItem value="30d" className="rounded-lg">
+                                Last 30 days
+                              </SelectItem>
+                              <SelectItem value="7d" className="rounded-lg">
+                                Last 7 days
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-full">
+                          <PieDonutChartComponent
+                            data={savesByCountryData}
+                            config={savesByCountryConfig}
+                            chartHeight="350px"
+                            showKey={true}
+                            keyPosition="right"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-none border">
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex flex-row items-center justify-between">
+                          <h2 className="font-semibold text-xl">
+                            Drop off stage
+                          </h2>
+                          <Select
+                            value={timeRange}
+                            onValueChange={setTimeRange}
+                          >
+                            <SelectTrigger
+                              className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
+                              aria-label="Select a value"
+                            >
+                              <SelectValue placeholder="Last 3 months" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              <SelectItem value="90d" className="rounded-lg">
+                                Last 3 months
+                              </SelectItem>
+                              <SelectItem value="30d" className="rounded-lg">
+                                Last 30 days
+                              </SelectItem>
+                              <SelectItem value="7d" className="rounded-lg">
+                                Last 7 days
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-full h-[350px]">
+                          {/* <BarChartComponent
+                            data={cartStatusData}
+                            config={cartStatusConfig}
+                            chartHeight="350px"
+                            orientation="vertical"
+                            categoryKey="category" // FIXED
+                            valueKeys={["value"]} // FIXED
+                            showLabels={true}
+                            showValueLabel={true}
+                            hideYAxis={false}
+                            hideXAxis={true}
+                            yAxisWidth={150}
+                            barRadius={8}
+                            className="shadow-none border-none"
+                          /> */}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
 
               {/* Buyer Information Tab */}
               <TabsContent value="buyer-information" className="space-y-8 m-0">
