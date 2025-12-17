@@ -1,66 +1,83 @@
 import "./App.css";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
-import WebsiteLayout from "./layout/WebsiteLayout";
-import PageNotFound from "./pages/PageNotFound";
-import ConsumerHomePage from "./pages/consumer/ConsumerHome";
-import AuthLayout from "./layout/AuthLayout";
-import SigninPage from "./pages/auth/Signin";
-import SignupPage from "./pages/auth/Signup";
-import ForgotPasswordPage from "./pages/auth/forgot-password";
-import EmailOTPPage from "./pages/auth/email-otp";
-import ProfileLayout from "./layout/ProfileLayout";
-import KYCLayout from "./layout/KYCLayout";
-import StepsContainer from "./pages/KYC/StepsContainer";
-import DashboardPage from "./pages/seller/dashboard/Dashboard";
-import ProductsPage from "./pages/seller/dashboard/Products";
-import RevenuePage from "./pages/seller/dashboard/Revenue";
-import InventoryPage from "./pages/seller/dashboard/Inventory";
-import OrdersPage from "./pages/seller/dashboard/Orders";
-import SettingsPage from "./pages/seller/dashboard/Settings";
-import SellerSettingsDashboardLayout from "./layout/SellerSettingsDashboardLayout";
-import CreatePassword from "./pages/seller/dashboard/CreatePassword";
-import { EditStore } from "./pages/seller/dashboard/EditStore";
-import CartPage from "./pages/consumer/Cart";
-import WishListPage from "./pages/consumer/Wishlist";
-import ProductDetailPage from "./pages/consumer/ProductDetail";
-import SubCategoryPage from "./pages/consumer/SubCategory";
-import CategoryPage from "./pages/consumer/Category";
-import CategoryLayout from "./layout/CategoryLayout";
-import SellerProfilePage from "./pages/consumer/SellerProfile";
-import InboxPage from "./pages/profile/Inbox";
-import FollowingPage from "./pages/profile/Following";
-import ReviewsPage from "./pages/profile/Reviews";
-import MyAccountPage from "./pages/profile/MyAccount";
-import OrderHistoryPage from "./pages/profile/Orders";
-import OrderHistoryDetailPage from "./pages/profile/OrderDetails";
-import SimpleLayout from "./layout/SimpleLayout";
-import HistoryPage from "./pages/profile/History";
-import ProfileSettingsPage from "./pages/profile/Settings";
-import { BreadcrumbProvider } from "./context/BreadcrumbContext";
-import TypePage from "./pages/consumer/Type";
-import AddProductPage from "./pages/seller/dashboard/AddProduct";
-import SellerDashboardLayout from "./layout/SellerDashboardLayout";
+import WebsiteLayout from "@/layout/WebsiteLayout.tsx";
+import PageNotFound from "@/pages/PageNotFound.tsx";
+import ConsumerHomePage from "@/pages/consumer/ConsumerHome.tsx";
+import AuthLayout from "@/layout/AuthLayout.tsx";
+import SigninPage from "@/pages/auth/Signin.tsx";
+import SignupPage from "@/pages/auth/Signup.tsx";
+import ForgotPasswordPage from "@/pages/auth/forgot-password.tsx";
+import EmailOTPPage from "@/pages/auth/email-otp.tsx";
+import ProfileLayout from "@/layout/ProfileLayout.tsx";
+import KYCLayout from "@/layout/KYCLayout.tsx";
+import StepsContainer from "@/pages/KYC/StepsContainer.tsx";
+import DashboardPage from "@/pages/vendor/dashboard/Dashboard.tsx";
+import ProductsPage from "@/pages/vendor/dashboard/Products.tsx";
+import RevenuePage from "@/pages/vendor/dashboard/Revenue.tsx";
+import InventoryPage from "@/pages/vendor/dashboard/Inventory.tsx";
+import OrdersPage from "@/pages/vendor/dashboard/Orders.tsx";
+import SettingsPage from "@/pages/vendor/dashboard/Settings.tsx";
+import VendorSettingsDashboardLayout from "@/layout/VendorSettingsDashboardLayout.tsx";
+import CreatePassword from "@/pages/vendor/dashboard/CreatePassword.tsx";
+import { EditStore } from "@/pages/vendor/dashboard/EditStore.tsx";
+import CartPage from "@/pages/consumer/Cart.tsx";
+import WishListPage from "@/pages/consumer/Wishlist.tsx";
+import ProductDetailPage from "@/pages/consumer/ProductDetail.tsx";
+import SubCategoryPage from "@/pages/consumer/SubCategory.tsx";
+import CategoryPage from "@/pages/consumer/Category.tsx";
+import CategoryLayout from "@/layout/CategoryLayout.tsx";
+import VendorProfilePage from "@/pages/consumer/VendorProfile.tsx";
+import InboxPage from "@/pages/profile/Inbox.tsx";
+import FollowingPage from "@/pages/profile/Following.tsx";
+import ReviewsPage from "@/pages/profile/Reviews.tsx";
+import MyAccountPage from "@/pages/profile/MyAccount.tsx";
+import OrderHistoryPage from "@/pages/profile/Orders.tsx";
+import OrderHistoryDetailPage from "@/pages/profile/OrderDetails.tsx";
+import SimpleLayout from "@/layout/SimpleLayout.tsx";
+import HistoryPage from "@/pages/profile/History.tsx";
+import ProfileSettingsPage from "@/pages/profile/Settings.tsx";
+import { BreadcrumbProvider } from "@/context/BreadcrumbContext.tsx";
+import TypePage from "@/pages/consumer/Type.tsx";
+import AddProductPage from "@/pages/vendor/dashboard/AddProduct.tsx";
+import VendorDashboardLayout from "@/layout/VendorDashboardLayout.tsx";
 
 // Import admin-specific pages
-import AdminDashboardLayout from "./layout/AdminDashboardLayout";
-import AdminUsersPage from "./pages/admin/Users";
-import AdminCustomersPage from "./pages/admin/Customers";
-import AdminStaffPage from "./pages/admin/Staff";
-import AdminCategoriesPage from "./pages/admin/Categories";
-import AdminProductApprovalsPage from "./pages/admin/ProductApprovals";
-import AdminWishlistPage from "./pages/admin/Wishlist";
-import AdminOrdersPage from "./pages/admin/Orders";
-import AdminLogisticsPage from "./pages/admin/Logistics";
-import AdminRevenuePage from "./pages/admin/Revenue";
-import AdminSettingsPage from "./pages/admin/Settings";
-import AdminSimpleLayout from "./layout/AdminSimpleLayout";
-import AdminCreateCategoriesPage from "./pages/admin/CreateCategories";
-import AdminProductDetailsPage from "./pages/admin/ProductDetails";
-import AdminCartPage from "./pages/admin/Cart";
-import AdminCartDetailPage from "./pages/admin/CartDetails";
-import AdminWishlistDetailPage from "./pages/admin/WishlistDetails";
-import AdminCreateDropoffPage from "./pages/admin/CreateDropoff";
-import AdminViewDropoffPage from "./pages/admin/ViewDropoff";
+import AdminDashboardLayout from "@/layout/AdminDashboardLayout.tsx";
+import AdminUsersPage from "@/pages/admin/Users.tsx";
+import AdminCustomersPage from "@/pages/admin/Customers.tsx";
+import AdminStaffPage from "@/pages/admin/Staff";
+import AdminCategoriesPage from "@/pages/admin/Categories.tsx";
+import AdminProductApprovalsPage from "@/pages/admin/ProductApprovals.tsx";
+import AdminWishlistPage from "@/pages/admin/Wishlist.tsx";
+import AdminOrdersPage from "@/pages/admin/Orders";
+import AdminLogisticsPage from "@/pages/admin/Logistics.tsx";
+import AdminRevenuePage from "@/pages/admin/Revenue.tsx";
+import AdminSettingsPage from "@/pages/admin/Settings.tsx";
+import AdminSimpleLayout from "@/layout/AdminSimpleLayout.tsx";
+import AdminCreateCategoriesPage from "@/pages/admin/CreateCategories.tsx";
+import AdminProductDetailsPage from "@/pages/admin/ProductDetails.tsx";
+import AdminCartPage from "@/pages/admin/Cart.tsx";
+import AdminCartDetailPage from "@/pages/admin/CartDetails.tsx";
+import AdminWishlistDetailPage from "@/pages/admin/WishlistDetails.tsx";
+import AdminCreateDropoffPage from "@/pages/admin/CreateDropoff.tsx";
+import AdminViewDropoffPage from "@/pages/admin/ViewDropoff.tsx";
+import AdminVendorsPage from "@/pages/admin/Vendors.tsx";
+import AdminCreateStaffPage from "@/pages/admin/CreateStaff.tsx";
+import AdminEditStaffPage from "@/pages/admin/EditStaff.tsx";
+import AdminCustomerDetailPage from "@/pages/admin/CustomerDetails.tsx";
+import AdminVendorDetailPage from "@/pages/admin/VendorDetails.tsx";
+import AdminCreateVendorPage from "@/pages/admin/CreateVendor.tsx";
+import AdminSignInPage from "./pages/auth/admin/Signin.tsx";
+import AdminEmailOTPPage from "./pages/auth/admin/email-otp.tsx";
+import AdminForgotPasswordPage from "./pages/auth/admin/forgot-password.tsx";
+import AdminAuthLayout from "./layout/AdminAuthLayout.tsx";
+import VendorSignInPage from "./pages/auth/vendor/Signin.tsx";
+import VendorEmailOTPPage from "./pages/auth/vendor/email-otp.tsx";
+import VendorForgotPasswordPage from "./pages/auth/vendor/forgot-password.tsx";
+import VendorAuthLayout from "./layout/VendorAuthLayout.tsx";
+import CreatePasswordPage from "./pages/auth/CreatePassword.tsx";
+import AdminDashboardPage from "./pages/admin/Dashboard.tsx";
+import { Toaster } from "sonner";
 
 function App() {
   return (
@@ -109,8 +126,8 @@ function App() {
                     element={<TypePage />}
                   />
                   <Route
-                    path="seller-profile"
-                    element={<SellerProfilePage />}
+                    path="vendor-profile"
+                    element={<VendorProfilePage />}
                   />
                 </Route>
                 <Route path="/*" element={<PageNotFound />} />
@@ -121,17 +138,41 @@ function App() {
                 <Route path="signin" element={<SigninPage />} />
                 <Route path="verify" element={<EmailOTPPage />} />
                 <Route
+                  path="create-password"
+                  element={<CreatePasswordPage />}
+                />
+                <Route
                   path="forgot-password"
                   element={<ForgotPasswordPage />}
                 />
                 <Route path="signup" element={<SignupPage />} />
               </Route>
 
+              <Route path="/admin/auth" element={<AdminAuthLayout />}>
+                <Route index element={<AdminSignInPage />} />
+                <Route path="signin" element={<AdminSignInPage />} />
+                <Route path="verify" element={<AdminEmailOTPPage />} />
+                <Route
+                  path="forgot-password"
+                  element={<AdminForgotPasswordPage />}
+                />
+              </Route>
+
+              <Route path="/vendor/auth" element={<VendorAuthLayout />}>
+                <Route index element={<VendorSignInPage />} />
+                <Route path="signin" element={<VendorSignInPage />} />
+                <Route path="verify" element={<VendorEmailOTPPage />} />
+                <Route
+                  path="forgot-password"
+                  element={<VendorForgotPasswordPage />}
+                />
+              </Route>
+
               <Route path="kyc" element={<KYCLayout />}>
                 <Route index element={<StepsContainer />} />
               </Route>
 
-              <Route path="/seller" element={<SellerDashboardLayout />}>
+              <Route path="/vendor" element={<VendorDashboardLayout />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="products" element={<SimpleLayout />}>
                   <Route index element={<ProductsPage />} />
@@ -143,7 +184,7 @@ function App() {
 
                 <Route
                   path="settings"
-                  element={<SellerSettingsDashboardLayout />}
+                  element={<VendorSettingsDashboardLayout />}
                 >
                   <Route index element={<SettingsPage />} />
                   <Route path="edit-store" element={<EditStore />} />
@@ -153,12 +194,30 @@ function App() {
 
               {/* Admin Routes - Updated to match AdminNavMain structure */}
               <Route path="/admin" element={<AdminDashboardLayout />}>
-                <Route index element={<DashboardPage />} />
+                <Route index element={<AdminDashboardPage />} />
 
                 <Route path="users" element={<AdminSimpleLayout />}>
                   <Route index element={<AdminUsersPage />} />
-                  <Route path="customers" element={<AdminCustomersPage />} />
-                  <Route path="admins" element={<AdminStaffPage />} />
+                  <Route path="vendors" element={<AdminSimpleLayout />}>
+                    <Route index element={<AdminVendorsPage />} />
+                    <Route path="create" element={<AdminCreateVendorPage />} />
+                    <Route
+                      path=":id/details"
+                      element={<AdminVendorDetailPage />}
+                    />
+                  </Route>
+                  <Route path="customers" element={<AdminSimpleLayout />}>
+                    <Route index element={<AdminCustomersPage />} />
+                    <Route
+                      path=":id/details"
+                      element={<AdminCustomerDetailPage />}
+                    />
+                  </Route>
+                  <Route path="staff" element={<AdminSimpleLayout />}>
+                    <Route index element={<AdminStaffPage />} />
+                    <Route path="create" element={<AdminCreateStaffPage />} />
+                    <Route path=":id/edit" element={<AdminEditStaffPage />} />
+                  </Route>
                 </Route>
 
                 <Route path="categories" element={<AdminSimpleLayout />}>
@@ -171,6 +230,13 @@ function App() {
 
                 <Route path="products" element={<AdminSimpleLayout />}>
                   <Route index element={<AdminProductApprovalsPage />} />
+                  <Route path="categories" element={<AdminSimpleLayout />}>
+                    <Route index element={<AdminCategoriesPage />} />
+                    <Route
+                      path="create-category"
+                      element={<AdminCreateCategoriesPage />}
+                    />
+                  </Route>
                   <Route
                     path="approvals"
                     element={<AdminProductApprovalsPage />}
@@ -202,10 +268,7 @@ function App() {
                     path="create-dropoff"
                     element={<AdminCreateDropoffPage />}
                   />
-                  <Route
-                    path="details"
-                    element={<AdminViewDropoffPage />}
-                  />
+                  <Route path="details" element={<AdminViewDropoffPage />} />
                   <Route
                     path=":dropoffId/details"
                     element={<AdminLogisticsPage />}
@@ -217,6 +280,15 @@ function App() {
                 <Route path="settings" element={<AdminSettingsPage />} />
               </Route>
             </Routes>
+            <Toaster
+              position="top-right"
+              expand={false}
+              richColors
+              closeButton
+              duration={4000}
+              visibleToasts={3}
+              offset={16}
+            />
           </Router>
         </BreadcrumbProvider>
       </main>

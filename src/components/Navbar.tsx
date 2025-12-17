@@ -7,10 +7,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "../components/ui/avatar";
 import images from "../assets/images";
 import { SearchInput, type Suggestion } from "./ui/search-input";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useReduxAuth } from "../hooks/useReduxAuth";
 
 interface Category {
   id: string;
@@ -18,7 +20,8 @@ interface Category {
 }
 
 export default function NavbarSection() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, getAvatar, getFullName } = useReduxAuth();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -325,16 +328,30 @@ export default function NavbarSection() {
             </span>
           </button>
 
-          <Button
-            variant="secondary"
-            className="rounded-full bg-white text-black hover:bg-gray-100 flex items-center gap-3 h-12 px-4 sm:px-5 transition-all duration-200 hover:shadow-md"
-            onClick={()=> navigate("/auth/signin")}
-          >
-            <span className="hidden sm:inline">Sign in</span>
-            <div className="bg-black text-white rounded-full p-1">
-              <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4" />
-            </div>
-          </Button>
+{isAuthenticated ? (
+            <button
+              onClick={() => navigate("/profile/myaccount")}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity duration-200"
+            >
+              <Avatar className="h-10 w-10 rounded-full cursor-pointer ring-2 ring-yellow-400 hover:ring-yellow-300 transition-all">
+                <AvatarImage src={getAvatar()} alt={getFullName()} />
+                <AvatarFallback className="bg-yellow-400 text-black font-semibold">
+                  {user?.firstName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          ) : (
+            <Button
+              variant="secondary"
+              className="rounded-full bg-white text-black hover:bg-gray-100 flex items-center gap-3 h-12 px-4 sm:px-5 transition-all duration-200 hover:shadow-md"
+              onClick={() => navigate("/auth/signin")}
+            >
+              <span className="hidden sm:inline">Sign in</span>
+              <div className="bg-black text-white rounded-full p-1">
+                <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4" />
+              </div>
+            </Button>
+          )}
         </div>
       </div>
     </nav>

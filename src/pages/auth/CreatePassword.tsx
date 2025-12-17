@@ -1,34 +1,158 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import { AlertCircle, Check, Loader2 } from "lucide-react";
 import images from "@/assets/images";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { PasswordInput } from "@/components/ui/password";
-import { useState } from "react";
-import icons from "@/assets/icons";
+import { useEffect, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useReduxAuth } from "@/hooks/useReduxAuth";
+
+interface SignUpData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  countryCode: string;
+}
 
 export default function CreatePasswordPage() {
-  const [password, setPassword] = useState("");
+  const location = useLocation();
   const navigate = useNavigate();
+  const {
+    signup,
+    loading,
+    error: authError,
+    clearError,
+    isAuthenticated,
+  } = useReduxAuth();
 
-  const handleSignUp = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Sign in attempted with:", { password });
-    // TODO: Add sign in logic here
+  // Get form data from navigation state
+  const signUpData = location.state?.formData as SignUpData;
 
-    // For now, navigate to dashboard or next page
-    navigate("/kyc");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [formErrors, setFormErrors] = useState({
+    password: "",
+    confirmPassword: "",
+    terms: "",
+  });
+
+  // Debug: Check what data we're receiving
+  useEffect(() => {
+    console.log("CreatePasswordPage - Received signUpData:", signUpData);
+    console.log("CreatePasswordPage - Email from signUpData:", signUpData?.email);
+    
+    if (!signUpData) {
+      console.log("CreatePasswordPage - No signUpData, redirecting to signup");
+      navigate("/auth/signup");
+    }
+    
+    if (isAuthenticated) {
+      navigate("/profile", { replace: true });
+    }
+  }, [signUpData, isAuthenticated, navigate]);
+
+  const validatePassword = () => {
+    const errors = { password: "", confirmPassword: "", terms: "" };
+    let isValid = true;
+
+    if (password.length < 8) {
+      errors.password = "Password must be at least 8 characters long";
+      isValid = false;
+    } else if (!/(?=.*[a-z])/.test(password)) {
+      errors.password = "Password must contain at least one lowercase letter";
+      isValid = false;
+    } else if (!/(?=.*[A-Z])/.test(password)) {
+      errors.password = "Password must contain at least one uppercase letter";
+      isValid = false;
+    } else if (!/(?=.*\d)/.test(password)) {
+      errors.password = "Password must contain at least one number";
+      isValid = false;
+    } else if (!/(?=.*[@$!%*?&])/.test(password)) {
+      errors.password = "Password must contain at least one special character";
+      isValid = false;
+    }
+
+    if (password !== confirmPassword) {
+      errors.confirmPassword = "Passwords do not match";
+      isValid = false;
+    }
+
+    if (!agreedToTerms) {
+      errors.terms = "You must accept the terms and conditions";
+      isValid = false;
+    }
+
+    setFormErrors(errors);
+    return isValid;
   };
 
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    clearError();
+    setPasswordError("");
+
+    if (!validatePassword()) {
+      return;
+    }
+
+    // Check if we have all required data
+    if (!signUpData?.email) {
+      setPasswordError("Missing registration data. Please start over.");
+      console.error("Missing signUpData:", signUpData);
+      return;
+    }
+
+    // Combine all data for signup
+    const registrationData = {
+      firstName: signUpData.firstName,
+      lastName: signUpData.lastName,
+      email: signUpData.email,
+      phoneNumber: signUpData.phoneNumber,
+      password: password,
+    };
+
+    console.log("CreatePasswordPage - Sending registration data:", {
+      ...registrationData,
+      password: "***HIDDEN***" // Don't log password
+    });
+
+    try {
+      // Call the signup API
+      const result = await signup(registrationData);
+      console.log("CreatePasswordPage - Signup result:", result);
+
+      // Store email in localStorage as backup
+      localStorage.setItem("pendingVerificationEmail", signUpData.email);
+
+      // Navigate to verification page
+      navigate("/auth/verify", {
+        state: { 
+          email: signUpData.email,
+          message: "Registration successful! Please verify your email." 
+        },
+      });
+    } catch (error: any) {
+      console.error("CreatePasswordPage - Sign up failed:", error);
+      
+      if (error.message?.includes("password")) {
+        setPasswordError(error.message);
+      } else {
+        setPasswordError(error.message || "Failed to create account. Please try again.");
+      }
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
+    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50 dark:bg-[#121212]">
       {/* Left Section */}
-      <div className="flex flex-col justify-center items-center bg-[#EBEBEB] w-full md:w-1/3 px-8 py-12">
+      <div className="flex flex-col justify-center items-center bg-[#EBEBEB] w-full md:w-1/3 px-8 py-12 dark:bg-[#303030]">
         <div className="max-w-sm text-center md:text-left">
           <div className="flex justify-center md:justify-center mb-8">
             <img
@@ -39,24 +163,28 @@ export default function CreatePasswordPage() {
           </div>
 
           <div className="px-6">
-            <h2 className="text-3xl font-semibold text-gray-800 mb-6 text-center">
+            <h2 className="text-3xl font-semibold text-gray-800 mb-6 text-center dark:text-white">
               Why we are the best
             </h2>
 
             <ul className="space-y-4 text-gray-700 text-sm">
               <li className="flex items-start gap-2">
                 <Check className="text-green-600 mt-[3px] h-4 w-4" />
-                <span className="">
-                  Real seller experiences presented in a compelling way.
+                <span className="dark:text-white">
+                  Real vendor experiences presented in a compelling way.
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="text-green-600 mt-[3px] h-4 w-4" />
-                <span>Made locally, shipped globally.</span>
+                <span className="dark:text-white">
+                  Made locally, shipped globally.
+                </span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="text-green-600 mt-[3px] h-4 w-4" />
-                <span>Get tailored recommendations.</span>
+                <span className="dark:text-white">
+                  Get tailored recommendations.
+                </span>
               </li>
             </ul>
           </div>
@@ -67,50 +195,40 @@ export default function CreatePasswordPage() {
       <div className="flex justify-center items-center w-full p-6 md:p-12">
         <Card className="w-full max-w-xl shadow-xs rounded-xs bg-[#F5F5F5] py-8 px-8">
           <CardHeader>
-            <CardTitle className="text-3xl font-semibold text-center text-gray-800">
+            <CardTitle className="text-3xl font-semibold text-center text-gray-800 dark:text-white">
               Welcome to World of Afrika
             </CardTitle>
-            <p className="mt-3 text-center font-medium text-lg">Sign up</p>
-            <div className="flex flex-row justify-center items-center gap-2 -mt-2 ">
-              <p className="text-sm text-gray-500">Already have an Account?</p>
-              <Button
-                variant={"link"}
-                className="p-0 text-[#1B84FF]"
-                onClick={() => navigate("/auth/signin")}
-              >
-                Sign in
-              </Button>
-            </div>
+            <p className="mt-3 text-center font-medium text-lg">
+              Create a Password
+            </p>
+
             <div className="flex flex-row justify-center gap-2">
-              <Button
-                variant={"outline"}
-                className="h-11 shadow-xs px-10 text-[#4B5675]"
-              >
-                <img src={icons.Google} />
-                Use Google
-              </Button>
-              <Button
-                variant={"outline"}
-                className="h-11 shadow-xs px-10 text-[#4B5675]"
-              >
-                <img src={icons.Apple} />
-                Use Apple
-              </Button>
+              <p className="text-[#4B5675] text-sm dark:text-gray-500">Already have an account?</p>
+              <Link to={"/auth/"} className="text-[#1B84FF] text-sm">Sign in</Link>
             </div>
           </CardHeader>
 
-          <div className="flex flex-row gap-4 items-center px-4">
-            <Separator className="flex-1" />
-            <p className="text-[#78829D] text-sm">OR</p>
-            <Separator className="flex-1" />
-          </div>
-
           <CardContent>
-            <form className="space-y-4" onSubmit={handleSignUp}>
+            {authError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{authError}</AlertDescription>
+              </Alert>
+            )}
 
+            {passwordError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{passwordError}</AlertDescription>
+              </Alert>
+            )}
+
+            <form className="space-y-4" onSubmit={handleSignUp}>
               {/* Password */}
-              <div>
-                <label className="text-sm text-gray-700">Password</label>
+              <div className="space-y-2">
+                <Label className="text-sm text-gray-700 dark:text-white">
+                  Password
+                </Label>
                 <PasswordInput
                   placeholder="Enter your password"
                   value={password}
@@ -118,25 +236,44 @@ export default function CreatePasswordPage() {
                   className="mt-1 bg-[#FCFCFC]"
                   required
                 />
+                {formErrors.password && (
+                  <p className="text-sm text-red-600">{formErrors.password}</p>
+                )}
               </div>
 
-              {/* Password */}
-              <div>
-                <label className="text-sm text-gray-700">
+              {/* Confirm Password */}
+              <div className="space-y-2">
+                <Label className="text-sm text-gray-700 dark:text-white">
                   Confirm Password
-                </label>
+                </Label>
                 <PasswordInput
                   placeholder="Re-enter password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="mt-1 bg-[#FCFCFC]"
                   required
                 />
+                {formErrors.confirmPassword && (
+                  <p className="text-sm text-red-600">
+                    {formErrors.confirmPassword}
+                  </p>
+                )}
               </div>
+
               <div className="flex items-center gap-3">
-                <Checkbox id="terms" className="bg-white" />
+                <Checkbox
+                  id="terms"
+                  className=""
+                  checked={agreedToTerms}
+                  onCheckedChange={(checked) =>
+                    setAgreedToTerms(checked as boolean)
+                  }
+                />
                 <div className="flex flex-row gap-2">
-                  <Label htmlFor="terms" className="text-sm text-gray-700">
+                  <Label
+                    htmlFor="terms"
+                    className="text-sm text-gray-700 dark:text-white"
+                  >
                     I accept
                   </Label>
                   <Link to={"/t&c"} className="text-[#1B84FF] text-sm ">
@@ -144,14 +281,24 @@ export default function CreatePasswordPage() {
                   </Link>
                 </div>
               </div>
+              {formErrors.terms && (
+                <p className="text-sm text-red-600">{formErrors.terms}</p>
+              )}
 
               {/* Button */}
               <Button
                 type="submit"
                 className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm mt-5"
-                onClick={handleSignUp}
+                disabled={loading}
               >
-                Sign up
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  "Continue"
+                )}
               </Button>
             </form>
           </CardContent>

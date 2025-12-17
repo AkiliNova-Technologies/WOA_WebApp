@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DataTable,
@@ -16,33 +16,39 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
-import {
-  EyeIcon,
-  Heart,
-  ShoppingCart,
-  Package,
-  ListFilter,
-} from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
-import { useCart } from "@/hooks/useCart";
+import { Filter, Download, Eye } from "lucide-react";
+import { useReduxCart } from "@/hooks/useReduxCart";
+import images from "@/assets/images";
 
-type CartStatus = "all" | "in-stock" | "out-of-stock" | "on-sale";
+type CartStatus = "in-stock" | "limited-stock" | "out-of-stock" | "suspended";
+type TabFilter = "all" | "in-stock" | "limited-stock" | "out-of-stock" | "suspended";
 
-interface CartStats {
-  totalItems: number;
-  itemsInStock: number;
-  itemsOutOfStock: number;
-  itemsOnSale: number;
-  totalValue: number;
-  categoriesCount: number;
-}
+// interface CartStats {
+//   totalItems: number;
+//   cartToPurchase: number;
+//   cartAbandonment: number;
+//   grossRevenue: number;
+// }
 
 interface CartItemWithId {
   id: string;
   productId: string;
-  product: any;
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+    price: number;
+    salePrice?: number;
+    images: { url: string; isPrimary: boolean }[];
+    vendor: { id: string; businessName: string };
+    stock: number;
+    category?: string; // Added category property
+  };
   quantity: number;
   addedAt: string;
+  carts: number;
+  status: CartStatus;
   [key: string]: any;
 }
 
@@ -50,54 +56,25 @@ export default function AdminCartPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<CartStatus[]>([]);
+  const [activeTab, setActiveTab] = useState<TabFilter>("all");
 
-  // Change to useCart hook
   const {
-    cartItems,
-    cartCount,
-    cartStats,
-    getInStockCartItems,
-    getOutOfStockCartItems,
-    getOnSaleCartItems,
-  } = useCart();
+    items,
+    itemCount,
+    getCart,
+    calculateSubtotal,
+  } = useReduxCart();
 
-  // Transform cart items to include id for DataTable
-  const cartItemsWithId: CartItemWithId[] = cartItems.map((item) => ({
-    ...item,
-    id: item.productId,
-  }));
+  useEffect(() => {
+    getCart();
+  }, [getCart]);
 
-  // Calculate cart statistics
-  const stats: CartStats = {
-    totalItems: cartCount,
-    itemsInStock: getInStockCartItems().length,
-    itemsOutOfStock: getOutOfStockCartItems().length,
-    itemsOnSale: getOnSaleCartItems().length,
-    totalValue: cartStats.total,
-    categoriesCount: cartStats.categoriesCount,
-  };
-
-  // Filter cart items based on search and status filters
-  const filteredCartItems = cartItemsWithId.filter((item) => {
-    // Search filtering
-    const matchesSearch =
-      searchQuery === "" ||
-      item.product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.product.vendor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.product.tags.some((tag: string) =>
-        tag.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-
-    // Status filtering
-    const matchesStatus =
-      selectedStatuses.length === 0 ||
-      (selectedStatuses.includes("in-stock") && item.product.inStock) ||
-      (selectedStatuses.includes("out-of-stock") && !item.product.inStock) ||
-      (selectedStatuses.includes("on-sale") && item.product.isOnSale);
-
-    return matchesSearch && matchesStatus;
-  });
+  const statusOptions: { value: CartStatus; label: string }[] = [
+    { value: "in-stock", label: "In stock" },
+    { value: "limited-stock", label: "Limited stock" },
+    { value: "out-of-stock", label: "Out of stock" },
+    { value: "suspended", label: "Suspended" },
+  ];
 
   const handleStatusFilterChange = (status: CartStatus) => {
     setSelectedStatuses((prev) =>
@@ -110,72 +87,124 @@ export default function AdminCartPage() {
   const clearAllFilters = () => {
     setSelectedStatuses([]);
     setSearchQuery("");
+    setActiveTab("all");
   };
+
+  // Transform cart items for table display
+  const transformCartItemForTable = (item: any, index: number): CartItemWithId => {
+    const statuses: CartStatus[] = ["in-stock", "limited-stock", "out-of-stock", "suspended"];
+    const status = statuses[index % statuses.length];
+    
+    return {
+      id: item.id || `cart-${index}`,
+      productId: item.productId || item.product?.id || `product-${index}`,
+      product: {
+        id: item.product?.id || `product-${index}`,
+        name: item.product?.name || "Unknown Product",
+        sku: item.product?.sku || "N/A",
+        price: item.price || item.product?.price || 0,
+        salePrice: item.salePrice || item.product?.salePrice,
+        images: item.product?.images || [],
+        vendor: item.product?.vendor || { id: "unknown", businessName: "Unknown Vendor" },
+        stock: item.product?.stock || 0,
+        category: item.product?.category?.name || "Uncategorized", // Fixed category access
+      },
+      quantity: item.quantity || 1,
+      addedAt: item.addedAt || new Date().toISOString(),
+      carts: 10, // Placeholder
+      status: status,
+    };
+  };
+
+  const tableCartItems: CartItemWithId[] = items.map(transformCartItemForTable);
+
+  // Filter cart items
+  const filteredCartItems = tableCartItems.filter((item) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      item.product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.product.vendor.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.product.category && item.product.category.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesStatusFilter =
+      selectedStatuses.length === 0 ||
+      selectedStatuses.includes(item.status);
+
+    const matchesTabFilter = 
+      activeTab === "all" ||
+      activeTab === item.status;
+
+    return matchesSearch && matchesStatusFilter && matchesTabFilter;
+  });
+
+  // Calculate statistics for cards
+  const totalItems = itemCount;
+  const inStockItems = tableCartItems.filter(item => item.status === "in-stock").length;
+  const limitedStockItems = tableCartItems.filter(item => item.status === "limited-stock").length;
+  const grossRevenue = calculateSubtotal();
+  
+  const cartToPurchaseRate = totalItems > 0 
+    ? Math.round((inStockItems / totalItems) * 100).toString()
+    : "0";
+    
+  const cartAbandonmentRate = totalItems > 0 
+    ? Math.round((limitedStockItems / totalItems) * 100).toString()
+    : "0";
 
   const formatNumberShort = (num: number): string => {
     if (num >= 1_000_000) {
-      return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1)}M`;
+      return `$${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1)}M`;
     }
     if (num >= 1_000) {
-      return `${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}K`;
+      return `$${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}k`;
     }
-    return num.toString();
+    return `$${num.toFixed(2)}`;
   };
 
-  const formatAmount = (amount: number): string => {
-    return `$${amount.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  };
-
-  // Wishlist cards with relevant metrics
-  const cartCards: CardData[] = [
+  const statsCards: CardData[] = [
     {
-      title: "Total Products",
-      value: formatNumberShort(stats.totalItems),
-      rightIcon: <ShoppingCart className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#FFE4E4]",
+      title: "Total products on cart",
+      value: totalItems.toString(),
       change: {
+        value: "10%",
         trend: "up",
-        value: "8%",
-        description: "from last month",
+        description: "",
       },
     },
     {
-      title: "Cart abandonment rate",
-      value: "12%", // You might want to calculate this based on your business logic
-      rightIcon: <Package className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#C4E8D1]",
+      title: "Cart to purchase",
+      value: `${cartToPurchaseRate}%`,
       change: {
-        trend: "down",
         value: "5%",
-        description: "from last month",
+        trend: "down",
+        description: "",
       },
     },
     {
-      title: "Cart to Wishlist",
-      value: formatNumberShort(stats.itemsOnSale), // Using on-sale items as an example
-      rightIcon: <Heart className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#C4E8D1]",
+      title: "Cart Abandonment",
+      value: `${cartAbandonmentRate}%`,
       change: {
-        trend: "up",
-        value: "15%",
-        description: "from last month",
+        value: "5%",
+        trend: "down",
+        description: "",
       },
     },
     {
-      title: "Revenue lost",
-      value: formatAmount(cartStats.totalDiscount || 0), // Using discount as lost revenue example
-      rightIcon: <Package className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#D7FFC3]",
+      title: "Gross Revenue on cart",
+      value: formatNumberShort(grossRevenue),
       change: {
+        value: "10%",
         trend: "up",
-        value: "12%",
-        description: "from last month",
+        description: "",
       },
     },
   ];
+
+  const handleViewProduct = (productId: string) => {
+    if (window.confirm("View product details?")) {
+      navigate(`/admin/products/${productId}/details`);
+    }
+  };
 
   const getInitials = (name: string): string => {
     return name
@@ -185,225 +214,283 @@ export default function AdminCartPage() {
       .slice(0, 2);
   };
 
-
-  // Available status options for filter
-  const statusOptions: { value: CartStatus; label: string }[] = [
-    { value: "in-stock", label: "In Stock" },
-    { value: "out-of-stock", label: "Out of Stock" },
-    { value: "on-sale", label: "On Sale" },
-  ];
-
-  const getCountryOfOrigin = (product: any): string => {
-    return product.specifications?.origin || "Unknown";
-  };
-
-  // Table fields for wishlist view - CORRECTED VERSION
- const cartFields: TableField<CartItemWithId>[] = [
+  const cartFields: TableField<CartItemWithId>[] = [
     {
-      key: "image",
-      header: "Product",
+      key: "name",
+      header: "Product name",
       cell: (_, row) => (
         <div className="flex items-center gap-3">
-          <Avatar className="h-16 w-16 rounded-sm">
-            <AvatarImage src={row.product.image} alt={row.product.name} />
-            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+          <Avatar className="h-12 w-12 rounded-md">
+            <AvatarImage 
+              src={row.product.images.find(img => img.isPrimary)?.url || row.product.images[0]?.url} 
+              alt={row.product.name} 
+              className="object-cover" 
+            />
+            <AvatarFallback className="bg-muted text-muted-foreground font-medium rounded-md">
               {getInitials(row.product.name)}
             </AvatarFallback>
           </Avatar>
-          <div className="flex flex-col">
+          <div>
             <span className="font-medium text-md">{row.product.name}</span>
-            <span className="text-sm text-muted-foreground">
-              {row.product.vendor}
-            </span>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              SKU: {row.product.sku} • {row.product.vendor.businessName}
+            </p>
           </div>
         </div>
       ),
+      align: "left",
     },
     {
-      key: "country",
-      header: "Country of origin",
-      cell: (_, row) => (
-        <span className="font-medium">
-          {getCountryOfOrigin(row.product)}
-        </span>
-      ),
+      key: "category",
+      header: "Category",
+      cell: (_, row) => <span className="font-medium">{row.product.category || "Uncategorized"}</span>,
       align: "center",
+      enableSorting: true,
     },
     {
       key: "price",
-      header: "Price",
+      header: "Price (USD)",
       cell: (_, row) => (
-        <span className="font-medium">
-          {formatAmount(row.product.price)}
-        </span>
-      ),
-      align: "center",
-    },
-    {
-      key: "cartCount",
-      header: "Cart count",
-      cell: (_, row) => (
-        <div className="flex flex-col items-center">
-          <span className="font-medium text-lg">{row.product.sales || 0}</span>
+        <div className="text-center">
+          {row.product.salePrice ? (
+            <>
+              <span className="line-through text-gray-400">${row.product.price.toFixed(2)}</span>
+              <span className="ml-2 font-medium text-green-600">${row.product.salePrice.toFixed(2)}</span>
+            </>
+          ) : (
+            <span className="font-medium">${row.product.price.toFixed(2)}</span>
+          )}
         </div>
       ),
       align: "center",
+      enableSorting: true,
     },
     {
-      key: "quantity",
-      header: "QTY on cart",
-      cell: (_, row) => (
-        <div className="flex flex-col items-center">
-          <span className="font-medium text-lg">{row.quantity}</span>
-        </div>
-      ),
+      key: "carts",
+      header: "Carts",
+      cell: (value) => <span className="font-medium">{value as number}</span>,
       align: "center",
+      enableSorting: true,
     },
     {
-      key: "amount",
-      header: "Amount on cart",
-      cell: (_, row) => (
-        <div className="flex flex-col items-center">
-          <span className="font-medium text-lg">
-            {formatAmount(row.product.price * row.quantity)}
-          </span>
-        </div>
-      ),
+      key: "status",
+      header: "Status",
+      cell: (value) => {
+        const statusConfig = {
+          "in-stock": {
+            label: "In stock",
+            className: "bg-teal-50 text-teal-700 border-teal-200",
+          },
+          "limited-stock": {
+            label: "Limited stock",
+            className: "bg-yellow-50 text-yellow-700 border-yellow-200",
+          },
+          "out-of-stock": {
+            label: "Out of stock",
+            className: "bg-red-50 text-red-700 border-red-200",
+          },
+          "suspended": {
+            label: "Suspended",
+            className: "bg-gray-100 text-gray-700 border-gray-300",
+          },
+        };
+
+        const config = statusConfig[value as keyof typeof statusConfig] || statusConfig["out-of-stock"];
+
+        return (
+          <Badge
+            variant="outline"
+            className={`${config.className} font-medium`}
+          >
+            {config.label}
+          </Badge>
+        );
+      },
       align: "center",
+      enableSorting: true,
     },
   ];
 
   const cartActions: TableAction<CartItemWithId>[] = [
     {
       type: "view",
-      label: "View Product Details",
-      icon: <EyeIcon className="size-5" />,
+      label: "View Product",
+      icon: <Eye className="size-5" />,
       onClick: (item) => {
-        navigate(`/admin/products/cart/${item.productId}/details`);
+        handleViewProduct(item.productId);
       },
     },
   ];
 
+  const handleTabClick = (tab: TabFilter) => {
+    setActiveTab(tab);
+    // Clear status filters when switching tabs (optional)
+    if (tab !== "all") {
+      setSelectedStatuses([]);
+    }
+  };
+
+  const getTabButtonClass = (tab: TabFilter) => {
+    const baseClass = "px-4 py-4 text-sm font-medium whitespace-nowrap";
+    
+    if (activeTab === tab) {
+      return `${baseClass} text-gray-900 dark:text-white border-b-2 border-gray-900 dark:border-white font-semibold`;
+    }
+    
+    return `${baseClass} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white`;
+  };
+
   return (
-    <>
-      <SiteHeader label="Cart Management" />
-      <div className="min-h-screen">
-        <main className="flex-1">
-          <div className="space-y-6 p-6">
-            <SectionCards cards={cartCards} layout="1x4" />
+    <div className="min-h-screen bg-gray-50 dark:bg-[#1a1a1a]">
+      <SiteHeader
+        label="Cart Management"
+      />
+      <div className="p-6 space-y-6">
+        <SectionCards cards={statsCards} layout="1x4" />
 
-            <div className="space-y-6">
-              {/* Wishlist Section */}
-              <div className="rounded-lg border bg-card py-6 mb-6 dark:bg-[#303030]">
-                {/* Search and Filter Section */}
-                {cartCount > 0 && (
-                  <div className="px-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                    <div className="w-full sm:w-auto flex flex-1">
-                      <Search
-                        placeholder="Search your wishlist by name, brand, or description..."
-                        value={searchQuery}
-                        onSearchChange={setSearchQuery}
-                        className="rounded-full flex-1 w-full"
-                      />
-                    </div>
+        <div className="bg-white rounded-lg border border-gray-200 dark:bg-[#303030] dark:border-gray-700">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">All Carts</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Manage and monitor all products on cart on the platform
+                </p>
+              </div>
+            </div>
 
-                    <div className="flex flex-row items-center gap-4">
-                      <div className="flex gap-2 items-center">
-                        {/* Status Filter Dropdown */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="flex items-center gap-2 h-10"
-                            >
-                              Filter
-                              <ListFilter className="w-4 h-4" />
-                              {selectedStatuses.length > 0 && (
-                                <Badge variant="secondary" className="ml-1">
-                                  {selectedStatuses.length}
-                                </Badge>
-                              )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            {statusOptions.map((status) => (
-                              <DropdownMenuCheckboxItem
-                                key={status.value}
-                                checked={selectedStatuses.includes(
-                                  status.value
-                                )}
-                                onCheckedChange={() =>
-                                  handleStatusFilterChange(status.value)
-                                }
-                              >
-                                {status.label}
-                              </DropdownMenuCheckboxItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="w-full sm:w-96">
+                <Search
+                  placeholder="Search"
+                  value={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  className="h-10"
+                />
+              </div>
 
-                        {/* Clear Filters Button */}
-                        {(selectedStatuses.length > 0 || searchQuery) && (
-                          <Button
-                            variant="ghost"
-                            onClick={clearAllFilters}
-                            className="text-sm"
-                          >
-                            Clear Filters
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Wishlist Items Display */}
-                <div className="px-6">
-                  {cartCount === 0 ? (
-                    <div className="text-center py-12 space-y-4">
-                      <Heart className="h-16 w-16 mx-auto text-muted-foreground opacity-50" />
-                      <h3 className="text-xl font-semibold">
-                        Your wishlist is empty
-                      </h3>
-                      <p className="text-muted-foreground max-w-md mx-auto">
-                        Start building your collection! Click the heart icon on
-                        any product to save it here for later. Perfect for items
-                        you're considering, waiting to go on sale, or just can't
-                        stop thinking about.
-                      </p>
-                      <Button onClick={() => navigate("/products")}>
-                        Start Shopping
-                      </Button>
-                    </div>
-                  ) : filteredCartItems.length === 0 ? (
-                    <div className="text-center py-12">
-                      <p className="text-muted-foreground">
-                        No items found matching your search criteria.
-                      </p>
-                      <Button
-                        variant="outline"
-                        onClick={clearAllFilters}
-                        className="mt-4"
-                      >
-                        Clear Filters
-                      </Button>
-                    </div>
-                  ) : (
-                      <DataTable<CartItemWithId> 
-                      data={filteredCartItems} 
-                      fields={cartFields} 
-                      actions={cartActions} 
-                      enableSelection={true}
-                      enablePagination={true}
-                      pageSize={10}
-                    />
-                  )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050] rounded-l-lg">
+                    Last 7 days
+                  </button>
+                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]">
+                    Last 30 days
+                  </button>
+                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848] rounded-r-lg">
+                    All time
+                  </button>
                 </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 h-10"
+                    >
+                      <Filter className="w-4 h-4" />
+                      Filter
+                      {selectedStatuses.length > 0 && (
+                        <Badge variant="secondary" className="ml-1">
+                          {selectedStatuses.length}
+                        </Badge>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {statusOptions.map((status) => (
+                      <DropdownMenuCheckboxItem
+                        key={status.value}
+                        checked={selectedStatuses.includes(status.value)}
+                        onCheckedChange={() =>
+                          handleStatusFilterChange(status.value)
+                        }
+                      >
+                        {status.label}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button variant="outline" className="gap-2 h-10">
+                  <Download className="w-4 h-4" />
+                  Export
+                </Button>
+
+                {(selectedStatuses.length > 0 || searchQuery || activeTab !== "all") && (
+                  <Button
+                    variant="ghost"
+                    onClick={clearAllFilters}
+                    className="text-sm h-10"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
               </div>
             </div>
           </div>
-        </main>
+
+          <div className="border-b border-gray-200 dark:border-gray-700">
+            <div className="flex gap-0 px-6 overflow-x-auto">
+              <button 
+                className={getTabButtonClass("all")}
+                onClick={() => handleTabClick("all")}
+              >
+                All Carts
+              </button>
+              <button 
+                className={getTabButtonClass("in-stock")}
+                onClick={() => handleTabClick("in-stock")}
+              >
+                In Stock
+              </button>
+              <button 
+                className={getTabButtonClass("limited-stock")}
+                onClick={() => handleTabClick("limited-stock")}
+              >
+                Limited Stock
+              </button>
+              <button 
+                className={getTabButtonClass("out-of-stock")}
+                onClick={() => handleTabClick("out-of-stock")}
+              >
+                Out of Stock
+              </button>
+              <button 
+                className={getTabButtonClass("suspended")}
+                onClick={() => handleTabClick("suspended")}
+              >
+                Suspended
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {filteredCartItems.length === 0 ? (
+              <div className="flex flex-col items-center text-center py-12">
+                <img src={images.EmptyFallback} alt="" className="h-60 mb-6"/>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  No Cart Items Found
+                </h3>
+                {items.length === 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    No products have been added to cart yet.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <DataTable<CartItemWithId>
+                data={filteredCartItems}
+                fields={cartFields}
+                actions={cartActions}
+                enableSelection={true}
+                enablePagination={true}
+                pageSize={10}
+              />
+            )}
+          </div>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -7,13 +7,13 @@ import { ChevronRight } from "lucide-react";
 
 
 // Review Card Component
-const FollowerCard = ({ seller }: { seller: any }) => {
+const FollowerCard = ({ vendor }: { vendor: any }) => {
   return (
     <Card className="w-full flex flex-row items-center rounded-xl p-4 shadow-none">
       {/* Avatar */}
       <img
-        src={seller.avatar}
-        alt={seller.name}
+        src={vendor.avatar}
+        alt={vendor.name}
         className="w-26 h-26 rounded-full object-cover border"
       />
 
@@ -21,20 +21,20 @@ const FollowerCard = ({ seller }: { seller: any }) => {
       <div className="flex flex-col flex-1">
         <div className="flex-1 ml-4">
           <div className="flex flex-1 flex-row items-center justify-between">
-            <h3 className="font-semibold text-lg">{seller.name}</h3>
+            <h3 className="font-semibold text-lg">{vendor.name}</h3>
             {/* Right arrow */}
             <ChevronRight className="text-gray-400 w-5 h-5" />
           </div>
-          <p className="text-sm text-gray-600 mb-2">{seller.store}</p>
+          <p className="text-sm text-gray-600 mb-2">{vendor.store}</p>
 
           <div className="flex flex-col gap-2 text-sm">
             <p>
-              <span className="font-semibold">{seller.sellerScore} %</span>{" "}
-              <span className="text-gray-500">Seller score</span>
+              <span className="font-semibold">{vendor.vendorScore} %</span>{" "}
+              <span className="text-gray-500">Vendor score</span>
             </p>
 
             <p>
-              <span className="font-semibold">{seller.itemsSold}</span>{" "}
+              <span className="font-semibold">{vendor.itemsSold}</span>{" "}
               <span className="text-gray-500">items sold</span>
             </p>
           </div>
@@ -84,7 +84,7 @@ export default function FollowingPage() {
       <div className="bg-white p-6 rounded-md">
         <div className="space-y-6">
           {followers.map((follower) => (
-            <FollowerCard key={follower.id} seller={follower} />
+            <FollowerCard key={follower.id} vendor={follower} />
           ))}
         </div>
       </div>

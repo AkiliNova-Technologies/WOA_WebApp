@@ -8,9 +8,9 @@ function SettingsMiniSidebarDrawer() {
   const navigate = useNavigate();
 
   const menuItems = [
-    { label: "My Account", href: "/seller/settings" },
-    { label: "Edit Store Information", href: "/seller/settings/edit-store" },
-    { label: "Change Password", href: "/seller/settings/change-password" },
+    { label: "My Account", href: "/vendor/settings" },
+    { label: "Edit Store Information", href: "/vendor/settings/edit-store" },
+    { label: "Change Password", href: "/vendor/settings/change-password" },
     { label: "Log-out", href: "/logout" },
   ];
 

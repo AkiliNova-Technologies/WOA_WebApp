@@ -10,13 +10,17 @@ export interface VideoUploadProps {
   className?: string;
   maxSize?: number; // in MB
   acceptedFormats?: string;
+  description?: string;
+  footer?: boolean;
 }
 
 export function VideoUpload({
   onVideoChange,
   className,
   maxSize = 50, // 50MB default
+  description,
   acceptedFormats = "video/mp4,video/avi,video/mov,video/wmv,video/flv,video/webm",
+  footer,
 }: VideoUploadProps) {
   const [videoFile, setVideoFile] = React.useState<File | null>(null);
   const [videoUrl, setVideoUrl] = React.useState<string | null>(null);
@@ -118,10 +122,10 @@ export function VideoUpload({
       {!videoFile && (
         <div
           className={cn(
-            "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
-             isDragging
+            "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ",
+            isDragging
               ? "border-blue-500 bg-blue-50"
-              : "border-gray-300 bg-[#F5F5F5] hover:border-[#CC5500]",
+              : "border-gray-300 bg-[#F5F5F5] hover:border-[#CC5500] dark:bg-[#505050]"
           )}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -130,16 +134,16 @@ export function VideoUpload({
         >
           <div className="flex justify-center">
             <div className="p-3 bg-white rounded-full">
-              <FolderUp className="w-6 h-6" />
+              <FolderUp className="w-6 h-6 dark:text-[#505050]" />
             </div>
           </div>
           <div className="space-y-2">
-            <p className="text-lg font-medium text-gray-900">
+            <p className="text-lg font-medium text-gray-900 dark:text-white mt-3">
               Upload a Short Story
             </p>
-            <p className="text-md text-gray-500">or</p>
+            <p className="text-md text-gray-400">or</p>
             <p>
-              <span className="text-gray-500 text-sm font-medium">
+              <span className="text-gray-400 text-sm font-medium">
                 Drag and Drop Intro Video
               </span>
             </p>
@@ -153,10 +157,20 @@ export function VideoUpload({
           />
         </div>
       )}
-      <p className="text-xs text-gray-400">
-        Recommended size: 1920x1080px • Format: MP4, AVI, MOV, WMV, FLV, WebM •
-        Max {maxSize}MB
-      </p>
+      
+      {/* Footer with description - Fixed conditional rendering */}
+      {footer && (
+        description ? (
+          <p className="text-xs text-gray-400">
+            {description}
+          </p>
+        ) : (
+          <p className="text-xs text-gray-400">
+            Recommended size: 1920x1080px • Format: MP4, AVI, MOV, WMV, FLV, WebM
+            • Max {maxSize}MB
+          </p>
+        )
+      )}
 
       {/* Video Preview */}
       {videoFile && videoUrl && (

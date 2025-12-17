@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 // import images from "@/assets/images";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { ProductStatus } from "@/types/product";
+import type { ProductStatus, Vendor } from "@/types/product";
 import { SiteHeader } from "@/components/site-header";
 import {
   DataTable,
@@ -38,7 +38,6 @@ import { AreaChartComponent } from "@/components/charts/area-chart";
 import { PieDonutChartComponent } from "@/components/charts/pie-chart";
 import type { ChartConfig } from "@/components/ui/chart";
 // import { BarChartComponent } from "@/components/charts/bar-chart";
-
 
 // Extended status type for the drawer
 type ExtendedProductStatus =
@@ -165,6 +164,12 @@ const getInitials = (name: string): string => {
     .map((word) => word.charAt(0).toUpperCase())
     .join("")
     .slice(0, 2);
+};
+
+const getVendorDisplayName = (vendor: string | Vendor | undefined): string => {
+  if (!vendor) return "Unknown Vendor";
+  if (typeof vendor === "string") return vendor;
+  return vendor.name || "Unknown Vendor";
 };
 
 // Helper function to format date
@@ -681,7 +686,7 @@ export default function AdminCartDetailPage() {
                           Vendor
                         </Label>
                         <p className="text-muted-foreground">
-                          {product.vendor}
+                          {getVendorDisplayName(product.vendor)}
                         </p>
                       </div>
                     </div>
@@ -748,7 +753,7 @@ export default function AdminCartDetailPage() {
                 <Card className="shadow-none border">
                   <CardContent className="">
                     <div className="flex flex-row justify-between items-center">
-                      <h2 className="text-xl font-semibold">Seller Overview</h2>
+                      <h2 className="text-xl font-semibold">Vendor Overview</h2>
                       <Button variant={"secondary"}>
                         <ExternalLink className="" />
                       </Button>

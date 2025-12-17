@@ -18,7 +18,7 @@ export type ProductVariant = {
   images?: string[];
 };
 
-export type Seller = {
+export type Vendor = {
   id: string;
   name: string;
   title: string;
@@ -46,7 +46,7 @@ export type Product = {
   rating: number;
   reviews: number;
   userFeedback?: number;
-  vendor: string;
+
   image: string;
   images: string[];
   categoryId: string;
@@ -68,8 +68,8 @@ export type Product = {
   careInstructions?: string[];
   variants?: ProductVariant[];
   
-  // Seller information
-  seller?: Seller;
+  // Vendor information
+  vendor?: string | Vendor;
   
   // Shipping information
   shippingInfo?: ShippingInfo;

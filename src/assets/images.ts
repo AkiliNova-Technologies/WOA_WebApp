@@ -28,9 +28,10 @@ import EmptyInbox from "@/assets/images/EmptyInbox.png"
 import EmptyWallet from "@/assets/images/EmptyWallet.png"
 import EmptyReviews from "@/assets/images/EmptyReviews.png"
 import EmptyMessages from "@/assets/images/EmptyMessages.png"
+import EmptyFallback from "@/assets/images/EmptyFallback.png"
 import Banner1 from "@/assets/images/Banner1.jpg"
 import Banner2 from "@/assets/images/Banner2.jpg"
-import SellerProfile1 from "@/assets/images/SellerProfile.png"
+import VendorProfile1 from "@/assets/images/VednorProfile.png"
 
 
 const images = {
@@ -53,6 +54,7 @@ const images = {
   EmptyInbox,
   EmptyWallet,
   EmptyMessages,
+  EmptyFallback,
   Product1,
   Product2,
   Product3,
@@ -66,7 +68,7 @@ const images = {
   SubCategory3,
   SubCategory4,
   SubCategory5,
-  SellerProfile1
+  VendorProfile1
 
 };
 

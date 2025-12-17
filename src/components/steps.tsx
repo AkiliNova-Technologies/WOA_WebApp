@@ -14,6 +14,7 @@ interface CustomStepsProps {
   direction?: "horizontal" | "vertical";
   responsive?: boolean;
   contentAlignment?: "left" | "center" | "right";
+  completedSteps?: number[];
 }
 
 export const Steps: React.FC<CustomStepsProps> = ({
@@ -23,13 +24,31 @@ export const Steps: React.FC<CustomStepsProps> = ({
   direction = "horizontal",
   responsive = true,
   contentAlignment = "center",
+  completedSteps = [],
 }) => {
-  const isStepCompleted = (stepIndex: number) => stepIndex < current;
+  const isStepCompleted = (stepIndex: number) => stepIndex < current || completedSteps.includes(stepIndex);
   const isStepInProgress = (stepIndex: number) => stepIndex === current;
 
   const handleStepClick = (stepIndex: number) => {
-    if (onChange && stepIndex <= current) {
-      onChange(stepIndex);
+    if (onChange) {
+      // Allow clicking on:
+      // 1. Current step
+      // 2. Any step that has been completed
+      // 3. The immediate next step if current is completed
+      if (stepIndex === current) return;
+      
+      if (stepIndex < current) {
+        // Going back to previous steps is always allowed
+        onChange(stepIndex);
+      } else if (stepIndex === current + 1) {
+        // Going to next step is allowed if current step is completed
+        if (isStepCompleted(current)) {
+          onChange(stepIndex);
+        }
+      } else if (completedSteps.includes(stepIndex)) {
+        // Jumping to any previously completed step is allowed
+        onChange(stepIndex);
+      }
     }
   };
 
@@ -81,8 +100,8 @@ export const Steps: React.FC<CustomStepsProps> = ({
                   : "flex flex-col items-center text-center relative"
               }
               ${
-                onChange && index <= current
-                  ? "cursor-pointer"
+                onChange && (index <= current || completedSteps.includes(index))
+                  ? "cursor-pointer hover:opacity-80 transition-opacity"
                   : "cursor-default"
               }
               ${direction === "vertical" ? "min-h-20" : ""}
@@ -112,13 +131,15 @@ export const Steps: React.FC<CustomStepsProps> = ({
                     w-12 h-12 rounded-full 
                     transition-all duration-200
                     relative z-10 mb-3
+                    
                     ${
                       completed
                         ? "bg-[#CC5500] text-white"
                         : inProgress
                         ? "bg-[#CC5500] text-white"
-                        : "bg-white border border-gray-300 text-gray-400 dark:bg-[#00000040]"
+                        : "bg-white border border-gray-300 text-gray-400 dark:bg-[#00000040] dark:bg-[#303030]"
                     }
+                    ${onChange && (index <= current || completedSteps.includes(index)) ? "hover:scale-105" : ""}
                   `}
                 >
                   {item.icon || defaultIcon(index)}
@@ -132,15 +153,15 @@ export const Steps: React.FC<CustomStepsProps> = ({
                       text-sm font-medium block
                       ${
                         completed || inProgress
-                          ? "text-gray-500"
-                          : "text-gray-500"
+                          ? "text-gray-900 dark:text-white"
+                          : "text-gray-500 dark:text-gray-400"
                       }
                     `}
                   >
                     {item.title}
                   </span>
                   {item.description && (
-                    <span className="step-description text-xs text-gray-400 mt-1 block">
+                    <span className="step-description text-xs text-gray-400 dark:text-gray-500 mt-1 block">
                       {item.description}
                     </span>
                   )}
@@ -182,6 +203,7 @@ export const Steps: React.FC<CustomStepsProps> = ({
                           ? "bg-[#CC5500] border-[#CC5500] text-white"
                           : "bg-white border border-gray-300 text-gray-400 dark:bg-[#00000040] dark:border-[#00000040]"
                       }
+                      ${onChange && (index <= current || completedSteps.includes(index)) ? "hover:scale-105" : ""}
                     `}
                   >
                     {item.icon || defaultIcon(index)}
@@ -205,14 +227,14 @@ export const Steps: React.FC<CustomStepsProps> = ({
                         ${
                           completed || inProgress
                             ? "text-[#CC5500]"
-                            : "text-gray-500"
+                            : "text-gray-500 dark:text-gray-400"
                         }
                       `}
                     >
                       {item.title}
                     </span>
                     {item.description && (
-                      <span className="step-description text-xs text-gray-400 hidden sm:block">
+                      <span className="step-description text-xs text-gray-400 dark:text-gray-500 hidden sm:block">
                         {item.description}
                       </span>
                     )}
@@ -228,7 +250,7 @@ export const Steps: React.FC<CustomStepsProps> = ({
                         ${
                           rightConnectorCompleted
                             ? "bg-[#CC5500]"
-                            : "bg-gray-200"
+                            : "bg-gray-200 dark:bg-gray-700"
                         }
                       `}
                     />

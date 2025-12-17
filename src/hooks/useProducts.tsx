@@ -8,8 +8,16 @@ import type {
   ProductionMethod,
   SubCategoryType,
   ProductStatus,
+  Vendor,
 } from "@/types/product";
 import images from "@/assets/images";
+
+const getVendorName = (vendor: string | Vendor | undefined): string => {
+  if (!vendor) return "";
+  if (typeof vendor === 'string') return vendor;
+  // Use 'name' property from Vendor type
+  return vendor.name || "";
+};
 
 export function useProducts() {
   // State for all data
@@ -615,10 +623,10 @@ export function useProducts() {
       );
     }
 
-    // Vendor filter
+    // Vendor filter - FIXED LINE 621
     if (filters.vendors.length > 0) {
       filtered = filtered.filter((product) =>
-        filters.vendors.includes(product.vendor)
+        filters.vendors.includes(getVendorName(product.vendor))
       );
     }
 
@@ -708,7 +716,8 @@ export function useProducts() {
   };
 
   const getVendors = (): string[] => {
-    return Array.from(new Set(products.map((product) => product.vendor)));
+    const vendorNames = products.map((product) => getVendorName(product.vendor));
+    return Array.from(new Set(vendorNames.filter(name => name !== "")));
   };
 
   const updateProduct = (productId: string, updates: Partial<Product>) => {

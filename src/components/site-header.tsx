@@ -1,12 +1,13 @@
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, MessageSquareText } from "lucide-react";
+import {  Settings } from "lucide-react";
 import { Search, type SearchResult } from "./ui/search";
 import { useState, type ReactNode } from "react";
 import { useReduxAuth } from "@/hooks/useReduxAuth";
+import { NotificationsPopover } from "./notifications-popover";
 
 interface SiteHeaderProps {
   rightActions?: ReactNode;
@@ -15,6 +16,8 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
   const location = useLocation();
+
+  const navigate = useNavigate();
 
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,8 +32,8 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
     if (
       pathname === "/admin" ||
       pathname === "/admin/" ||
-      pathname === "/seller" ||
-      pathname === "/seller/"
+      pathname === "/vendor" ||
+      pathname === "/vendor/"
     )
       return "Dashboard";
 
@@ -150,21 +153,27 @@ export function SiteHeader({ rightActions, label }: SiteHeaderProps) {
           )}
 
           {/* Notifications button */}
-          <Button variant="ghost" size="icon" className="h-10 w-10">
-            <MessageSquareText className="h-6 w-6" />
-          </Button>
+          <NotificationsPopover />
 
-          {/* Notifications button */}
-          <Button variant="ghost" size="icon" className="h-10 w-10">
-            <Bell className="h-6 w-6" />
+          {/* Settings button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10"
+            onClick={() => navigate("/admin/settings")}
+          >
+            <Settings className="h-6 w-6" />
           </Button>
 
           {/* User avatar with name */}
           <div className="flex items-center gap-2 ml-2">
-            <Avatar className="h-12 w-12">
+            <Avatar className="h-12 w-12 rounded-full">
               <AvatarImage src="/avatars/user.jpg" alt="User" />
               <AvatarFallback>{getInitials()}</AvatarFallback>
             </Avatar>
+            <p>
+              {user?.firstName} {user?.lastName}
+            </p>
           </div>
         </div>
       </div>

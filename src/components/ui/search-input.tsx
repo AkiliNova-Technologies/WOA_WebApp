@@ -217,7 +217,7 @@ function SearchInput({
 
   return (
     <div className="flex-1 max-w-3xl mx-8 flex relative">
-      <div className="flex w-full rounded-full overflow-hidden shadow-sm bg-white dark:bg-gray-900">
+      <div className="flex w-full rounded-full overflow-hidden shadow-none bg-white dark:bg-gray-900">
         <button
           onClick={() => handleSearch()}
           className="bg-[#C75A00] px-8 flex items-center justify-center hover:bg-[#B35200] transition-colors"
@@ -235,7 +235,7 @@ function SearchInput({
           placeholder="Search for products, brands, and categories..."
           data-slot="input"
           className={cn(
-            "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 h-11 w-full min-w-0 rounded-none bg-transparent px-4 py-2 text-base transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+            "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 h-11 w-full min-w-0 rounded-none bg-input/20 dark:bg-[#303030]/60 dark:text-white px-4 py-2 text-base transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
             "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
             className
           )}
@@ -260,7 +260,7 @@ function SearchInput({
       {showDropdown && (
         <div
           ref={dropdownRef}
-          className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto"
+          className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-900 border-none rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto"
         >
           {/* Recent Searches */}
           {hasRecentSearches && (

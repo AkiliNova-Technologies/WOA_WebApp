@@ -24,13 +24,10 @@ export default function KYCLayout() {
                   colorTextDescription: "#999999",
                   colorTextLabel: "#333333",
                   colorTextQuaternary: "#CCCCCC",
-                  // colorFillContent: "#F5F5F5",
+                  
                   controlItemBgActive: "#CC5500",
                   iconSize: 42,
-                  // Customize the done step icon
-                  // customIconColor: "#CC5500",
-                  // customIconBgColor: "#CC5500",
-                  // customIconBorderColor: "#CC5500",
+                 
                   
                 },
               },

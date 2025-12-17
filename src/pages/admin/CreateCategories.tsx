@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from "react"; // Removed useEffect since it's not needed
 import { useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import {
   type TableField,
 } from "@/components/data-table";
 import { AddAttributeDrawer } from "@/components/add-attribute-drawer";
+import { useReduxCategories } from "@/hooks/useReduxCategories";
+import { uploadImage } from "@/utils/upload"; // You'll need to create this utility
 
 // Interfaces
 export interface SubCategory {
@@ -25,21 +27,31 @@ export interface SubCategory {
   name: string;
   image: string;
   types: SubCategoryType[];
+  _imageFile?: File;
 }
-
 export interface SubCategoryType {
   id: string;
   name: string;
   image: string;
+  _imageFile?: File;
 }
+
 
 export interface Attribute {
   id: string;
   name: string;
-  inputType: "dropdown" | "multiselect" | "boolean" | "text" | "number";
-  purpose: string;
+  inputType:
+    | "dropdown"
+    | "multiselect"
+    | "boolean"
+    | "text"
+    | "number"
+    | "textarea";
+  purpose: "filter" | "specification" | "both";
   values: string[];
   filterStatus: "active" | "inactive";
+  isRequired: boolean;
+  order: number;
   [key: string]: any;
 }
 
@@ -56,6 +68,19 @@ export default function AdminCreateCategoriesPage() {
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Form state
+  const [categoryName, setCategoryName] = useState("");
+  const [categoryDescription, setCategoryDescription] = useState("");
+
+  // Use the Redux categories hook
+  const {
+  createNewCategory,
+  createNewAttribute,
+  createLoading,
+  createNewProductType,
+  createNewSubcategory,
+} = useReduxCategories();
+
   const steps = [
     { title: "Create a category" },
     { title: "Create types" },
@@ -67,13 +92,138 @@ export default function AdminCreateCategoriesPage() {
     navigate(-1);
   };
 
-  const handleSaveAsDraft = () => {
-    console.log("Save as draft clicked");
+  const handleSaveAsDraft = async () => {
+    try {
+      // Save category as draft (isActive: false)
+      const categoryData = {
+        name: categoryName,
+        description: categoryDescription,
+        isActive: false, // Draft categories are inactive
+      };
+
+      await createNewCategory(categoryData);
+      alert("Category saved as draft!");
+      navigate("/admin/categories");
+    } catch (error) {
+      console.error("Failed to save as draft:", error);
+      alert(`Failed to save as draft: ${error}`);
+    }
+  };
+
+  const handleCreateCategory = async (isDraft: boolean = false) => {
+    try {
+      // Step 1: Create the main category
+      const categoryData = {
+        name: categoryName,
+        description: categoryDescription,
+        isActive: !isDraft, // Draft categories are inactive
+      };
+
+      const category = await createNewCategory(categoryData);
+
+      // Step 2: Create subcategories with their types
+      await createSubcategoriesForCategory(category.id);
+
+      // Step 3: Create attributes
+      await createAttributesForCategory(category.id);
+
+      // Show success message and navigate
+      alert(
+        isDraft ? "Category saved as draft!" : "Category created successfully!"
+      );
+      navigate("/admin/categories");
+    } catch (error) {
+      console.error("Failed to create category:", error);
+      alert(`Failed to create category: ${error}`);
+    }
+  };
+
+  const createSubcategoriesForCategory = async (categoryId: string) => {
+    for (const subCategory of subCategories) {
+      try {
+        // Upload image first if it's a File object
+        let imageUrl = subCategory.image;
+        if (subCategory._imageFile instanceof File) {
+          const uploadedImage = await uploadImage(subCategory._imageFile);
+          imageUrl = uploadedImage.url;
+        }
+
+        const subCategoryData = {
+          name: subCategory.name,
+          description: "",
+          image: imageUrl,
+          categoryId: categoryId,
+          order: 0,
+          isActive: true,
+        };
+
+        const createdSubcategory = await createNewSubcategory(categoryId, subCategoryData);
+
+        // Create product types for this subcategory
+        await createProductTypesForSubcategory(createdSubcategory.id, subCategory.types);
+      } catch (error) {
+        console.error(`Failed to create subcategory ${subCategory.name}:`, error);
+      }
+    }
+  };
+
+  const createProductTypesForSubcategory = async (
+    subcategoryId: string,
+    types: SubCategoryType[]
+  ) => {
+    for (const type of types) {
+      try {
+        // Upload image first if it's a File object
+        let imageUrl = type.image;
+        if (type._imageFile instanceof File) {
+          const uploadedImage = await uploadImage(type._imageFile);
+          imageUrl = uploadedImage.url;
+        }
+
+        const productTypeData = {
+          name: type.name,
+          description: "",
+          image: imageUrl,
+          subcategoryId: subcategoryId,
+          order: 0,
+          isActive: true,
+        };
+
+        await createNewProductType(subcategoryId, productTypeData);
+      } catch (error) {
+        console.error(`Failed to create product type ${type.name}:`, error);
+      }
+    }
+  };
+
+  const createAttributesForCategory = async (categoryId: string) => {
+    for (const attribute of attributes) {
+      try {
+        const attributeData = {
+          name: attribute.name,
+          description: "",
+          inputType: attribute.inputType,
+          purpose: attribute.purpose,
+          values: attribute.values,
+          isRequired: attribute.isRequired,
+          filterStatus: attribute.filterStatus,
+          order: attribute.order,
+          categoryId: categoryId,
+        };
+
+        await createNewAttribute(categoryId, attributeData);
+      } catch (error) {
+        console.error(`Failed to create attribute ${attribute.name}:`, error);
+      }
+    }
   };
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
+    } else {
+      // On the last step, create the category
+      handleCreateCategory(false);
     }
   };
 
@@ -83,37 +233,73 @@ export default function AdminCreateCategoriesPage() {
     }
   };
 
-  // Sub Category Functions
-  const handleAddSubCategory = (subCategory: Omit<SubCategory, "types">) => {
+  // Sub Category Functions - Updated to handle File objects
+  const handleAddSubCategory = (subCategoryData: { name: string; image: File | null }) => {
+    if (!subCategoryData.image) return;
+    
+    // Generate a temporary ID and image URL
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const imageUrl = URL.createObjectURL(subCategoryData.image);
+    
     const newSubCategory: SubCategory = {
-      ...subCategory,
+      id: tempId,
+      name: subCategoryData.name,
+      image: imageUrl, // Store the object URL for preview
+      _imageFile: subCategoryData.image, // Store the actual file for later upload
       types: [],
     };
+    
     setSubCategories((prev) => [...prev, newSubCategory]);
   };
 
-  const handleRemoveSubCategory = (id: string) => {
-    setSubCategories((prev) => prev.filter((subCat) => subCat.id !== id));
+  // Sub Category Type Functions - Updated to handle File objects
+  const handleAddSubCategoryType = (subCategoryTypeData: { name: string; image: File | null }) => {
+    if (!selectedSubCategory || !subCategoryTypeData.image) return;
+    
+    // Generate a temporary ID and image URL
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const imageUrl = URL.createObjectURL(subCategoryTypeData.image);
+    
+    const newSubCategoryType: SubCategoryType = {
+      id: tempId,
+      name: subCategoryTypeData.name,
+      image: imageUrl, // Store the object URL for preview
+      _imageFile: subCategoryTypeData.image, // Store the actual file for later upload
+    };
+    
+    setSubCategories((prev) =>
+      prev.map((subCat) =>
+        subCat.id === selectedSubCategory.id
+          ? { ...subCat, types: [...subCat.types, newSubCategoryType] }
+          : subCat
+      )
+    );
+    setSelectedSubCategory(null);
   };
 
-  // Sub Category Type Functions
-  const handleAddSubCategoryType = (subCategoryType: SubCategoryType) => {
-    if (selectedSubCategory) {
-      setSubCategories((prev) =>
-        prev.map((subCat) =>
-          subCat.id === selectedSubCategory.id
-            ? { ...subCat, types: [...subCat.types, subCategoryType] }
-            : subCat
-        )
-      );
-      setSelectedSubCategory(null);
+  const handleRemoveSubCategory = (id: string) => {
+    // Clean up object URL
+    const subCategory = subCategories.find(sc => sc.id === id);
+    if (subCategory && subCategory.image.startsWith('blob:')) {
+      URL.revokeObjectURL(subCategory.image);
     }
+    
+    setSubCategories((prev) => prev.filter((subCat) => subCat.id !== id));
   };
 
   const handleRemoveSubCategoryType = (
     subCategoryId: string,
     typeId: string
   ) => {
+    // Clean up object URL
+    const subCategory = subCategories.find(sc => sc.id === subCategoryId);
+    if (subCategory) {
+      const type = subCategory.types.find(t => t.id === typeId);
+      if (type && type.image.startsWith('blob:')) {
+        URL.revokeObjectURL(type.image);
+      }
+    }
+    
     setSubCategories((prev) =>
       prev.map((subCat) =>
         subCat.id === subCategoryId
@@ -129,9 +315,18 @@ export default function AdminCreateCategoriesPage() {
   // Attribute Functions
   const handleAddAttribute = (attributeData: {
     name: string;
-    inputType: "dropdown" | "multiselect" | "boolean" | "text" | "number";
-    purpose: string;
+    inputType:
+      | "dropdown"
+      | "multiselect"
+      | "boolean"
+      | "text"
+      | "number"
+      | "textarea";
+    purpose: "filter" | "specification" | "both";
     values: string[];
+    isRequired: boolean;
+    filterStatus: "active" | "inactive";
+    order: number;
   }) => {
     const newAttribute: Attribute = {
       id: Date.now().toString(),
@@ -139,13 +334,25 @@ export default function AdminCreateCategoriesPage() {
       inputType: attributeData.inputType,
       purpose: attributeData.purpose,
       values: attributeData.values,
-      filterStatus: "active",
+      filterStatus: attributeData.filterStatus,
+      isRequired: attributeData.isRequired,
+      order: attributeData.order,
     };
     setAttributes((prev) => [...prev, newAttribute]);
   };
 
   const handleRemoveAttribute = (id: string) => {
     setAttributes((prev) => prev.filter((attr) => attr.id !== id));
+  };
+
+  // Update attribute
+  const handleUpdateAttribute = (
+    id: string,
+    updatedData: Partial<Attribute>
+  ) => {
+    setAttributes((prev) =>
+      prev.map((attr) => (attr.id === id ? { ...attr, ...updatedData } : attr))
+    );
   };
 
   const filteredAttributes = attributes.filter((attribute) => {
@@ -165,6 +372,9 @@ export default function AdminCreateCategoriesPage() {
         <div className="flex items-center gap-3">
           <div className="flex flex-col">
             <span className="font-medium text-md">{row.name}</span>
+            <span className="text-sm text-muted-foreground">
+              Purpose: {row.purpose}
+            </span>
           </div>
         </div>
       ),
@@ -180,6 +390,7 @@ export default function AdminCreateCategoriesPage() {
           boolean: "Boolean",
           text: "Text",
           number: "Number",
+          textarea: "Text Area",
         };
         return (
           <span className="font-medium">
@@ -198,7 +409,22 @@ export default function AdminCreateCategoriesPage() {
           variant={value === "active" ? "default" : "secondary"}
           className={value === "active" ? "bg-green-100 text-green-800" : ""}
         >
-          {value as string}
+          {(value as string).charAt(0).toUpperCase() +
+            (value as string).slice(1)}
+        </Badge>
+      ),
+      align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "isRequired",
+      header: "Required",
+      cell: (value) => (
+        <Badge
+          variant={value ? "default" : "secondary"}
+          className={value ? "bg-blue-100 text-blue-800" : ""}
+        >
+          {value ? "Yes" : "No"}
         </Badge>
       ),
       align: "center",
@@ -227,7 +453,9 @@ export default function AdminCreateCategoriesPage() {
       label: "Edit Attribute",
       icon: <PenIcon className="size-5" />,
       onClick: (attribute) => {
-        // Implement edit logic here
+        // Open edit drawer or modal for the attribute
+        setIsAttributeDrawerOpen(true);
+        // You might want to pass the attribute data to the drawer for editing
         console.log("Edit attribute:", attribute.id);
       },
     },
@@ -240,6 +468,19 @@ export default function AdminCreateCategoriesPage() {
       },
     },
   ];
+
+  // Update AddAttributeDrawer to support editing
+  const handleAddOrUpdateAttribute = (
+    attributeData: any,
+    isEditing: boolean = false,
+    attributeId?: string
+  ) => {
+    if (isEditing && attributeId) {
+      handleUpdateAttribute(attributeId, attributeData);
+    } else {
+      handleAddAttribute(attributeData);
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -286,8 +527,9 @@ export default function AdminCreateCategoriesPage() {
                   <button
                     onClick={handleSaveAsDraft}
                     className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    disabled={createLoading}
                   >
-                    Save as draft
+                    {createLoading ? "Saving..." : "Save as draft"}
                   </button>
                 </div>
               </div>
@@ -305,19 +547,25 @@ export default function AdminCreateCategoriesPage() {
                     <div className="space-y-6">
                       <div>
                         <label className="block text-sm font-medium mb-2">
-                          Category Name
+                          Category Name *
                         </label>
                         <input
                           type="text"
                           className="w-full p-3 border border-gray-300 rounded-lg"
                           placeholder="Enter category name"
+                          value={categoryName}
+                          onChange={(e) => setCategoryName(e.target.value)}
+                          required
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">
                           Description
                         </label>
-                        <TextEditor />
+                        <TextEditor
+                          value={categoryDescription}
+                          onChange={setCategoryDescription}
+                        />
                       </div>
                     </div>
                   </div>
@@ -327,7 +575,7 @@ export default function AdminCreateCategoriesPage() {
                     <div className="flex flex-row flex-1 justify-between items-center mb-6">
                       <div>
                         <h2 className="text-[#262626] font-semibold dark:text-white">
-                          Manage Sub Categories
+                          Manage Sub Categories (Optional)
                         </h2>
                         <p className="text-[#737373] text-sm">
                           Add or remove sub categories from this category
@@ -384,7 +632,7 @@ export default function AdminCreateCategoriesPage() {
                               </h2>
                             </div>
 
-                            {/* Remove Button for mobile/fallback - Always visible but styled differently */}
+                            {/* Remove Button for mobile/fallback */}
                             <Button
                               variant="outline"
                               size="sm"
@@ -404,7 +652,7 @@ export default function AdminCreateCategoriesPage() {
                           No sub categories added yet
                         </p>
                         <p className="text-sm text-gray-400 mt-1">
-                          Click "Add Sub Category" to get started
+                          Click "Add Sub Category" to get started (optional)
                         </p>
                       </div>
                     )}
@@ -414,9 +662,10 @@ export default function AdminCreateCategoriesPage() {
                   <div className="flex justify-end mt-8">
                     <Button
                       onClick={handleNext}
-                      className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12"
+                      className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12 text-white text-md font-semibold"
+                      disabled={!categoryName || createLoading}
                     >
-                      Next
+                      {createLoading ? "Loading..." : "Next"}
                     </Button>
                   </div>
                 </div>
@@ -427,17 +676,17 @@ export default function AdminCreateCategoriesPage() {
                 <div className="">
                   <div className="bg-white rounded-lg p-8 dark:bg-[#303030]">
                     <h2 className="text-2xl font-semibold">
-                      Create Sub Category Types
+                      Create Sub Category Types (Optional)
                     </h2>
                   </div>
                   <div className="space-y-6">
                     {subCategories.map((subCategory) => (
                       <div
                         key={subCategory.id}
-                        className="bg-white rounded-lg p-6 mt-6 space-y-6"
+                        className="bg-white rounded-lg p-6 mt-6 space-y-6 dark:bg-[#303030]"
                       >
                         <div className="">
-                          <Label className="block text-md font-medium mb-2">
+                          <Label className="block text-md font-medium mb-2 dark:text-white">
                             Sub Category
                           </Label>
                           <Input
@@ -450,12 +699,12 @@ export default function AdminCreateCategoriesPage() {
                         {/* Manage Sub Category Types */}
                         <div className="flex flex-row flex-1 justify-between items-center mb-6">
                           <div>
-                            <h2 className="text-[#262626] font-semibold mb-1">
+                            <h2 className="text-[#262626] font-semibold mb-1 dark:text-white">
                               Add Sub Category Types
                             </h2>
                             <p className="text-[#737373] text-sm">
                               Add or remove sub category types from this sub
-                              category
+                              category (optional)
                             </p>
                           </div>
                           <div>
@@ -533,11 +782,12 @@ export default function AdminCreateCategoriesPage() {
                           </div>
                         ) : (
                           <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                            <p className="text-gray-500">
+                            <p className="text-gray-500 dark:text-gray-200">
                               No sub category types added yet
                             </p>
                             <p className="text-sm text-gray-400 mt-1">
                               Click "Add Sub Category Type" to get started
+                              (optional)
                             </p>
                           </div>
                         )}
@@ -545,10 +795,10 @@ export default function AdminCreateCategoriesPage() {
                     ))}
 
                     {subCategories.length === 0 && (
-                      <div className="bg-white rounded-lg p-6 text-left mt-6">
-                        <div className="bg-white rounded-lg p-6 pt-0 space-y-6">
+                      <div className="bg-white rounded-lg p-6 text-left mt-6 dark:bg-[#303030]">
+                        <div className="bg-white rounded-lg p-6 pt-0 space-y-6 dark:bg-[#303030]">
                           <div className="">
-                            <Label className="block text-md font-medium mb-2">
+                            <Label className="block text-md font-medium mb-2 dark:text-white">
                               Sub Category
                             </Label>
                             <Input
@@ -561,7 +811,7 @@ export default function AdminCreateCategoriesPage() {
                           {/* Manage Sub Category Types */}
                           <div className="flex flex-row flex-1 justify-between items-center mb-6">
                             <div>
-                              <h2 className="text-[#262626] font-semibold mb-1">
+                              <h2 className="text-[#262626] font-semibold mb-1 dark:text-white">
                                 Add Sub Category Types
                               </h2>
                               <p className="text-[#737373] text-sm">
@@ -581,9 +831,8 @@ export default function AdminCreateCategoriesPage() {
                           </div>
 
                           {/* Sub Category Types List */}
-
                           <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                            <p className="text-gray-500">
+                            <p className="text-gray-500 dark:text-gray-200">
                               No sub category types added yet
                             </p>
                             <p className="text-sm text-gray-400 mt-1">
@@ -592,9 +841,9 @@ export default function AdminCreateCategoriesPage() {
                           </div>
                         </div>
 
-                        <p className="text-gray-500 px-6">
+                        <p className="text-gray-500 px-6 dark:text-gray-300">
                           No sub categories found. Please add sub categories in
-                          the previous step.
+                          the previous step (optional).
                         </p>
                       </div>
                     )}
@@ -610,9 +859,10 @@ export default function AdminCreateCategoriesPage() {
                       </Button>
                       <Button
                         onClick={handleNext}
-                        className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12"
+                        className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12 text-white text-md font-semibold"
+                        disabled={createLoading}
                       >
-                        Next
+                        {createLoading ? "Loading..." : "Next"}
                       </Button>
                     </div>
                   </div>
@@ -622,9 +872,9 @@ export default function AdminCreateCategoriesPage() {
               {/* Step 3: Create Attributes */}
               {currentStep === 2 && (
                 <div>
-                  <div className="bg-white rounded-lg p-8">
+                  <div className="bg-white rounded-lg p-8 dark:bg-[#303030]">
                     <h2 className="text-2xl font-semibold mb-6">
-                      Create Attributes
+                      Create Attributes (Optional)
                     </h2>
 
                     <div>
@@ -642,7 +892,7 @@ export default function AdminCreateCategoriesPage() {
                         <div className="flex flex-row items-center gap-4 w-full sm:w-auto">
                           <div className="flex gap-2 items-center">
                             <Button
-                              className="bg-[#CC5500] h-11 hover:bg-[#CC5500]/90 font-semibold"
+                              className="bg-[#CC5500] h-11 hover:bg-[#CC5500]/90 font-semibold text-white"
                               onClick={() => setIsAttributeDrawerOpen(true)}
                             >
                               Add attribute
@@ -652,14 +902,26 @@ export default function AdminCreateCategoriesPage() {
                       </div>
 
                       <div>
-                        <DataTable<Attribute>
-                          data={filteredAttributes}
-                          fields={attributeFields}
-                          actions={attributeActions}
-                          enableSelection={true}
-                          enablePagination={true}
-                          pageSize={10}
-                        />
+                        {filteredAttributes.length === 0 ? (
+                          <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+                            <p className="text-gray-500 dark:text-gray-200">
+                              No attributes created yet
+                            </p>
+                            <p className="text-sm text-gray-400 mt-1">
+                              Click "Add attribute" to create your first
+                              attribute (optional)
+                            </p>
+                          </div>
+                        ) : (
+                          <DataTable<Attribute>
+                            data={filteredAttributes}
+                            fields={attributeFields}
+                            actions={attributeActions}
+                            enableSelection={true}
+                            enablePagination={true}
+                            pageSize={10}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -674,9 +936,10 @@ export default function AdminCreateCategoriesPage() {
                     </Button>
                     <Button
                       onClick={handleNext}
-                      className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12"
+                      className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12 text-white text-md font-semibold"
+                      disabled={createLoading}
                     >
-                      Next
+                      {createLoading ? "Loading..." : "Next"}
                     </Button>
                   </div>
                 </div>
@@ -685,13 +948,13 @@ export default function AdminCreateCategoriesPage() {
               {/* Step 4: Review and Assign Attributes */}
               {currentStep === 3 && (
                 <div>
-                  <div className="bg-white rounded-lg p-8">
+                  <div className="bg-white rounded-lg p-8 dark:bg-[#303030]">
                     <h2 className="text-2xl font-semibold">
-                      Assign Attributes
+                      Assign Attributes (Optional)
                     </h2>
                   </div>
 
-                  <div className="bg-white p-6 rounded-md mt-6">
+                  <div className="bg-white p-6 rounded-md mt-6 dark:bg-[#303030]">
                     {subCategories.length > 0 ? (
                       <div className="space-y-4">
                         {subCategories.map((subCategory) => (
@@ -703,7 +966,7 @@ export default function AdminCreateCategoriesPage() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-12">
+                      <div className="text-center py-12 dark:bg-[#303030]">
                         <div className="text-gray-400 mb-4">
                           <svg
                             className="w-16 h-16 mx-auto"
@@ -719,30 +982,32 @@ export default function AdminCreateCategoriesPage() {
                             />
                           </svg>
                         </div>
-                        <p className="text-gray-500 text-lg font-medium">
+                        <p className="text-gray-500 text-lg font-medium dark:text-gray-300">
                           No sub-categories found
                         </p>
                         <p className="text-gray-400 mt-1">
-                          Please add sub-categories in previous steps to assign
-                          attributes
+                          Sub-categories are optional. You can skip this step.
                         </p>
                       </div>
                     )}
-
                   </div>
-                    {/* Action Buttons */}
-                    <div className="flex justify-between mt-8 pt-6">
-                      <Button
-                        variant="outline"
-                        onClick={handleBack}
-                        className="px-8 py-3 w-xs h-12"
-                      >
-                        Back
-                      </Button>
-                      <Button className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12">
-                        Create Category
-                      </Button>
-                    </div>
+                  {/* Action Buttons */}
+                  <div className="flex justify-between mt-8 pt-6">
+                    <Button
+                      variant="outline"
+                      onClick={handleBack}
+                      className="px-8 py-3 w-xs h-12"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      onClick={handleNext}
+                      className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12 text-white text-md font-semibold"
+                      disabled={createLoading}
+                    >
+                      {createLoading ? "Creating..." : "Create Category"}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -771,8 +1036,7 @@ export default function AdminCreateCategoriesPage() {
       <AddAttributeDrawer
         isOpen={isAttributeDrawerOpen}
         onClose={() => setIsAttributeDrawerOpen(false)}
-        onAddAttribute={handleAddAttribute}
+        onAddAttribute={handleAddOrUpdateAttribute}
       />
     </div>
-  );
-}
+  )};

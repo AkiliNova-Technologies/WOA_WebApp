@@ -19,6 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { africanCountryCodes } from "@/lib/african-country-codes";
+import { Separator } from "./ui/separator";
 
 export interface AfricanPhoneInputProps {
   value: string;
@@ -126,6 +127,8 @@ export function AfricanPhoneInput({
         </PopoverContent>
       </Popover>
 
+      <Separator orientation="vertical" className="h-2"/>
+
       {/* Phone Number Input */}
       <div className="flex-1">
         <Input
@@ -133,7 +136,7 @@ export function AfricanPhoneInput({
           value={formatPhoneNumber(value)}
           onChange={handlePhoneChange}
           placeholder={placeholder}
-          className="h-11 border-none"
+          className="h-11 border-none rounded-none"
           disabled={disabled}
         />
       </div>

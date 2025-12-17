@@ -118,7 +118,7 @@ export default function FooterSection() {
                     "Order History",
                     "Shopping Cart",
                     "Wishlist",
-                    "Become a Seller",
+                    "Become a Vendor",
                   ].map((item) => (
                     <li
                       key={item}

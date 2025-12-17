@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DataTable,
   type TableAction,
   type TableField,
 } from "@/components/data-table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/site-header";
-import { FilterIcon, Plus } from "lucide-react";
+import { Filter, Plus, Download } from "lucide-react";
 import { PenIcon, Trash2Icon } from "lucide-react";
 import { Search } from "@/components/ui/search";
 import {
@@ -18,92 +18,49 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-// Mock data type for categories - replace with your actual type
-interface Category {
-  id: string;
-  name: string;
-  image: string;
-  attributeCount: number;
-  subCategoryCount: number;
-  productCount: number;
-  lastModified: string;
-  status: "active" | "draft" | "deleted";
-  [key: string]: any;
-}
+import { SectionCards, type CardData } from "@/components/section-cards";
+import { useReduxCategories } from "@/hooks/useReduxCategories";
+import type { Category as ReduxCategory } from "@/redux/slices/categoriesSlice";
+import images from "@/assets/images";
 
 type CategoryStatus = "active" | "draft" | "deleted";
+type TabFilter = "all" | "active" | "draft";
 
-// Mock data - replace with your actual data source
-const mockCategories: Category[] = [
-  {
-    id: "1",
-    name: "Electronics",
-    image: "/images/electronics.jpg",
-    attributeCount: 5,
-    subCategoryCount: 8,
-    productCount: 120,
-    lastModified: "2024-01-15",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Clothing",
-    image: "/images/clothing.jpg",
-    attributeCount: 3,
-    subCategoryCount: 12,
-    productCount: 85,
-    lastModified: "2024-01-10",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Home & Garden",
-    image: "/images/home-garden.jpg",
-    attributeCount: 4,
-    subCategoryCount: 6,
-    productCount: 45,
-    lastModified: "2024-01-12",
-    status: "draft",
-  },
-  {
-    id: "4",
-    name: "Sports",
-    image: "/images/sports.jpg",
-    attributeCount: 2,
-    subCategoryCount: 4,
-    productCount: 67,
-    lastModified: "2024-01-08",
-    status: "deleted",
-  },
-];
+const mapIsActiveToStatus = (isActive: boolean): CategoryStatus => {
+  return isActive ? "active" : "draft";
+};
+
+interface TransformedCategory {
+  id: string;
+  name: string;
+  status: CategoryStatus;
+  productsListed: number;
+  orderCount: number;
+  wishlistCount: number;
+  subCategoryCount: number;
+  isActive: boolean;
+  [key: string]: any; 
+}
 
 export default function AdminCategoriesPage() {
   const navigate = useNavigate();
-  const [categories] = useState<Category[]>(mockCategories);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<CategoryStatus[]>([]);
+  const [activeTab, setActiveTab] = useState<TabFilter>("all");
 
-  const getInitials = (name: string): string => {
-    return name
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase())
-      .join("")
-      .slice(0, 2);
-  };
+  const {
+    categories,
+    getCategories,
+    removeCategory,
+  } = useReduxCategories();
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
+  useEffect(() => {
+    getCategories();
+  }, [getCategories]);
 
   const statusOptions: { value: CategoryStatus; label: string }[] = [
     { value: "active", label: "Active" },
     { value: "draft", label: "Draft" },
-    { value: "deleted", label: "Deleted" },
   ];
 
   const handleStatusFilterChange = (status: CategoryStatus) => {
@@ -117,68 +74,134 @@ export default function AdminCategoriesPage() {
   const clearAllFilters = () => {
     setSelectedStatuses([]);
     setSearchQuery("");
+    setActiveTab("all");
   };
 
-  // Filter categories based on search and status filters
-  const filteredCategories = categories.filter((category) => {
+  const transformCategoryForTable = (category: ReduxCategory): TransformedCategory => ({
+    ...category,
+    status: mapIsActiveToStatus(category.isActive),
+    productsListed: 0,
+    orderCount: 0, 
+    wishlistCount: 0, 
+    subCategoryCount: category.subcategories?.length || 0,
+  });
+
+  const tableCategories: TransformedCategory[] = categories.map(transformCategoryForTable);
+
+  
+  const filteredCategories = tableCategories.filter((category) => {
+   
     const matchesSearch =
       searchQuery === "" ||
       category.name.toLowerCase().includes(searchQuery.toLowerCase());
+
     
-    const matchesStatus =
+    const matchesStatusFilter =
       selectedStatuses.length === 0 ||
       selectedStatuses.includes(category.status);
 
-    return matchesSearch && matchesStatus;
+   
+    const matchesTabFilter = 
+      activeTab === "all" ||
+      (activeTab === "active" && category.isActive) ||
+      (activeTab === "draft" && !category.isActive);
+
+    return matchesSearch && matchesStatusFilter && matchesTabFilter;
   });
 
-  // Table fields for categories
-  const categoryFields: TableField<Category>[] = [
+  // Calculate statistics for cards
+  const activeCategories = categories.filter(cat => cat.isActive).length;
+  // const draftCategories = categories.filter(cat => !cat.isActive).length;
+  
+
+  const totalProducts = tableCategories.reduce((sum, cat) => sum + cat.productsListed, 0);
+  
+  const avgProductsPerCategory = activeCategories > 0 
+    ? Math.round(totalProducts / activeCategories).toString()
+    : "0";
+    
+  const totalSubcategories = tableCategories.reduce((sum, cat) => sum + cat.subCategoryCount, 0);
+  const avgSubcategoryDepth = activeCategories > 0 
+    ? Math.round(totalSubcategories / activeCategories).toString()
+    : "0";
+
+  const statsCards: CardData[] = [
+    {
+      title: "Total active categories",
+      value: activeCategories.toString(),
+      change: {
+        value: "10%",
+        trend: "up",
+        description: "",
+      },
+    },
+    {
+      title: "Avg. products per category",
+      value: avgProductsPerCategory,
+      change: {
+        value: "5%",
+        trend: "down",
+        description: "",
+      },
+    },
+    {
+      title: "Avg. sub category depth",
+      value: avgSubcategoryDepth,
+      change: {
+        value: "5%",
+        trend: "down",
+        description: "",
+      },
+    },
+  ];
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (window.confirm("Are you sure you want to delete this category?")) {
+      try {
+        await removeCategory(categoryId);
+        console.log("Category deleted successfully");
+      } catch (error) {
+        console.error("Failed to delete category:", error);
+      }
+    }
+  };
+
+  const categoryFields: TableField<TransformedCategory>[] = [
     {
       key: "name",
-      header: "Category Name",
+      header: "Category name",
       cell: (_, row) => (
         <div className="flex items-center gap-3">
-          <Avatar className="aspect-square h-16 w-16 rounded-sm">
-            <AvatarImage src={row.image} alt={row.name} />
-            <AvatarFallback className="bg-primary/10 text-primary font-medium rounded-sm">
-              {getInitials(row.name)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col">
-            <span className="font-medium text-md">{row.name}</span>
-          </div>
+          <span className="font-medium text-md">{row.name}</span>
         </div>
       ),
       align: "left",
     },
     {
-      key: "attributeCount",
-      header: "Attribute Count",
+      key: "productsListed",
+      header: "Products listed",
+      cell: (value) => <span className="font-medium">{value as number}</span>,
+      align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "orderCount",
+      header: "Order count",
+      cell: (value) => <span className="font-medium">{value as number}</span>,
+      align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "wishlistCount",
+      header: "Wishlist count",
       cell: (value) => <span className="font-medium">{value as number}</span>,
       align: "center",
       enableSorting: true,
     },
     {
       key: "subCategoryCount",
-      header: "Sub Category Count",
+      header: "Sub category count",
       cell: (value) => <span className="font-medium">{value as number}</span>,
-      align: "center",
-      enableSorting: true,
-    },
-    {
-      key: "productCount",
-      header: "Product Count",
-      cell: (value) => <span className="font-medium">{value as number}</span>,
-      align: "center",
-      enableSorting: true,
-    },
-    {
-      key: "lastModified",
-      header: "Last Modified",
-      cell: (value) => (
-        <span className="font-medium">{formatDate(value as string)}</span>
-      ),
       align: "center",
       enableSorting: true,
     },
@@ -189,21 +212,15 @@ export default function AdminCategoriesPage() {
         const statusConfig = {
           active: {
             label: "Active",
-            dotColor: "bg-green-500",
-            textColor: "text-green-700",
-            bgColor: "bg-green-50",
+            className: "bg-teal-50 text-teal-700 border-teal-200",
           },
           draft: {
             label: "Draft",
-            dotColor: "bg-yellow-500",
-            textColor: "text-yellow-700",
-            bgColor: "bg-yellow-50",
+            className: "bg-gray-100 text-gray-700 border-gray-300",
           },
-          deleted: {
-            label: "Deleted",
-            dotColor: "bg-red-500",
-            textColor: "text-red-700",
-            bgColor: "bg-red-50",
+          archived: {
+            label: "Archived",
+            className: "bg-gray-100 text-gray-600 border-gray-300",
           },
         };
 
@@ -214,9 +231,8 @@ export default function AdminCategoriesPage() {
         return (
           <Badge
             variant="outline"
-            className="flex flex-row items-center py-2 w-24 gap-2 bg-muted/50"
+            className={`${config.className} font-medium`}
           >
-            <div className={`size-2 rounded-full ${config.dotColor}`} />
             {config.label}
           </Badge>
         );
@@ -226,7 +242,7 @@ export default function AdminCategoriesPage() {
     },
   ];
 
-  const categoryActions: TableAction<Category>[] = [
+  const categoryActions: TableAction<TransformedCategory>[] = [
     {
       type: "edit",
       label: "Edit Category",
@@ -240,50 +256,85 @@ export default function AdminCategoriesPage() {
       label: "Delete Category",
       icon: <Trash2Icon className="size-5" />,
       onClick: (category) => {
-        // Implement delete logic here
-        console.log("Delete category:", category.id);
+        handleDeleteCategory(category.id);
       },
     },
   ];
 
+  const handleTabClick = (tab: TabFilter) => {
+    setActiveTab(tab);
+    // Clear status filters when switching tabs (optional)
+    if (tab !== "all") {
+      setSelectedStatuses([]);
+    }
+  };
+
+  const getTabButtonClass = (tab: TabFilter) => {
+    const baseClass = "px-4 py-4 text-sm font-medium whitespace-nowrap";
+    
+    if (activeTab === tab) {
+      return `${baseClass} text-gray-900 dark:text-white border-b-2 border-gray-900 dark:border-white font-semibold`;
+    }
+    
+    return `${baseClass} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white`;
+  };
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#1a1a1a]">
       <SiteHeader
         label="Category Management"
-        rightActions={
-          <Button
-            variant="secondary"
-            className="h-11 bg-[#CC5500] text-white gap-2 hover:bg-[#CC5500]/90"
-            onClick={() => navigate("/admin/categories/create-category")}
-          >
-            <Plus /> Create Category
-          </Button>
-        }
       />
-      <div className="p-6">
-        <div className="bg-white p-6 rounded-lg dark:bg-[#303030]">
-          {/* Search and Filter Section */}
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-2">
-            <div className="w-full sm:w-auto sm:flex-1">
-              <Search
-                placeholder="Search categories by name..."
-                value={searchQuery}
-                onSearchChange={setSearchQuery}
-                className="rounded-full"
-              />
+      <div className="p-6 space-y-6">
+        <SectionCards cards={statsCards} layout="1x3" />
+
+        <div className="bg-white rounded-lg border border-gray-200 dark:bg-[#303030] dark:border-gray-700">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">All Categories</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Manage and monitor all categories on the platform
+                </p>
+              </div>
+              <Button
+                className="bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-gray-100 gap-2"
+                onClick={() => navigate("/admin/categories/create-category")}
+              >
+                <Plus className="w-4 h-4" /> Create Category
+              </Button>
             </div>
 
-            <div className="flex flex-row items-center gap-4 w-full sm:w-auto">
-              <div className="flex gap-2 items-center">
-                {/* Status Filter Dropdown */}
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="w-full sm:w-96">
+                <Search
+                  placeholder="Search"
+                  value={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  className="h-10"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050] rounded-l-lg">
+                    Last 7 days
+                  </button>
+                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]">
+                    Last 30 days
+                  </button>
+                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848] rounded-r-lg">
+                    All time
+                  </button>
+                </div>
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
                       className="flex items-center gap-2 h-10"
                     >
-                      <FilterIcon className="w-4 h-4" />
-                      Status
+                      <Filter className="w-4 h-4" />
+                      Filter
                       {selectedStatuses.length > 0 && (
                         <Badge variant="secondary" className="ml-1">
                           {selectedStatuses.length}
@@ -306,12 +357,16 @@ export default function AdminCategoriesPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Clear Filters Button */}
-                {(selectedStatuses.length > 0 || searchQuery) && (
+                <Button variant="outline" className="gap-2 h-10">
+                  <Download className="w-4 h-4" />
+                  Export
+                </Button>
+
+                {(selectedStatuses.length > 0 || searchQuery || activeTab !== "all") && (
                   <Button
                     variant="ghost"
                     onClick={clearAllFilters}
-                    className="text-sm"
+                    className="text-sm h-10"
                   >
                     Clear Filters
                   </Button>
@@ -320,15 +375,47 @@ export default function AdminCategoriesPage() {
             </div>
           </div>
 
-          <div>
-            <DataTable<Category>
-              data={filteredCategories}
-              fields={categoryFields}
-              actions={categoryActions}
-              enableSelection={true}
-              enablePagination={true}
-              pageSize={10}
-            />
+          <div className="border-b border-gray-200 dark:border-gray-700">
+            <div className="flex gap-0 px-6 overflow-x-auto">
+              <button 
+                className={getTabButtonClass("all")}
+                onClick={() => handleTabClick("all")}
+              >
+                All Categories
+              </button>
+              <button 
+                className={getTabButtonClass("active")}
+                onClick={() => handleTabClick("active")}
+              >
+                Active
+              </button>
+              <button 
+                className={getTabButtonClass("draft")}
+                onClick={() => handleTabClick("draft")}
+              >
+                Drafts
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {filteredCategories.length === 0 ? (
+              <div className="flex flex-col items-center text-center py-12">
+                <img src={images.EmptyFallback} alt="" className="h-60 mb-6"/>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  No Categories Found
+                </h3>
+              </div>
+            ) : (
+              <DataTable<TransformedCategory>
+                data={filteredCategories}
+                fields={categoryFields}
+                actions={categoryActions}
+                enableSelection={true}
+                enablePagination={true}
+                pageSize={10}
+              />
+            )}
           </div>
         </div>
       </div>

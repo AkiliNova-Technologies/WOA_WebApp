@@ -3,18 +3,18 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ImageUpload } from "@/components/image-upload";
+import { ImageUpload, type UploadDocument } from "@/components/image-upload";
 
-interface SubCategoryType {
-  id: string;
-  name: string;
-  image: string;
-}
+// interface SubCategoryType {
+//   id: string;
+//   name: string;
+//   image: string;
+// }
 
 interface AddSubCategoryTypeDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddSubCategoryType: (subCategoryType: SubCategoryType) => void;
+  onAddSubCategoryType: (subCategoryType: { name: string; image: File | null }) => void;
 }
 
 export function AddSubCategoryTypeDrawer({
@@ -23,14 +23,23 @@ export function AddSubCategoryTypeDrawer({
   onAddSubCategoryType,
 }: AddSubCategoryTypeDrawerProps) {
   const [subCategoryTypeName, setSubCategoryTypeName] = useState("");
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [documents, setDocuments] = useState<UploadDocument[]>([]);
 
-  const handleImageChange = (file: File | null) => {
-    if (file) {
-      const previewUrl = URL.createObjectURL(file);
-      setImagePreview(previewUrl);
+  const handleImageChange = (files: UploadDocument[]) => {
+    if (files.length > 0 && files[0].file) {
+      // Use the first file if available
+      const file = files[0].file;
+      setSelectedImage(file);
+      setImagePreview(files[0].previewUrl);
+      
+      // Also update the documents state for the ImageUpload component
+      setDocuments(files);
     } else {
+      setSelectedImage(null);
       setImagePreview("");
+      setDocuments([]);
     }
   };
 
@@ -40,19 +49,31 @@ export function AddSubCategoryTypeDrawer({
       return;
     }
 
-    const newSubCategoryType: SubCategoryType = {
-      id: Date.now().toString(),
-      name: subCategoryTypeName.trim(),
-      image: imagePreview || "/placeholder-image.jpg",
-    };
+    if (!selectedImage) {
+      alert("Please select an image for the sub-category type");
+      return;
+    }
 
-    onAddSubCategoryType(newSubCategoryType);
+    // Call the parent function with the data
+    onAddSubCategoryType({
+      name: subCategoryTypeName.trim(),
+      image: selectedImage
+    });
+    
     handleClose();
   };
 
   const handleClose = () => {
     setSubCategoryTypeName("");
+    setSelectedImage(null);
     setImagePreview("");
+    setDocuments([]);
+    
+    // Clean up object URLs
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    
     onClose();
   };
 
@@ -67,15 +88,15 @@ export function AddSubCategoryTypeDrawer({
       />
 
       {/* Drawer Content */}
-      <div className="relative bg-white w-full max-w-3xl rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white w-full max-w-3xl rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto dark:bg-[#1A1A1A]">
         {/* Header */}
-        <div className="flex items-center justify-between p-6">
-          <h2 className="text-xl font-semibold">Add Sub Category Type</h2>
+        <div className="flex items-center justify-between p-6 border-b dark:border-[#333333]">
+          <h2 className="text-xl font-semibold dark:text-white">Add Sub Category Type</h2>
           <Button
             variant="ghost"
             size="icon"
             onClick={handleClose}
-            className="h-8 w-8"
+            className="h-8 w-8 hover:bg-gray-100 dark:hover:bg-[#333333]"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -85,8 +106,8 @@ export function AddSubCategoryTypeDrawer({
         <div className="p-6 space-y-6">
           {/* Sub Category Type Name */}
           <div className="space-y-2">
-            <Label htmlFor="subCategoryTypeName" className="text-sm font-medium">
-              Sub Category Type Name
+            <Label htmlFor="subCategoryTypeName" className="text-sm font-medium dark:text-white">
+              Sub Category Type Name *
             </Label>
             <Input
               id="subCategoryTypeName"
@@ -94,14 +115,15 @@ export function AddSubCategoryTypeDrawer({
               placeholder="Enter sub category type name"
               value={subCategoryTypeName}
               onChange={(e) => setSubCategoryTypeName(e.target.value)}
-              className="h-11"
+              className="h-11 dark:bg-[#303030] dark:border-[#444444] dark:text-white"
+              required
             />
           </div>
 
           {/* Image Upload */}
           <div className="space-y-2">
-            <Label htmlFor="subCategoryTypeImage" className="text-sm font-medium">
-              Sub Category Type Image
+            <Label htmlFor="subCategoryTypeImage" className="text-sm font-medium dark:text-white">
+              Sub Category Type Image *
             </Label>
             <ImageUpload
               onImageChange={handleImageChange}
@@ -110,23 +132,34 @@ export function AddSubCategoryTypeDrawer({
               maxHeight="max-h-48"
               maxSize={10}
               className="w-full"
+              initialDocuments={documents}
             />
+            {imagePreview && (
+              <div className="mt-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Preview:</p>
+                <img 
+                  src={imagePreview} 
+                  alt="Preview" 
+                  className="mt-1 w-24 h-24 object-cover rounded-md border dark:border-[#444444]"
+                />
+              </div>
+            )}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 p-6 border-t">
+        <div className="flex gap-3 p-6 border-t dark:border-[#333333]">
           <Button
             variant="outline"
             onClick={handleClose}
-            className="flex-1 h-11"
+            className="flex-1 h-11 dark:bg-[#303030] dark:border-[#444444] dark:text-white dark:hover:bg-[#404040]"
           >
             Cancel
           </Button>
           <Button
             onClick={handleAddSubCategoryType}
-            className="flex-1 h-11 bg-[#CC5500] hover:bg-[#B34D00]"
-            disabled={!subCategoryTypeName.trim()}
+            className="flex-1 h-11 bg-[#CC5500] hover:bg-[#B34D00] text-white"
+            disabled={!subCategoryTypeName.trim() || !selectedImage}
           >
             Add Sub Category Type
           </Button>

@@ -14,7 +14,8 @@ const mockProducts: Product[] = [
   {
     id: "1",
     name: "Colorful Bolga Shirt",
-    description: "Perfect for complete traditional outfits with vibrant colors and patterns",
+    description:
+      "Perfect for complete traditional outfits with vibrant colors and patterns",
     price: 35,
     originalPrice: 45,
     rating: 4.5,
@@ -74,7 +75,8 @@ const mockProducts: Product[] = [
   {
     id: "7",
     name: "Handmade Leather Sandals",
-    description: "Comfortable handmade leather sandals with traditional patterns",
+    description:
+      "Comfortable handmade leather sandals with traditional patterns",
     price: 55,
     originalPrice: 65,
     rating: 4.4,
@@ -159,7 +161,7 @@ const mockProducts: Product[] = [
     productionMethod: "handwoven",
     status: "active",
     sales: 22,
-  }
+  },
 ];
 
 // Mock wishlist items with different added dates
@@ -193,13 +195,14 @@ const mockWishlistItems: WishlistItem[] = [
 
 export function useWishlist() {
   // State for wishlist items - initialized with mock data
-  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(mockWishlistItems);
+  const [wishlistItems, setWishlistItems] =
+    useState<WishlistItem[]>(mockWishlistItems);
 
   // Add item to wishlist
   const addToWishlist = (product: Product) => {
     setWishlistItems((prev) => {
       // Check if product is already in wishlist
-      const existingItem = prev.find(item => item.productId === product.id);
+      const existingItem = prev.find((item) => item.productId === product.id);
       if (existingItem) {
         return prev; // Already in wishlist, do nothing
       }
@@ -214,10 +217,17 @@ export function useWishlist() {
     });
   };
 
+  const getVendorName = (product: Product): string => {
+    if (!product.vendor) return "";
+    if (typeof product.vendor === "string") return product.vendor;
+    // Use 'name' property from Vendor type
+    return product.vendor.name || "";
+  };
+
   // Remove item from wishlist
   const removeFromWishlist = (productId: string) => {
-    setWishlistItems((prev) => 
-      prev.filter(item => item.productId !== productId)
+    setWishlistItems((prev) =>
+      prev.filter((item) => item.productId !== productId)
     );
   };
 
@@ -228,7 +238,7 @@ export function useWishlist() {
 
   // Check if product is in wishlist
   const isInWishlist = (productId: string): boolean => {
-    return wishlistItems.some(item => item.productId === productId);
+    return wishlistItems.some((item) => item.productId === productId);
   };
 
   // Get wishlist item count
@@ -238,29 +248,31 @@ export function useWishlist() {
 
   // Get wishlist items sorted by date added (newest first)
   const getSortedWishlistItems = useMemo(() => {
-    return [...wishlistItems].sort((a, b) => 
-      new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
+    return [...wishlistItems].sort(
+      (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
     );
   }, [wishlistItems]);
 
   // Get wishlist items by category
   const getWishlistItemsByCategory = (categoryId: string): WishlistItem[] => {
-    return wishlistItems.filter(item => item.product.categoryId === categoryId);
+    return wishlistItems.filter(
+      (item) => item.product.categoryId === categoryId
+    );
   };
 
   // Get wishlist items that are on sale
   const getOnSaleWishlistItems = (): WishlistItem[] => {
-    return wishlistItems.filter(item => item.product.isOnSale);
+    return wishlistItems.filter((item) => item.product.isOnSale);
   };
 
   // Get wishlist items that are in stock
   const getInStockWishlistItems = (): WishlistItem[] => {
-    return wishlistItems.filter(item => item.product.inStock);
+    return wishlistItems.filter((item) => item.product.inStock);
   };
 
   // Get wishlist items that are out of stock
   const getOutOfStockWishlistItems = (): WishlistItem[] => {
-    return wishlistItems.filter(item => !item.product.inStock);
+    return wishlistItems.filter((item) => !item.product.inStock);
   };
 
   // Toggle wishlist item (add if not present, remove if present)
@@ -274,7 +286,9 @@ export function useWishlist() {
 
   // Move item to cart (remove from wishlist and potentially add to cart)
   const moveToCart = (productId: string) => {
-    const itemToMove = wishlistItems.find(item => item.productId === productId);
+    const itemToMove = wishlistItems.find(
+      (item) => item.productId === productId
+    );
     if (itemToMove) {
       removeFromWishlist(productId);
       return itemToMove.product;
@@ -285,23 +299,26 @@ export function useWishlist() {
   // Move all in-stock items to cart
   const moveAllToCart = () => {
     const inStockItems = getInStockWishlistItems();
-    const movedProducts = inStockItems.map(item => item.product);
-    
+    const movedProducts = inStockItems.map((item) => item.product);
+
     // Remove all in-stock items from wishlist
-    setWishlistItems(prev => 
-      prev.filter(item => !item.product.inStock)
-    );
-    
+    setWishlistItems((prev) => prev.filter((item) => !item.product.inStock));
+
     return movedProducts;
   };
 
   // Get wishlist statistics
   const getWishlistStats = () => {
     const totalItems = wishlistItems.length;
-    const totalValue = wishlistItems.reduce((sum, item) => sum + item.product.price, 0);
+    const totalValue = wishlistItems.reduce(
+      (sum, item) => sum + item.product.price,
+      0
+    );
     const onSaleCount = getOnSaleWishlistItems().length;
     const outOfStockCount = getOutOfStockWishlistItems().length;
-    const categoriesCount = new Set(wishlistItems.map(item => item.product.categoryId)).size;
+    const categoriesCount = new Set(
+      wishlistItems.map((item) => item.product.categoryId)
+    ).size;
 
     return {
       totalItems,
@@ -309,40 +326,49 @@ export function useWishlist() {
       onSaleCount,
       outOfStockCount,
       categoriesCount,
-      averageRating: totalItems > 0 
-        ? wishlistItems.reduce((sum, item) => sum + item.product.rating, 0) / totalItems 
-        : 0,
+      averageRating:
+        totalItems > 0
+          ? wishlistItems.reduce((sum, item) => sum + item.product.rating, 0) /
+            totalItems
+          : 0,
     };
   };
 
   // Search wishlist items
   const searchWishlist = (query: string): WishlistItem[] => {
     if (!query) return wishlistItems;
-    
+
     const lowercaseQuery = query.toLowerCase();
-    return wishlistItems.filter(item =>
-      item.product.name.toLowerCase().includes(lowercaseQuery) ||
-      item.product.description.toLowerCase().includes(lowercaseQuery) ||
-      item.product.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery)) ||
-      item.product.vendor.toLowerCase().includes(lowercaseQuery)
+    return wishlistItems.filter(
+      (item) =>
+        item.product.name.toLowerCase().includes(lowercaseQuery) ||
+        item.product.description.toLowerCase().includes(lowercaseQuery) ||
+        item.product.tags.some((tag) =>
+          tag.toLowerCase().includes(lowercaseQuery)
+        ) ||
+        (getVendorName(item.product).toLowerCase().includes(lowercaseQuery) ??
+          false)
     );
   };
 
   // Filter wishlist by price range
-  const filterWishlistByPrice = (minPrice: number, maxPrice: number): WishlistItem[] => {
-    return wishlistItems.filter(item =>
-      item.product.price >= minPrice && item.product.price <= maxPrice
+  const filterWishlistByPrice = (
+    minPrice: number,
+    maxPrice: number
+  ): WishlistItem[] => {
+    return wishlistItems.filter(
+      (item) => item.product.price >= minPrice && item.product.price <= maxPrice
     );
   };
 
   // Filter wishlist by rating
   const filterWishlistByRating = (minRating: number): WishlistItem[] => {
-    return wishlistItems.filter(item => item.product.rating >= minRating);
+    return wishlistItems.filter((item) => item.product.rating >= minRating);
   };
 
   // Get unique categories in wishlist
   const getWishlistCategories = (): string[] => {
-    const categoryIds = wishlistItems.map(item => item.product.categoryId);
+    const categoryIds = wishlistItems.map((item) => item.product.categoryId);
     return Array.from(new Set(categoryIds));
   };
 
@@ -350,16 +376,14 @@ export function useWishlist() {
   const getRecentWishlistItems = (days: number = 7): WishlistItem[] => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
-    
-    return wishlistItems.filter(item => 
-      new Date(item.addedAt) >= cutoffDate
-    );
+
+    return wishlistItems.filter((item) => new Date(item.addedAt) >= cutoffDate);
   };
 
   // Get most expensive item in wishlist
   const getMostExpensiveItem = (): WishlistItem | undefined => {
     if (wishlistItems.length === 0) return undefined;
-    return wishlistItems.reduce((max, item) => 
+    return wishlistItems.reduce((max, item) =>
       item.product.price > max.product.price ? item : max
     );
   };
@@ -367,15 +391,19 @@ export function useWishlist() {
   // Get cheapest item in wishlist
   const getCheapestItem = (): WishlistItem | undefined => {
     if (wishlistItems.length === 0) return undefined;
-    return wishlistItems.reduce((min, item) => 
+    return wishlistItems.reduce((min, item) =>
       item.product.price < min.product.price ? item : min
     );
   };
 
   // Get items by vendor
   const getItemsByVendor = (vendor: string): WishlistItem[] => {
-    return wishlistItems.filter(item => 
-      item.product.vendor.toLowerCase().includes(vendor.toLowerCase())
+    const lowercaseVendor = vendor.toLowerCase();
+    return wishlistItems.filter((item) =>
+      typeof item.product.vendor === "string"
+        ? item.product.vendor.toLowerCase().includes(lowercaseVendor)
+        : item.product.vendor?.name?.toLowerCase().includes(lowercaseVendor) ||
+          false
     );
   };
 
@@ -412,8 +440,8 @@ export function useWishlist() {
 
     // Helper values
     isEmpty: wishlistItems.length === 0,
-    hasOutOfStockItems: wishlistItems.some(item => !item.product.inStock),
-    hasOnSaleItems: wishlistItems.some(item => item.product.isOnSale),
+    hasOutOfStockItems: wishlistItems.some((item) => !item.product.inStock),
+    hasOnSaleItems: wishlistItems.some((item) => item.product.isOnSale),
   };
 }
 
@@ -421,8 +449,8 @@ export function useWishlist() {
 export function usePersistentWishlist() {
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(() => {
     // Initialize from localStorage or use mock data if empty
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('wishlist');
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("wishlist");
       return saved ? JSON.parse(saved) : mockWishlistItems;
     }
     return mockWishlistItems;
@@ -431,15 +459,15 @@ export function usePersistentWishlist() {
   // Helper function to update both state and localStorage
   const updateWishlist = (newWishlist: WishlistItem[]) => {
     setWishlistItems(newWishlist);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('wishlist', JSON.stringify(newWishlist));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("wishlist", JSON.stringify(newWishlist));
     }
   };
 
   const addToWishlist = (product: Product) => {
     setWishlistItems((prev: WishlistItem[]) => {
       // Check if product is already in wishlist
-      const existingItem = prev.find(item => item.productId === product.id);
+      const existingItem = prev.find((item) => item.productId === product.id);
       if (existingItem) {
         return prev; // Already in wishlist, do nothing
       }
@@ -451,39 +479,39 @@ export function usePersistentWishlist() {
         addedAt: new Date().toISOString(),
       };
       const newWishlist = [...prev, newItem];
-      
+
       // Update localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('wishlist', JSON.stringify(newWishlist));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("wishlist", JSON.stringify(newWishlist));
       }
-      
+
       return newWishlist;
     });
   };
 
   const removeFromWishlist = (productId: string) => {
     setWishlistItems((prev: WishlistItem[]) => {
-      const newWishlist = prev.filter(item => item.productId !== productId);
-      
+      const newWishlist = prev.filter((item) => item.productId !== productId);
+
       // Update localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('wishlist', JSON.stringify(newWishlist));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("wishlist", JSON.stringify(newWishlist));
       }
-      
+
       return newWishlist;
     });
   };
 
   const clearWishlist = () => {
     setWishlistItems([]);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('wishlist', JSON.stringify([]));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("wishlist", JSON.stringify([]));
     }
   };
 
   // Check if product is in wishlist
   const isInWishlist = (productId: string): boolean => {
-    return wishlistItems.some(item => item.productId === productId);
+    return wishlistItems.some((item) => item.productId === productId);
   };
 
   // Get wishlist item count
@@ -493,8 +521,8 @@ export function usePersistentWishlist() {
 
   // Get wishlist items sorted by date added (newest first)
   const getSortedWishlistItems = useMemo(() => {
-    return [...wishlistItems].sort((a, b) => 
-      new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
+    return [...wishlistItems].sort(
+      (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
     );
   }, [wishlistItems]);
 

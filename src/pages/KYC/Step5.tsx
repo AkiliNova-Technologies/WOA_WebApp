@@ -1,9 +1,8 @@
 "use client";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
+import { User, Mail, Phone, MapPin, Building, CreditCard } from "lucide-react";
 import type { FormData } from "./StepsContainer";
 
 interface Step5Props {
@@ -19,142 +18,203 @@ export default function Step5({ formData }: Step5Props) {
           <CardTitle>Personal Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <Label>First Name</Label>
-              <Input
-                value={formData.firstName}
-                readOnly
-                className="h-11 bg-gray-50"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <User className="w-4 h-4 text-[#CC5500]" />
+                <span>Full Name</span>
+              </div>
+              <p className="font-medium">
+                {formData.firstName} {formData.middleName} {formData.lastName}
+              </p>
             </div>
-            <div className="space-y-3">
-              <Label>Last Name</Label>
-              <Input
-                value={formData.lastName}
-                readOnly
-                className="h-11 bg-gray-50"
-              />
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <Mail className="w-4 h-4 text-[#CC5500]" />
+                <span>Email Address</span>
+              </div>
+              <p className="font-medium">{formData.email}</p>
             </div>
-            <div className="space-y-3">
-              <Label>Email</Label>
-              <Input
-                value={formData.email}
-                readOnly
-                className="h-11 bg-gray-50"
-              />
-            </div>
-            <div className="space-y-3">
-              <Label>Phone Number</Label>
-              <Input
-                value={`${formData.countryCode} ${formData.phoneNumber}`}
-                readOnly
-                className="h-11 bg-gray-50"
-              />
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <Phone className="w-4 h-4 text-[#CC5500]" />
+                <span>Phone Number</span>
+              </div>
+              <p className="font-medium">
+                {formData.countryCode} {formData.phoneNumber}
+              </p>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <Label>My Story</Label>
-            {formData.videoFile ? (
-              <video
-                controls
-                className="w-full h-64 rounded-lg border border-gray-200"
-                src={URL.createObjectURL(formData.videoFile)}
-              />
-            ) : (
-              <div className="flex items-center justify-center p-8 border-2 border-dashed rounded-lg text-gray-500">
-                No video uploaded
-              </div>
-            )}
+          {/* Identity Verification Images */}
+          <div className="pt-4 border-t">
+            <h3 className="text-md font-semibold mb-4">Identity verification</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {formData.identityDocuments && formData.identityDocuments.length > 0 ? (
+                formData.identityDocuments.map((_doc, index) => (
+                  <div
+                    key={index}
+                    className="border rounded-lg overflow-hidden aspect-video bg-gray-50"
+                  >
+                    {/* Document preview would go here */}
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      Document {index + 1}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-2 text-gray-400 text-center py-8">
+                  No identity documents uploaded
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
-      {/* Store Details */}
+
+      {/* Shop Details */}
       <Card className="shadow-none">
         <CardHeader>
-          <CardTitle>Store Details</CardTitle>
+          <CardTitle>Shop Details</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <Label>Store Name</Label>
-              <Input
-                value={formData.storeName}
-                readOnly
-                className="h-11 bg-gray-50"
-              />
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <Building className="w-4 h-4 text-[#CC5500]" />
+                <span>Shop Name</span>
+              </div>
+              <p className="font-medium">{formData.storeName}</p>
             </div>
-            <div className="space-y-3">
-              <Label>Country</Label>
-              <Input
-                value={formData.country}
-                readOnly
-                className="h-11 bg-gray-50"
-              />
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <MapPin className="w-4 h-4 text-[#CC5500]" />
+                <span>Country of Operation</span>
+              </div>
+              <p className="font-medium">{formData.country}</p>
             </div>
-            <div className="space-y-3">
-              <Label>City</Label>
-              <Input
-                value={formData.city}
-                readOnly
-                className="h-11 bg-gray-50"
-              />
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <MapPin className="w-4 h-4 text-[#CC5500]" />
+                <span>City of operation</span>
+              </div>
+              <p className="font-medium">{formData.city}</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <MapPin className="w-4 h-4 text-[#CC5500]" />
+                <span>District</span>
+              </div>
+              <p className="font-medium">{formData.district || "N/A"}</p>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <Label>Store Description</Label>
-            <Textarea
-              rows={5}
-              value={formData.storeDescription}
-              readOnly
-              className="bg-gray-50"
-            />
-          </div>
+          {/* Verified Location */}
+          {(formData.streetName || formData.additionalAddress) && (
+            <div className="pt-4 border-t">
+              <h3 className="text-sm font-medium mb-2">Verified location</h3>
+              <div className="bg-gray-50 p-3 rounded-md">
+                <p className="text-sm">
+                  {formData.streetName && <span>{formData.streetName}</span>}
+                  {formData.streetName && formData.additionalAddress && ", "}
+                  {formData.additionalAddress && (
+                    <span>{formData.additionalAddress}</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Store Description */}
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Store description</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div
+            className="prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: formData.storeDescription }}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Seller Story */}
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Seller story</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {formData.videoFile ? (
+            <video
+              className="border w-full rounded-md"
+              controls
+              src={URL.createObjectURL(formData.videoFile)}
+            />
+          ) : (
+            <div className="border w-full h-64 rounded-md bg-gray-50 flex items-center justify-center text-gray-400">
+              No video uploaded
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Bank Details */}
       <Card className="shadow-none">
         <CardHeader>
-          <CardTitle>Bank Details</CardTitle>
+          <CardTitle>Bank details</CardTitle>
         </CardHeader>
-        <CardContent className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <Label>Account Holder Name</Label>
-            <Input
-              value={formData.accountHolderName}
-              readOnly
-              className="h-11 bg-gray-50"
-            />
-          </div>
-          <div className="space-y-3">
-            <Label>Bank Name</Label>
-            <Input
-              value={formData.bankName}
-              readOnly
-              className="h-11 bg-gray-50"
-            />
-          </div>
-          <div className="space-y-3">
-            <Label>Account Number</Label>
-            <Input
-              value={
-                formData.accountNumber
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <User className="w-4 h-4 text-[#CC5500]" />
+                <span>Account Holder Name</span>
+              </div>
+              <p className="font-medium">{formData.accountHolderName}</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <Building className="w-4 h-4 text-[#CC5500]" />
+                <span>Account Name</span>
+              </div>
+              <p className="font-medium">{formData.bankName}</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <Building className="w-4 h-4 text-[#CC5500]" />
+                <span>Bank Name</span>
+              </div>
+              <p className="font-medium">{formData.bankName}</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <CreditCard className="w-4 h-4 text-[#CC5500]" />
+                <span>Account Number</span>
+              </div>
+              <p className="font-medium">
+                {formData.accountNumber
                   ? "•".repeat(formData.accountNumber.length)
-                  : ""
-              }
-              readOnly
-              className="h-11 bg-gray-50"
-            />
-          </div>
-          <div className="space-y-3">
-            <Label>Swift Code</Label>
-            <Input
-              value={formData.swiftCode}
-              readOnly
-              className="h-11 bg-gray-50"
-            />
+                  : "N/A"}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-[#303030]">
+                <CreditCard className="w-4 h-4 text-[#CC5500]" />
+                <span>Swift Code</span>
+              </div>
+              <p className="font-medium">{formData.swiftCode || "N/A"}</p>
+            </div>
           </div>
         </CardContent>
       </Card>

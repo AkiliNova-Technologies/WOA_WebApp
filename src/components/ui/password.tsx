@@ -67,10 +67,10 @@ function PasswordInput({
           data-slot="input"
           className={cn(
             "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-11 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm pr-10",
-            "focus-visible:ring-[#CC5500]/60 focus-visible:ring-1",
+            "focus-visible:ring-[#CC5500] focus-visible:border-none focus-visible:ring-1",
             error 
               ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" 
-              : "border-gray-300",
+              : "border",
             strength && "pr-16",
             className
           )}
@@ -87,9 +87,9 @@ function PasswordInput({
           aria-label={showPassword ? "Hide password" : "Show password"}
         >
           {showPassword ? (
-            <Eye className="h-5 w-5" />
+            <Eye className="h-4 w-4" />
           ) : (
-            <EyeOff className="h-5 w-5" />
+            <EyeOff className="h-4 w-4" />
           )}
         </button>
 

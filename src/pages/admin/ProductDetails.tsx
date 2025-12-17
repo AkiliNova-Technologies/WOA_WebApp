@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useProducts } from "@/hooks/useProducts";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,9 +14,9 @@ import {
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import images from "@/assets/images";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { ProductStatus } from "@/types/product";
+import type { Product as ReduxProduct } from "@/redux/slices/productsSlice";
 import { SiteHeader } from "@/components/site-header";
 import {
   Table,
@@ -38,45 +38,30 @@ type ExtendedProductStatus =
   | "out-of-stock"
   | "archived";
 
-// Function to convert extended status to ProductStatus
-const convertToProductStatus = (
-  status: ExtendedProductStatus
-): ProductStatus => {
+// Helper to map Redux status to extended status
+const mapReduxStatusToExtendedStatus = (status: string): ExtendedProductStatus => {
   switch (status) {
-    case "active":
-      return "active";
-    case "suspended":
-      return "draft"; // Map suspended to draft
-    case "deactivated":
-      return "archived"; // Map deactivated to archived
-    case "deleted":
-      return "out-of-stock"; // Map deleted to out-of-stock
-    case "draft":
-      return "draft";
-    case "out-of-stock":
-      return "out-of-stock";
-    case "archived":
-      return "archived";
-    default:
-      return "active";
+    case "published": return "active";
+    case "draft": return "suspended";
+    case "pending_review": return "suspended";
+    case "approved": return "active";
+    case "rejected": return "deactivated";
+    case "archived": return "deactivated";
+    default: return "active";
   }
 };
 
-// Function to convert ProductStatus to extended status for display
-const convertToExtendedStatus = (
-  status: ProductStatus
-): ExtendedProductStatus => {
+// Helper to map extended status to Redux status
+const mapExtendedStatusToReduxStatus = (status: ExtendedProductStatus): ReduxProduct['status'] => {
   switch (status) {
-    case "active":
-      return "active";
-    case "draft":
-      return "suspended"; // Map draft to suspended for display
-    case "archived":
-      return "deactivated"; // Map archived to deactivated for display
-    case "out-of-stock":
-      return "deleted"; // Map out-of-stock to deleted for display
-    default:
-      return "active";
+    case "active": return "published";
+    case "suspended": return "draft";
+    case "deactivated": return "archived";
+    case "deleted": return "archived";
+    case "draft": return "draft";
+    case "out-of-stock": return "published"; 
+    case "archived": return "archived";
+    default: return "published";
   }
 };
 
@@ -132,11 +117,11 @@ function StatusChangeDrawer({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  product: any;
-  onStatusChange: (newStatus: ProductStatus) => void;
+  product: ReduxProduct | null;
+  onStatusChange: (newStatus: ReduxProduct['status']) => void;
 }) {
   const [selectedStatus, setSelectedStatus] = useState<ExtendedProductStatus>(
-    convertToExtendedStatus(product.status)
+    product ? mapReduxStatusToExtendedStatus(product.status) : "active"
   );
 
   const statusOptions: {
@@ -182,9 +167,11 @@ function StatusChangeDrawer({
   ];
 
   const handleSubmit = () => {
-    const currentExtendedStatus = convertToExtendedStatus(product.status);
-    if (selectedStatus !== currentExtendedStatus) {
-      onStatusChange(convertToProductStatus(selectedStatus));
+    if (product) {
+      const currentExtendedStatus = mapReduxStatusToExtendedStatus(product.status);
+      if (selectedStatus !== currentExtendedStatus) {
+        onStatusChange(mapExtendedStatusToReduxStatus(selectedStatus));
+      }
     }
     onClose();
   };
@@ -202,9 +189,9 @@ function StatusChangeDrawer({
     return colors[status] || colors.draft;
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !product) return null;
 
-  const currentExtendedStatus = convertToExtendedStatus(product.status);
+  const currentExtendedStatus = mapReduxStatusToExtendedStatus(product.status);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -382,27 +369,96 @@ function SizeVariantSection({
 export default function AdminProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
-  const { getProductById, updateProduct } = useProducts();
+  const { 
+    product, 
+    loading, 
+    error,
+    getProduct,
+    updateExistingProduct 
+  } = useReduxProducts();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleStatusChange = (newStatus: ProductStatus) => {
-    if (product) {
-      updateProduct(product.id, {
-        status: newStatus,
-        updatedAt: new Date().toISOString(),
-      });
-      // You might want to add a toast notification here
-      console.log(`Product status changed to: ${newStatus}`);
+  // Fetch product details when component mounts or productId changes
+  useEffect(() => {
+    if (productId) {
+      setIsLoading(true);
+      getProduct(productId)
+        .finally(() => setIsLoading(false));
+    }
+  }, [productId, getProduct]);
+
+  const handleStatusChange = async (newStatus: ReduxProduct['status']) => {
+    if (product && productId) {
+      try {
+        const updateData = {
+          status: newStatus,
+          updatedAt: new Date().toISOString()
+        } as any;
+        
+        await updateExistingProduct(productId, updateData);
+        console.log(`Product status changed to: ${newStatus}`);
+      } catch (error) {
+        console.error('Failed to update product status:', error);
+      }
     }
   };
 
-  const product = getProductById(productId!);
+  // Helper to get primary image
+  const getPrimaryImage = () => {
+    if (!product?.images || product.images.length === 0) return "";
+    const primaryImage = product.images.find(img => img.isPrimary);
+    return primaryImage?.url || product.images[0]?.url || "";
+  };
 
+  // Helper to get category name
+  const getCategoryName = () => {
+    return product?.category?.name || "Uncategorized";
+  };
+
+  // Helper to get subcategory name
+  const getSubcategoryName = () => {
+    return product?.subcategory?.name || "Not specified";
+  };
+
+  // Helper to get vendor name
+  const getVendorName = () => {
+    return product?.vendor?.businessName || "Unknown Vendor";
+  };
+
+  // Loading state
+  if (isLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p>Loading product details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center text-red-500">
+          <h2 className="text-2xl font-bold mb-4">Error Loading Product</h2>
+          <p className="mb-4">{error}</p>
+          <Button onClick={() => navigate("/admin/products")}>
+            Return to Products
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Product not found state
   if (!product) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Product Not Found</h2>
+          <p className="mb-4">The product you're looking for doesn't exist.</p>
           <Button onClick={() => navigate("/admin/products")}>
             Return to Products
           </Button>
@@ -412,12 +468,12 @@ export default function AdminProductDetailPage() {
   }
 
   // Get display status for UI
-  const getDisplayStatus = (status: ProductStatus): ExtendedProductStatus => {
-    return convertToExtendedStatus(status);
+  const getDisplayStatus = (): ExtendedProductStatus => {
+    return mapReduxStatusToExtendedStatus(product.status);
   };
 
-  const getStatusColor = (status: ProductStatus) => {
-    const displayStatus = getDisplayStatus(status);
+  const getStatusColor = () => {
+    const displayStatus = getDisplayStatus();
     const colors = {
       active: "rounded-sm px-4 py-1",
       suspended: "rounded-sm px-4 py-1",
@@ -430,8 +486,8 @@ export default function AdminProductDetailPage() {
     return colors[displayStatus] || colors.active;
   };
 
-  const getDotColor = (status: ProductStatus) => {
-    const displayStatus = getDisplayStatus(status);
+  const getDotColor = () => {
+    const displayStatus = getDisplayStatus();
     const colors = {
       active: "bg-green-500",
       suspended: "bg-yellow-500",
@@ -444,8 +500,8 @@ export default function AdminProductDetailPage() {
     return colors[displayStatus] || colors.active;
   };
 
-  const getStatusLabel = (status: ProductStatus): string => {
-    const displayStatus = getDisplayStatus(status);
+  const getStatusLabel = (): string => {
+    const displayStatus = getDisplayStatus();
     const statusLabels = {
       active: "Active",
       suspended: "Suspended",
@@ -458,22 +514,23 @@ export default function AdminProductDetailPage() {
     return statusLabels[displayStatus] || "Active";
   };
 
-  // Mock form data for the product details
+  // Prepare form data from product
   const formData = {
     description: product.description,
     specifications: `
-      • Material: ${product.specifications?.material || "Not specified"}<br/>
-      • Care: ${product.specifications?.care || "Not specified"}<br/>
-      • Origin: ${product.specifications?.origin || "Not specified"}<br/>
-      • Production Method: ${product.productionMethod}<br/>
-      • In Stock: ${product.inStock ? "Yes" : "No"}<br/>
-      • Stock Quantity: ${product.stockQuantity}<br/>
-      • Category: ${product.categoryId}<br/>
-      • Vendor: ${product.vendor}
+      • Material: ${product.attributes?.material || "Not specified"}<br/>
+      • SKU: ${product.sku}<br/>
+      • Stock: ${product.stock} units<br/>
+      • Category: ${getCategoryName()}<br/>
+      • Vendor: ${getVendorName()}<br/>
+      • Created: ${new Date(product.createdAt).toLocaleDateString()}<br/>
+      • Updated: ${new Date(product.updatedAt).toLocaleDateString()}
     `,
-    productionMethod: product.productionMethod,
-    country: product.specifications?.origin || "Not specified",
+    productionMethod: product.attributes?.productionMethod || "Not specified",
+    country: product.attributes?.countryOfOrigin || "Not specified",
   };
+
+  const primaryImage = getPrimaryImage();
 
   return (
     <div>
@@ -506,7 +563,7 @@ export default function AdminProductDetailPage() {
             onStatusChange={handleStatusChange}
           />
 
-          {/* Product Information Card */}
+          {/* Product Information Card - UPDATED LAYOUT */}
           <Card className="p-8 shadow-none border">
             <CardHeader className="px-0 pt-0">
               <CardTitle className="text-2xl font-semibold mb-6">
@@ -515,40 +572,48 @@ export default function AdminProductDetailPage() {
             </CardHeader>
 
             <CardContent className="px-0">
-              <div className="flex gap-8">
-                {/* Image Gallery */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Left Column - Image Gallery */}
                 <div className="flex gap-4">
                   {/* Thumbnail Navigation */}
                   <div className="flex flex-col gap-3">
-                    <Button variant="outline" size="icon" className="w-12 h-12">
+                    <Button variant="outline" size="icon" className="w-12 h-12 rounded-full">
                       <ChevronUp className="w-5 h-5" />
                     </Button>
 
-                    {[1, 2, 3, 4].map((i) => (
+                    {product.images && product.images.slice(0, 4).map((img, i) => (
                       <div
                         key={i}
-                        className="w-12 h-12 bg-muted rounded border border-border flex items-center justify-center"
+                        className="w-12 h-12 bg-muted rounded border-2 border-border flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#CC5500] transition-colors"
                       >
-                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        {img.url ? (
+                          <img 
+                            src={img.url} 
+                            alt={`Product thumbnail ${i + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        )}
                       </div>
                     ))}
 
-                    <Button variant="outline" size="icon" className="w-12 h-12">
+                    <Button variant="outline" size="icon" className="w-12 h-12 rounded-full">
                       <ChevronDown className="w-5 h-5" />
                     </Button>
                   </div>
 
                   {/* Main Image */}
-                  {product.image ? (
-                    <div className="relative w-80 h-96 bg-muted rounded-lg flex items-center justify-center">
+                  {primaryImage ? (
+                    <div className="relative flex-1 aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
                       <img
-                        src={product.image}
+                        src={primaryImage}
                         alt={product.name}
-                        className="rounded-md h-full w-full"
+                        className="rounded-md h-full w-full object-cover"
                       />
                     </div>
                   ) : (
-                    <div className="w-80 h-96 bg-muted rounded-lg flex items-center justify-center">
+                    <div className="flex-1 aspect-square bg-muted rounded-lg flex items-center justify-center">
                       <div className="text-center">
                         <ImageIcon className="w-20 h-20 mx-auto text-muted-foreground mb-2" />
                         <p className="text-muted-foreground text-sm">
@@ -559,73 +624,84 @@ export default function AdminProductDetailPage() {
                   )}
                 </div>
 
-                {/* Product Details */}
-                <div className="flex-1">
-                  <div className="flex items-start justify-between mb-6">
-                    <h3 className="text-2xl font-semibold">{product.name}</h3>
+                {/* Right Column - Product Details */}
+                <div className="flex flex-col">
+                  <div className="flex items-start justify-between mb-4">
+                    <h3 className="text-2xl font-semibold flex-1">{product.name}</h3>
                     {/* Display current status badge */}
                     <Badge
                       variant="outline"
-                      className={getStatusColor(product.status)}
+                      className={getStatusColor()}
                     >
                       <div
                         className={cn(
                           "h-2 w-2 rounded-full mr-1",
-                          getDotColor(product.status)
+                          getDotColor()
                         )}
                       ></div>
-                      {getStatusLabel(product.status)}
+                      {getStatusLabel()}
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-6">
-                    {/* Left Column */}
-                    <div className="flex flex-row justify-between border p-4 rounded-lg">
-                      <div className="p-4 rounded-lg">
-                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
-                          Category
-                        </Label>
-                        <p className="text-muted-foreground">
-                          {product.categoryId}
-                        </p>
-                      </div>
+                  {/* SKU and Stock Info */}
+                  <div className="mb-4 text-sm text-muted-foreground">
+                    <p>SKU: {product.sku}</p>
+                    <p className="mt-1">
+                      <span className="font-medium text-foreground">Stock:</span>{" "}
+                      {product.stock > 0 ? (
+                        <span className="text-green-600">In Stock</span>
+                      ) : (
+                        <span className="text-red-600">Out of Stock</span>
+                      )}
+                    </p>
+                  </div>
 
-                      <div className="p-4 rounded-lg">
-                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
-                          Sub Category
-                        </Label>
-                        <p className="text-muted-foreground">
-                          {product.subCategoryId || "Not specified"}
-                        </p>
-                      </div>
-
-                      <div className="p-4 rounded-lg">
-                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
-                          Sub Category type
-                        </Label>
-                        <p className="text-muted-foreground">
-                          {product.subCategoryTypeId || "Not specified"}
-                        </p>
-                      </div>
+                  {/* Price */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl font-bold">${product.price}</span>
+                      {product.salePrice && product.salePrice < product.price && (
+                        <>
+                          <span className="text-xl text-muted-foreground line-through">
+                            ${product.salePrice}
+                          </span>
+                          <Badge variant="destructive" className="ml-2">
+                            -{Math.round(((product.price - product.salePrice) / product.price) * 100)}%
+                          </Badge>
+                        </>
+                      )}
                     </div>
+                  </div>
 
-                    {/* Right Column */}
-                    <div className="flex flex-row justify-between border p-4 rounded-lg">
-                      <div className="p-4 rounded-lg">
-                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
-                          Available Stock
-                        </Label>
-                        <p className="text-muted-foreground">
-                          {product.stockQuantity}
-                        </p>
-                      </div>
+                  {/* Category Information - Compact */}
+                  <div className="space-y-3 mb-6 pb-6 border-b">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Category:</span>
+                      <span className="text-sm font-medium">{getCategoryName()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Sub Category:</span>
+                      <span className="text-sm font-medium">{getSubcategoryName()}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Vendor:</span>
+                      <span className="text-sm font-medium">{getVendorName()}</span>
+                    </div>
+                  </div>
 
-                      <div className="p-4 rounded-lg">
-                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
-                          Low Stock Unit
-                        </Label>
-                        <p className="text-muted-foreground">10</p>
-                      </div>
+                  {/* Additional Product Info */}
+                  <div className="space-y-3 text-sm">
+                    <div>
+                      <span className="font-medium">Product Type: </span>
+                      <span className="text-muted-foreground">
+                        {product.productTypeId || "Not specified"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Available Units: </span>
+                      <span className="text-muted-foreground">
+                        {product.stock} units
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -725,7 +801,7 @@ export default function AdminProductDetailPage() {
                               <Label className="font-semibold mb-2 block">
                                 SKU
                               </Label>
-                              <p className="text-foreground">{product.id}</p>
+                              <p className="text-foreground">{product.sku}</p>
                             </div>
                             <div>
                               <Label className="font-semibold mb-2 block">
@@ -831,7 +907,7 @@ export default function AdminProductDetailPage() {
                         <Label className="font-semibold text-xl">
                           Country of Origin
                         </Label>
-                        <p>Ghana</p>
+                        <p>{formData.country}</p>
                       </div>
                     </Card>
                     <Card className="shadow-none rounded-md px-6">
@@ -839,7 +915,7 @@ export default function AdminProductDetailPage() {
                         <Label className="font-semibold text-xl">
                           Production method
                         </Label>
-                        <p>Hand made</p>
+                        <p>{formData.productionMethod}</p>
                       </div>
                     </Card>
                   </div>

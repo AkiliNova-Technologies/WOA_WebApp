@@ -28,6 +28,8 @@ import images from "@/assets/images";
 import { Switch } from "@/components/ui/switch";
 import { AfricanPhoneInput } from "@/components/african-phone-input";
 import { ArrowLeft } from "lucide-react";
+import { useReduxAuth } from "@/hooks/useReduxAuth";
+import { useReduxUsers } from "@/hooks/useReduxUsers";
 
 const reasons = [
   {
@@ -76,25 +78,14 @@ const subReasons: Record<string, string[]> = {
   "something else": [],
 };
 
-// Dummy data for form fields
-const dummyUserData = {
-  firstName: "Victor",
-  lastName: "Wandulu",
-  middleName: "John",
-  email: "wandulu@tekjuice.co.uk",
-  phoneNumber: "743027395",
-  address: "Plot 19 Binayomba Road",
-  street: "Plot 19",
-  district: "Nakawa",
-  additionalDetails: "",
-  country: "Uganda",
-  city: "Kampala",
-};
-
 export default function ProfileSettingsPage() {
+  const { user, firebaseUser } = useReduxAuth();
+  const { profile, getUserProfile } = useReduxUsers();
+  
   const [showAddAddress, setShowAddAddress] = useState(false);
 
-  const [phoneNumber, setPhoneNumber] = useState(dummyUserData.phoneNumber);
+  // Initialize state with empty values, will be populated from API
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [countryCode, setCountryCode] = useState("+256");
 
   // Add the missing state declarations
@@ -102,17 +93,15 @@ export default function ProfileSettingsPage() {
   const [selectedSubReason, setSelectedSubReason] = useState<string>("");
   const [additionalFeedback, setAdditionalFeedback] = useState<string>("");
 
-  // Address form state
-  const [firstName, setFirstName] = useState(dummyUserData.firstName);
-  const [lastName, setLastName] = useState(dummyUserData.lastName);
-  const [middleName, setMiddleName] = useState(dummyUserData.middleName);
-  const [email, setEmail] = useState(dummyUserData.email);
-  const [address, setAddress] = useState(dummyUserData.address);
-  const [street, setStreet] = useState(dummyUserData.street);
-  const [district, setDistrict] = useState(dummyUserData.district);
-  const [additionalDetails, setAdditionalDetails] = useState(
-    dummyUserData.additionalDetails
-  );
+  // Address form state - initialize as empty
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [street, setStreet] = useState("");
+  const [district, setDistrict] = useState("");
+  const [additionalDetails, setAdditionalDetails] = useState("");
   const [isDefault, setIsDefault] = useState(false);
 
   // Notification settings state
@@ -127,16 +116,76 @@ export default function ProfileSettingsPage() {
 
   const [countries, setCountries] = useState<Country[]>([]);
   const [cities, setCities] = useState<City[]>([]);
-  const [selectedCountry, setSelectedCountry] = useState<string>(
-    dummyUserData.country
-  );
-  const [selectedCity, setSelectedCity] = useState<string>(dummyUserData.city);
+  const [selectedCountry, setSelectedCountry] = useState<string>("");
+  const [selectedCity, setSelectedCity] = useState<string>("");
   const [, setLoading] = useState(true);
   const [, setCitiesLoading] = useState(false);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Fetch user profile on component mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        await getUserProfile();
+      } catch (error) {
+        console.error("Failed to load user profile:", error);
+      }
+    };
+    
+    loadUserData();
+  }, [getUserProfile]);
+
+  // Update form fields when user data changes
+  useEffect(() => {
+    console.log("Profile data received:", profile);
+    console.log("Auth user data:", user);
+    
+    // Use profile data first (from usersSlice), then fallback to auth user data
+    if (profile) {
+      // Extract user data from the nested structure
+      const userData = profile.user || profile;
+      
+      setFirstName(userData.firstName || "");
+      setLastName(userData.lastName || "");
+      setEmail(userData.email || "");
+      
+      // Handle phone number
+      const phone = userData.phoneNumber || "";
+      setPhoneNumber(phone);
+      
+      // Handle address data - check addresses array
+      if (profile.addresses && Array.isArray(profile.addresses) && profile.addresses.length > 0) {
+        const defaultAddress = profile.addresses.find(addr => addr.isDefault);
+        const firstAddress = profile.addresses[0];
+        const addressToUse = defaultAddress || firstAddress;
+        
+        if (addressToUse) {
+          setAddress(addressToUse.street || addressToUse.address || "");
+          setStreet(addressToUse.street || "");
+          setDistrict(addressToUse.district || addressToUse.city || "");
+          setSelectedCountry(addressToUse.country || "");
+          setSelectedCity(addressToUse.city || "");
+        }
+      }
+    } else if (user) {
+      // Fallback to auth user data
+      setFirstName(user.firstName || "");
+      setLastName(user.lastName || "");
+      setEmail(user.email || "");
+      setPhoneNumber(user.phoneNumber || "");
+    } else if (firebaseUser) {
+      // Fallback to Firebase user data
+      const firebaseFirstName = firebaseUser.displayName?.split(" ")[0] || "";
+      const firebaseLastName = firebaseUser.displayName?.split(" ").slice(1).join(" ") || "";
+      
+      setFirstName(firebaseFirstName);
+      setLastName(firebaseLastName);
+      setEmail(firebaseUser.email || "");
+    }
+  }, [profile, user, firebaseUser]);
 
   // Fetch countries on component mount
   useEffect(() => {
@@ -505,6 +554,20 @@ export default function ProfileSettingsPage() {
     return <AddAddressForm />;
   }
 
+  // Show loading state while fetching user data
+  if (!profile && !user && !firebaseUser) {
+    return (
+      <div className="min-h-screen">
+        <div className="bg-white p-6 rounded-md mb-6">
+          <h1 className="text-2xl font-medium">Account Settings</h1>
+        </div>
+        <div className="bg-white p-6 rounded-md flex justify-center items-center h-40">
+          <p className="text-gray-500">Loading user data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <div className="bg-white p-6 rounded-md mb-6">
@@ -570,6 +633,7 @@ export default function ProfileSettingsPage() {
                           value={middleName}
                           onChange={(e) => setMiddleName(e.target.value)}
                           className="h-11"
+                          placeholder="Enter middle name (optional)"
                         />
                       </div>
                       <div className="space-y-3">
@@ -589,6 +653,7 @@ export default function ProfileSettingsPage() {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           className="h-11"
+                          type="email"
                         />
                       </div>
                       <div className="space-y-3">
@@ -821,7 +886,7 @@ export default function ProfileSettingsPage() {
                     <div className="space-y-3">
                       <Label>Full Name</Label>
                       <Input
-                        value={`${firstName} ${lastName}`}
+                        value={`${firstName} ${lastName}`.trim()}
                         className="h-11"
                         readOnly
                       />
@@ -851,7 +916,11 @@ export default function ProfileSettingsPage() {
                 <div className="space-y-6">
                   <div className="space-y-3">
                     <Label>Address</Label>
-                    <Input value={address} className="h-11" readOnly />
+                    <Input 
+                      value={address || "No address saved yet"} 
+                      className="h-11" 
+                      readOnly 
+                    />
                   </div>
                 </div>
                 <div className="px-6 mt-6 flex flex-1 flex-row gap-5 justify-end">

@@ -1,4 +1,3 @@
-// pages/consumer/ProductDetail.tsx
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -13,6 +12,7 @@ import {
   Plus,
   Minus,
   ShoppingCart,
+  User,
 } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
 import { ProductCard } from "@/components/productCard";
@@ -28,6 +28,17 @@ import {
 } from "@/components/ui/select";
 import { Rate } from "antd";
 
+interface VendorInfo {
+  id: string;
+  name: string;
+  title?: string;
+  rating?: number;
+  reviews?: number;
+  itemsSold?: number;
+  memberMonths?: number;
+  avatar?: string;
+}
+
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
@@ -38,9 +49,9 @@ export default function ProductDetailPage() {
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [showCareInstructions, setShowCareInstructions] = useState(true);
-  const [showProductDetails, setShowProductDetails] = useState(false);
-  const [showReviews, setShowReviews] = useState(false);
-  const [showShipping, setShowShipping] = useState(false);
+  const [showProductDetails, setShowProductDetails] = useState(true);
+  const [showReviews, setShowReviews] = useState(true);
+  const [showShipping, setShowShipping] = useState(true);
 
   const product = getProductById(productId!);
 
@@ -62,8 +73,8 @@ export default function ProductDetailPage() {
     ? products.filter(p => product.relatedProducts!.includes(p.id))
     : products.filter(p => p.categoryId === product.categoryId && p.id !== product.id).slice(0, 4);
 
-  // Get seller's other products
-  const sellerProducts = products.filter(p => 
+  // Get vendor's other products
+  const vendorProducts = products.filter(p => 
     p.vendor === product.vendor && p.id !== product.id
   ).slice(0, 4);
 
@@ -75,17 +86,36 @@ export default function ProductDetailPage() {
     { stars: 1, percentage: 0 },
   ];
 
-  // Mock seller data - you can integrate this with your actual seller data
-  const seller = product.seller || {
-    id: "1",
-    name: product.vendor,
-    title: `Owner of ${product.vendor}`,
-    rating: 4.5,
-    reviews: 12,
-    itemsSold: 16,
-    memberMonths: 8,
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+  // Handle vendor data safely
+  const getVendorInfo = (): VendorInfo => {
+    // If vendor is already an object, use it
+    if (typeof product.vendor === 'object' && product.vendor !== null) {
+      return {
+        id: product.vendor.id || '1',
+        name: product.vendor.name || 'Unknown Vendor',
+        title: product.vendor.title || `Owner of ${product.vendor.name || 'Unknown'}`,
+        rating: product.vendor.rating || 4.5,
+        reviews: product.vendor.reviews || 12,
+        itemsSold: product.vendor.itemsSold || 16,
+        memberMonths: product.vendor.memberMonths || 8,
+        avatar: product.vendor.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+      };
+    }
+    
+    // If vendor is a string, create a basic vendor object
+    return {
+      id: '1',
+      name: product.vendor || 'Unknown Vendor',
+      title: `Owner of ${product.vendor || 'Unknown'}`,
+      rating: 4.5,
+      reviews: 12,
+      itemsSold: 16,
+      memberMonths: 8,
+      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+    };
   };
+
+  const vendor = getVendorInfo();
 
   // Mock shipping info
   const shippingInfo = product.shippingInfo || {
@@ -116,6 +146,16 @@ export default function ProductDetailPage() {
       verified: true,
     },
   ];
+
+  // Get vendor name for ProductCard
+  const getVendorName = (): string => {
+    if (typeof product.vendor === 'object' && product.vendor !== null) {
+      return product.vendor.name || 'Unknown Vendor';
+    }
+    return product.vendor || 'Unknown Vendor';
+  };
+
+  const vendorName = getVendorName();
 
   return (
     <div className="min-h-screen bg-white">
@@ -387,7 +427,7 @@ export default function ProductDetailPage() {
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="grid grid-cols-3 gap-2">
                     <span className="text-gray-600">Material:</span>
-                    <span className="col-span-2">{product.material || product.specifications.material || "100% Cotton"}</span>
+                    <span className="col-span-2">{product.material || product.specifications?.material || "100% Cotton"}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <span className="text-gray-600">Color:</span>
@@ -440,33 +480,39 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Meet Your Seller */}
+            {/* Meet Your Vendor */}
             <div className="border-t pt-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">Meet your seller</h3>
-                <button className="text-orange-500 text-sm hover:underline" onClick={()=> navigate("/category/seller-profile")}>
+                <h3 className="font-semibold">Meet your vendor</h3>
+                <button className="text-orange-500 text-sm hover:underline" onClick={()=> navigate("/category/vendor-profile")}>
                   Check out the store
                 </button>
               </div>
               <div className="flex items-center gap-4 mb-4">
-                <img
-                  src={seller.avatar}
-                  alt={seller.name}
-                  className="w-16 h-16 rounded-full object-cover"
-                />
+                {vendor.avatar ? (
+                  <img
+                    src={vendor.avatar}
+                    alt={vendor.name}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                    <User className="w-8 h-8 text-gray-500" />
+                  </div>
+                )}
                 <div>
-                  <h4 className="font-semibold">{seller.name}</h4>
+                  <h4 className="font-semibold">{vendor.name}</h4>
                   <p className="text-sm text-gray-600">
-                    {seller.title}
+                    {vendor.title}
                   </p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
                     <div className="flex items-center gap-1">
-                      <Rate disabled defaultValue={seller.rating} className="text-yellow-400 text-xs" />
-                      <span>({seller.reviews})</span>
+                      <Rate disabled defaultValue={vendor.rating || 4.5} className="text-yellow-400 text-xs" />
+                      <span>({vendor.reviews || 0})</span>
                     </div>
-                    <span>• {seller.itemsSold} Items sold</span>
+                    <span>• {vendor.itemsSold || 0} Items sold</span>
                     <span>
-                      • Member for {seller.memberMonths} months
+                      • Member for {vendor.memberMonths || 0} months
                     </span>
                   </div>
                 </div>
@@ -568,16 +614,16 @@ export default function ProductDetailPage() {
           )}
         </Card>
 
-        {/* More from the seller */}
+        {/* More from the vendor */}
         <div className="mb-12">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">More from the seller</h2>
+            <h2 className="text-2xl font-bold">More from the vendor</h2>
             <button className="text-orange-500 hover:underline">
               View more
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {sellerProducts.map((product) => (
+            {vendorProducts.map((product) => (
               <ProductCard 
                 key={product.id} 
                 id={parseInt(product.id)}
@@ -585,7 +631,7 @@ export default function ProductDetailPage() {
                 rating={product.rating}
                 reviews={product.reviews}
                 price={product.price}
-                vendor={product.vendor}
+                vendor={vendorName} // Use the extracted vendor name
                 image={product.image}
               />
             ))}
@@ -609,7 +655,7 @@ export default function ProductDetailPage() {
                 rating={product.rating}
                 reviews={product.reviews}
                 price={product.price}
-                vendor={product.vendor}
+                vendor={vendorName} // Use the extracted vendor name
                 image={product.image}
               />
             ))}

@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
               <li className="flex items-start gap-2">
                 <Check className="text-green-600 mt-[3px] h-4 w-4" />
                 <span className="">
-                  Real seller experiences presented in a compelling way.
+                  Real vendor experiences presented in a compelling way.
                 </span>
               </li>
               <li className="flex items-start gap-2">

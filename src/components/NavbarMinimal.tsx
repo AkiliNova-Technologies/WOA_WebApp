@@ -31,7 +31,7 @@ export default function NavbarMinimalSection({ isKYC }: NavbarMinProps) {
           <div className="flex items-center gap-2 sm:gap-3">
             <p className="text-sm">Dont have an account?</p>
             <Link to={"/auth/signup"}>
-              <span className="text-sm font-semibold">Become a seller</span>
+              <span className="text-sm font-semibold">Become a vendor</span>
             </Link>
           </div>
         )}

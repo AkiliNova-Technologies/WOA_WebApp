@@ -17,133 +17,176 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type {
-  Product,
-  ProductStatus,
-  ProductViewMode,
-} from "@/types/product-dashboard";
-import { useProducts } from "@/hooks/useProducts";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
+import type { Product as ReduxProduct } from "@/redux/slices/productsSlice";
 
 import {
   EyeIcon,
-  FilterIcon,
-  GridIcon,
-  ListIcon,
   PenIcon,
-  Plus,
   Package,
   CheckCircle,
-  AlertTriangle,
-  Archive,
+  Trash2Icon,
+  Ban,
+  ListFilter,
 } from "lucide-react";
-import { DashboardProductCard } from "@/components/dashboard-product-card";
-import { cn } from "@/lib/utils";
 import { SiteHeader } from "@/components/site-header";
+
+// Extended ProductStatus to include the requested statuses
+type ExtendedProductStatus = 
+  | "active" 
+  | "suspended" 
+  | "deactivated" 
+  | "deleted"
+  | "draft" 
+  | "out-of-stock" 
+  | "archived";
+
+type ProductTab = "all" | "active" | "suspended" | "deactivated" | "deleted";
 
 interface ProductStats {
   totalProducts: number;
   activeProducts: number;
-  draftProducts: number;
-  outOfStockProducts: number;
-  archivedProducts: number;
+  suspendedProducts: number;
+  deactivatedProducts: number;
+  deletedProducts: number;
   totalRevenue: number;
 }
 
-// Update DashboardProduct to match your existing ProductStatus
-interface DashboardProduct {
+// Helper function to map Redux status to your extended status
+const mapReduxStatusToExtendedStatus = (status: string): ExtendedProductStatus => {
+  switch (status) {
+    case "published": return "active";
+    case "draft": return "suspended";
+    case "pending_review": return "suspended";
+    case "approved": return "active";
+    case "rejected": return "deactivated";
+    case "archived": return "deactivated";
+    default: return "active";
+  }
+};
+
+// Helper to get initials for avatar
+const getInitials = (name: string): string => {
+  return name
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase())
+    .join("")
+    .slice(0, 2);
+};
+
+// Helper to format currency
+const formatAmount = (amount: number): string => {
+  return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+// Helper to format numbers
+const formatNumberShort = (num: number): string => {
+  if (num >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1)}M`;
+  }
+  if (num >= 1_000) {
+    return `${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}K`;
+  }
+  return num.toString();
+};
+
+// Define the transformed product type for the table
+type TableProduct = {
   id: string;
-  image: string;
   name: string;
-  rating: number;
-  reviews: number;
+  description: string;
   price: number;
-  originalPrice?: number;
+  salePrice?: number;
   vendor: string;
-  status: ProductStatus;
+  image: string;
+  categoryId: string;
+  status: "draft" | "pending_review" | "approved" | "rejected" | "published" | "archived";
   stockQuantity: number;
   sales: number;
-  createdAt: string;
-  category?: string;
-  revenue?: number;
-}
-
-type ProductTab = "all" | "active" | "draft" | "out-of-stock" | "archived";
+  category: string;
+};
 
 export default function AdminProductsPage() {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<ProductViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatuses, setSelectedStatuses] = useState<ProductStatus[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<ExtendedProductStatus[]>([]);
   const [activeTab, setActiveTab] = useState<ProductTab>("all");
 
-  // Get both products and categories from the hook
-  const { products, getCategoryById } = useProducts();
+  // Use the Redux products hook
+  const { 
+    products, 
+    loading, 
+    error,
+    getPublishedProducts,
+    getPendingReviewProducts 
+  } = useReduxProducts();
 
-  // Calculate product statistics based on your actual ProductStatus
-  const stats: ProductStats = {
-    totalProducts: products.length,
-    activeProducts: products.filter(p => p.status === "active").length,
-    draftProducts: products.filter(p => p.status === "draft").length,
-    outOfStockProducts: products.filter(p => p.status === "out-of-stock").length,
-    archivedProducts: products.filter(p => p.status === "archived").length,
-    totalRevenue: products.reduce((sum, p) => sum + (p.sales || 0) * (p.price || 0), 0),
+  // Transform Redux products to match your table format
+  const transformProductForTable = (reduxProduct: ReduxProduct): TableProduct => ({
+    id: reduxProduct.id,
+    name: reduxProduct.name,
+    description: reduxProduct.description,
+    price: reduxProduct.price,
+    salePrice: reduxProduct.salePrice,
+    vendor: reduxProduct.vendor?.businessName || "Unknown Vendor",
+    image: reduxProduct.images?.find(img => img.isPrimary)?.url || reduxProduct.images?.[0]?.url || "",
+    categoryId: reduxProduct.categoryId,
+    status: reduxProduct.status,
+    stockQuantity: reduxProduct.stock,
+    sales: 0, // You might need to add this field to your Redux product or fetch separately
+    category: reduxProduct.category?.name || "Uncategorized",
+  });
+
+  const tableProducts = products.map(transformProductForTable);
+
+  // Calculate product statistics based on extended statuses
+  const calculateStats = (): ProductStats => {
+    const totalProducts = products.length;
+    const activeProducts = getPublishedProducts().length;
+    const suspendedProducts = getPendingReviewProducts().length;
+    const deactivatedProducts = products.filter(p => p.status === "archived" || p.status === "rejected").length;
+    const deletedProducts = 0; // You might need to track deleted products separately
+
+    return {
+      totalProducts,
+      activeProducts,
+      suspendedProducts,
+      deactivatedProducts,
+      deletedProducts,
+      totalRevenue: products.reduce((sum, p) => sum + (p.price * 0), 0), // Replace 0 with actual sales data if available
+    };
   };
 
+  const stats = calculateStats();
+
   // Filter products based on active tab, search, and status filters
-  const filteredProducts = products.filter((product) => {
+  const filteredProducts = tableProducts.filter((product) => {
+    const extendedStatus = mapReduxStatusToExtendedStatus(product.status);
+
     // Tab filtering
     const matchesTab = 
       activeTab === "all" ||
-      (activeTab === "active" && product.status === "active") ||
-      (activeTab === "draft" && product.status === "draft") ||
-      (activeTab === "out-of-stock" && product.status === "out-of-stock") ||
-      (activeTab === "archived" && product.status === "archived");
+      (activeTab === "active" && extendedStatus === "active") ||
+      (activeTab === "suspended" && extendedStatus === "suspended") ||
+      (activeTab === "deactivated" && extendedStatus === "deactivated") ||
+      (activeTab === "deleted" && extendedStatus === "deleted");
 
     // Search filtering
     const matchesSearch =
       searchQuery === "" ||
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.vendor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (product.category && product.category.toLowerCase().includes(searchQuery.toLowerCase()));
+      product.category?.toLowerCase().includes(searchQuery.toLowerCase());
 
     // Status filter (additional to tab filter)
     const matchesStatus =
       selectedStatuses.length === 0 ||
-      selectedStatuses.includes(product.status);
+      selectedStatuses.includes(extendedStatus);
 
     return matchesTab && matchesSearch && matchesStatus;
   });
 
-  // Convert Product to DashboardProduct for the card component
-  const convertToDashboardProduct = (product: Product): DashboardProduct => {
-    const category = getCategoryById(product.categoryId);
-    return {
-      id: product.id,
-      image: product.image,
-      name: product.name,
-      rating: product.rating,
-      reviews: product.reviews,
-      price: product.price,
-      originalPrice: product.originalPrice,
-      vendor: product.vendor,
-      status: product.status,
-      stockQuantity: product.stockQuantity,
-      sales: product.sales,
-      createdAt: product.createdAt,
-      category: category?.name,
-      revenue: (product.sales || 0) * (product.price || 0),
-    };
-  };
-
-  // Available status options for filter - using your actual ProductStatus
-  const statusOptions: { value: ProductStatus; label: string }[] = [
-    { value: "active", label: "Active" },
-    { value: "draft", label: "Draft" },
-    { value: "out-of-stock", label: "Out of Stock" },
-    { value: "archived", label: "Archived" },
-  ];
-
-  const handleStatusFilterChange = (status: ProductStatus) => {
+  const handleStatusFilterChange = (status: ExtendedProductStatus) => {
     setSelectedStatuses((prev) =>
       prev.includes(status)
         ? prev.filter((s) => s !== status)
@@ -156,29 +199,7 @@ export default function AdminProductsPage() {
     setSearchQuery("");
   };
 
-  // const formatMoneyShort = (amount: number): string => {
-  //   if (amount >= 1_000_000) {
-  //     return `$${(amount / 1_000_000).toFixed(
-  //       amount % 1_000_000 === 0 ? 0 : 1
-  //     )}M`;
-  //   }
-  //   if (amount >= 1_000) {
-  //     return `$${(amount / 1_000).toFixed(amount % 1_000 === 0 ? 0 : 1)}K`;
-  //   }
-  //   return `$${amount.toLocaleString()}`;
-  // };
-
-  const formatNumberShort = (num: number): string => {
-    if (num >= 1_000_000) {
-      return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1)}M`;
-    }
-    if (num >= 1_000) {
-      return `${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}K`;
-    }
-    return num.toString();
-  };
-
-  // Updated product cards with your actual status types
+  // Product cards with requested metrics
   const productCards: CardData[] = [
     {
       title: "Total Products",
@@ -191,61 +212,98 @@ export default function AdminProductsPage() {
       value: formatNumberShort(stats.activeProducts),
       rightIcon: <CheckCircle className="h-4 w-4 text-[#303030]" />,
       iconBgColor: "bg-[#C4E8D1]",
+      change: {
+        trend: "down",
+        value: "10%",
+        description: "from last month"
+      }
     },
     {
-      title: "Out of Stock",
-      value: formatNumberShort(stats.outOfStockProducts),
-      rightIcon: <AlertTriangle className="h-4 w-4 text-[#303030]" />,
+      title: "Suspended Products",
+      value: formatNumberShort(stats.suspendedProducts),
+      rightIcon: <Ban className="h-4 w-4 text-[#303030]" />,
       iconBgColor: "bg-[#FFE4C4]",
+      change: {
+        trend: "up",
+        value: "20%",
+        description: "from last month"
+      }
     },
     {
-      title: "Archived Products",
-      value: formatNumberShort(stats.archivedProducts),
-      rightIcon: <Archive className="h-4 w-4 text-[#303030]" />,
+      title: "Deleted Products",
+      value: formatNumberShort(stats.deletedProducts),
+      rightIcon: <Trash2Icon className="h-4 w-4 text-[#303030]" />,
       iconBgColor: "bg-[#FFC4C4]",
+      change: {
+        trend: "down",
+        value: "5%",
+        description: "from last month"
+      }
     },
   ];
 
-  const getInitials = (name: string): string => {
-    return name
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase())
-      .join("")
-      .slice(0, 2);
-  };
+  // Available status options for filter
+  const statusOptions: { value: ExtendedProductStatus; label: string }[] = [
+    { value: "active", label: "Active" },
+    { value: "suspended", label: "Suspended" },
+    { value: "deactivated", label: "Deactivated" },
+    { value: "deleted", label: "Deleted" },
+  ];
 
-  const formatAmount = (amount: number): string => {
-    return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
-  // Updated function to get category name instead of ID
-  const getCategoryDisplay = (product: Product): string => {
-    const category = getCategoryById(product.categoryId);
-    return category?.name || "Uncategorized";
-  };
-
-  // Update the handler functions to use DashboardProduct
-  const handleViewProduct = (product: DashboardProduct) => {
-    navigate(`/admin/products/${product.id}/view`);
-  };
-
-  const handleEditProduct = (product: DashboardProduct) => {
-    navigate(`/admin/products/${product.id}/edit`);
-  };
-
-  const handleToggleStatus = (product: DashboardProduct) => {
-    // Implement status toggle logic for admin
-    console.log("Toggle status for:", product.id, product.status);
-  };
+  // Status configuration with proper typing
+  const statusConfig = {
+    active: {
+      label: "Active",
+      dotColor: "bg-green-500",
+      textColor: "text-green-700",
+      bgColor: "bg-green-50",
+    },
+    suspended: {
+      label: "Suspended",
+      dotColor: "bg-yellow-500",
+      textColor: "text-yellow-700",
+      bgColor: "bg-yellow-50",
+    },
+    deactivated: {
+      label: "Deactivated",
+      dotColor: "bg-gray-500",
+      textColor: "text-gray-700",
+      bgColor: "bg-gray-50",
+    },
+    deleted: {
+      label: "Deleted",
+      dotColor: "bg-red-500",
+      textColor: "text-red-700",
+      bgColor: "bg-red-50",
+    },
+    draft: {
+      label: "Draft",
+      dotColor: "bg-blue-500",
+      textColor: "text-blue-700",
+      bgColor: "bg-blue-50",
+    },
+    "out-of-stock": {
+      label: "Out of Stock",
+      dotColor: "bg-orange-500",
+      textColor: "text-orange-700",
+      bgColor: "bg-orange-50",
+    },
+    archived: {
+      label: "Archived",
+      dotColor: "bg-purple-500",
+      textColor: "text-purple-700",
+      bgColor: "bg-purple-50",
+    },
+  } as const;
 
   // Table fields for list view with requested columns
-  const productFields: TableField<Product>[] = [
+  const productFields: TableField<TableProduct>[] = [
     {
       key: "image",
       header: "Product",
       cell: (_, row) => (
         <div className="flex items-center gap-3">
-          <Avatar className="h-24 w-24 rounded-sm">
+          <Avatar className="h-16 w-16 rounded-sm">
             <AvatarImage src={row.image} alt={row.name} />
             <AvatarFallback className="bg-primary/10 text-primary font-medium">
               {getInitials(row.name)}
@@ -259,12 +317,12 @@ export default function AdminProductsPage() {
       ),
     },
     {
-      key: "categoryId",
+      key: "category",
       header: "Category",
-      cell: (_, row) => (
-        <span className="font-medium">{getCategoryDisplay(row)}</span>
+      cell: (value) => (
+        <span className="font-medium">{value as string}</span>
       ),
-      align: "right",
+      align: "center",
     },
     {
       key: "price",
@@ -272,66 +330,39 @@ export default function AdminProductsPage() {
       cell: (value) => (
         <span className="font-medium">{formatAmount(value as number)}</span>
       ),
-      align: "right",
+      align: "center",
     },
     {
       key: "stockQuantity",
       header: "Stock Count",
       cell: (value) => <span className="font-medium">{value as number}</span>,
-      align: "right",
+      align: "center",
     },
     {
-      key: "revenue",
+      key: "sales", // Changed from "revenue" to "sales" since that's what exists
       header: "Revenue Generated",
-      cell: (_, row) => {
-        const revenue = (row.sales || 0) * (row.price || 0);
+      cell: (value) => {
+        // Calculate revenue based on sales and price (you might need to adjust this logic)
+        const sales = value as number;
         return (
-          <span className="font-medium text-green-600">
-            {formatAmount(revenue)}
+          <span className="font-medium">
+            {formatAmount(sales * 100)} {/* Adjust calculation as needed */}
           </span>
         );
       },
-      align: "right",
+      align: "center",
     },
     {
       key: "status",
       header: "Status",
-      cell: (value) => {
-        const statusConfig = {
-          active: {
-            label: "Active",
-            dotColor: "bg-green-500",
-            textColor: "text-green-700",
-            bgColor: "bg-green-50",
-          },
-          draft: {
-            label: "Draft",
-            dotColor: "bg-yellow-500",
-            textColor: "text-yellow-700",
-            bgColor: "bg-yellow-50",
-          },
-          "out-of-stock": {
-            label: "Out of Stock",
-            dotColor: "bg-red-500",
-            textColor: "text-red-700",
-            bgColor: "bg-red-50",
-          },
-          archived: {
-            label: "Archived",
-            dotColor: "bg-gray-500",
-            textColor: "text-gray-700",
-            bgColor: "bg-gray-50",
-          },
-        };
-
-        const config =
-          statusConfig[value as keyof typeof statusConfig] ||
-          statusConfig.draft;
+      cell: (_, row) => {
+        const extendedStatus = mapReduxStatusToExtendedStatus(row.status);
+        const config = statusConfig[extendedStatus] || statusConfig.active;
 
         return (
           <Badge
             variant="outline"
-            className="flex flex-row items-center py-2 w-28 gap-2 bg-muted/50"
+            className="flex flex-row items-center py-2 w-28 gap-2 bg-transparent rounded-md"
           >
             <div className={`size-2 rounded-full ${config.dotColor}`} />
             {config.label}
@@ -343,13 +374,13 @@ export default function AdminProductsPage() {
     },
   ];
 
-  const productActions: TableAction<Product>[] = [
+  const productActions: TableAction<TableProduct>[] = [
     {
       type: "view",
       label: "View Details",
       icon: <EyeIcon className="size-5" />,
       onClick: (product) => {
-        navigate(`/admin/products/${product.id}/view`);
+        navigate(`/admin/products/${product.id}/details`);
       },
     },
     {
@@ -362,19 +393,31 @@ export default function AdminProductsPage() {
     },
   ];
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p>Loading products...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center text-red-500">
+          <p>Error loading products: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <SiteHeader
-        rightActions={
-          <Button
-            variant={"secondary"}
-            className="bg-[#CC5500] text-white h-11 hover:bg-[#CC5500]/80"
-            onClick={() => navigate("/admin/products/add-product")}
-          >
-            <Plus /> Add Product
-          </Button>
-        }
-      />
+      <SiteHeader/>
       <div className="min-h-screen">
         <main className="flex-1">
           <div className="space-y-6 p-6">
@@ -387,35 +430,50 @@ export default function AdminProductsPage() {
                 {/* Tab Navigation */}
                 <div className="px-6 mb-6">
                   <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProductTab)}>
-                    <TabsList className="grid w-full grid-cols-5">
-                      <TabsTrigger value="all">
+                    <TabsList className="grid w-full grid-cols-5 h-12 bg-transparent border-b p-0">
+                      <TabsTrigger 
+                        value="all" 
+                        className="shadow-none border-0 border-b rounded-none data-[state=active]:text-[#CC5500] data-[state=active]:border-b data-[state=active]:shadow-none dark:data-[state=active]:border-[#CC5500] dark:data-[state=active]:text-[#CC5500] dark:data-[state=active]:bg-transparent data-[state=active]:border-[#CC5500]"
+                      >
                         All Products
-                        <Badge variant="secondary" className="ml-2">
+                        <Badge variant="secondary" className="ml-2 dark:text-white dark:bg-[#121212]">
                           {stats.totalProducts}
                         </Badge>
                       </TabsTrigger>
-                      <TabsTrigger value="active">
+                      <TabsTrigger 
+                        value="active" 
+                        className="shadow-none border-0 border-b rounded-none data-[state=active]:text-[#CC5500] data-[state=active]:border-b data-[state=active]:shadow-none dark:data-[state=active]:border-[#CC5500] dark:data-[state=active]:text-[#CC5500] dark:data-[state=active]:bg-transparent data-[state=active]:border-[#CC5500]"
+                      >
                         Active Products
-                        <Badge variant="secondary" className="ml-2">
+                        <Badge variant="secondary" className="ml-2 dark:text-white dark:bg-[#121212]">
                           {stats.activeProducts}
                         </Badge>
                       </TabsTrigger>
-                      <TabsTrigger value="draft">
-                        Draft Products
-                        <Badge variant="secondary" className="ml-2">
-                          {stats.draftProducts}
+                      <TabsTrigger 
+                        value="suspended" 
+                        className="shadow-none border-0 border-b rounded-none data-[state=active]:text-[#CC5500] data-[state=active]:border-b data-[state=active]:shadow-none dark:data-[state=active]:border-[#CC5500] dark:data-[state=active]:text-[#CC5500] dark:data-[state=active]:bg-transparent data-[state=active]:border-[#CC5500]"
+                      >
+                        Suspended Products
+                        <Badge variant="secondary" className="ml-2 dark:text-white dark:bg-[#121212]">
+                          {stats.suspendedProducts}
                         </Badge>
                       </TabsTrigger>
-                      <TabsTrigger value="out-of-stock">
-                        Out of Stock
-                        <Badge variant="secondary" className="ml-2">
-                          {stats.outOfStockProducts}
+                      <TabsTrigger 
+                        value="deactivated" 
+                        className="shadow-none border-0 border-b rounded-none data-[state=active]:text-[#CC5500] data-[state=active]:border-b data-[state=active]:shadow-none dark:data-[state=active]:border-[#CC5500] dark:data-[state=active]:text-[#CC5500] dark:data-[state=active]:bg-transparent data-[state=active]:border-[#CC5500]"
+                      >
+                        Deactivated Products
+                        <Badge variant="secondary" className="ml-2 dark:text-white dark:bg-[#121212]">
+                          {stats.deactivatedProducts}
                         </Badge>
                       </TabsTrigger>
-                      <TabsTrigger value="archived">
-                        Archived Products
-                        <Badge variant="secondary" className="ml-2">
-                          {stats.archivedProducts}
+                      <TabsTrigger 
+                        value="deleted" 
+                        className="shadow-none border-0 border-b rounded-none data-[state=active]:text-[#CC5500] data-[state=active]:border-b data-[state=active]:shadow-none dark:data-[state=active]:border-[#CC5500] dark:data-[state=active]:text-[#CC5500] dark:data-[state=active]:bg-transparent data-[state=active]:border-[#CC5500]"
+                      >
+                        Deleted Products
+                        <Badge variant="secondary" className="ml-2 dark:text-white dark:bg-[#121212]">
+                          {stats.deletedProducts}
                         </Badge>
                       </TabsTrigger>
                     </TabsList>
@@ -424,16 +482,16 @@ export default function AdminProductsPage() {
 
                 {/* Search and Filter Section */}
                 <div className="px-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                  <div className="w-full">
+                  <div className="w-full sm:w-auto flex flex-1">
                     <Search
                       placeholder="Search products by name, vendor, or category..."
                       value={searchQuery}
                       onSearchChange={setSearchQuery}
-                      className="rounded-full flex-1"
+                      className="rounded-full flex-1 w-full"
                     />
                   </div>
 
-                  <div className="flex flex-row flex-1 items-center gap-4">
+                  <div className="flex flex-row items-center gap-4">
                     <div className="flex gap-2 items-center">
                       {/* Status Filter Dropdown */}
                       <DropdownMenu>
@@ -442,8 +500,8 @@ export default function AdminProductsPage() {
                             variant="outline"
                             className="flex items-center gap-2 h-10"
                           >
-                            <FilterIcon className="w-4 h-4" />
-                            Status
+                            Filter
+                            <ListFilter className="w-4 h-4" />
                             {selectedStatuses.length > 0 && (
                               <Badge variant="secondary" className="ml-1">
                                 {selectedStatuses.length}
@@ -477,67 +535,19 @@ export default function AdminProductsPage() {
                         </Button>
                       )}
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      {/* View Mode Toggle */}
-                      <div className="flex rounded-lg p-1 gap-4">
-                        <Button
-                          variant={"outline"}
-                          onClick={() => setViewMode("grid")}
-                          className={cn(
-                            "h-11",
-                            viewMode === "grid"
-                              ? "bg-[#CC5500] hover:bg-[#CC5500]/90 hover:text-white text-white"
-                              : ""
-                          )}
-                        >
-                          <GridIcon className="h-4 w-4" />
-                          Grid
-                        </Button>
-                        <Button
-                          variant={"outline"}
-                          onClick={() => setViewMode("list")}
-                          className={cn(
-                            "h-11",
-                            viewMode === "list"
-                              ? "bg-[#CC5500] hover:bg-[#CC5500]/90 hover:text-white text-white"
-                              : ""
-                          )}
-                        >
-                          <ListIcon className="h-4 w-4" />
-                          List
-                        </Button>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
-                {/* Products Display */}
-                <div className="px-6 mt-6">
-                  {viewMode === "grid" ? (
-                    // Grid View - Convert products to DashboardProduct
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {filteredProducts.map((product) => (
-                        <DashboardProductCard
-                          key={product.id}
-                          product={convertToDashboardProduct(product)}
-                          onView={handleViewProduct}
-                          onEdit={handleEditProduct}
-                          onToggleStatus={handleToggleStatus}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    // List View (DataTable)
-                    <DataTable<Product>
-                      data={filteredProducts}
-                      fields={productFields}
-                      actions={productActions}
-                      enableSelection={true}
-                      enablePagination={true}
-                      pageSize={10}
-                    />
-                  )}
+                {/* Products Display - Only Table View */}
+                <div className="px-6">
+                  <DataTable<TableProduct>
+                    data={filteredProducts}
+                    fields={productFields}
+                    actions={productActions}
+                    enableSelection={true}
+                    enablePagination={true}
+                    pageSize={10}
+                  />
 
                   {filteredProducts.length === 0 && (
                     <div className="text-center py-12">

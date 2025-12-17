@@ -35,6 +35,13 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProducts } from "@/hooks/useProducts";
+import type { Vendor } from "@/types/product";
+
+const getVendorDisplayName = (vendor: string | Vendor | undefined): string => {
+  if (!vendor) return "Unknown Vendor";
+  if (typeof vendor === "string") return vendor;
+  return vendor.name || "Unknown Vendor";
+};
 
 export default function AdminViewDropoffPage() {
   const navigate = useNavigate();
@@ -137,8 +144,10 @@ export default function AdminViewDropoffPage() {
     },
     {
       key: "vendor",
-      header: "Seller",
-      cell: (_, row) => <span className="font-medium">{row.vendor}</span>,
+      header: "Vendor",
+      cell: (_, row) => (
+        <span className="font-medium">{getVendorDisplayName(row.vendor)}</span>
+      ),
       align: "center",
     },
     {
@@ -158,35 +167,27 @@ export default function AdminViewDropoffPage() {
         > = {
           "In Production": {
             color: "bg-blue-500",
-
           },
           Shipped: {
             color: "bg-purple-500",
- 
           },
           Delivered: {
             color: "bg-green-500",
-  
           },
           Cancelled: {
             color: "bg-red-500",
-     
           },
           Pending: {
             color: "bg-yellow-500",
-    
           },
           Processing: {
             color: "bg-orange-500",
-    
           },
           "Ready for Pickup": {
             color: "bg-indigo-500",
-  
           },
           "In Transit": {
             color: "bg-teal-500",
-   
           },
         };
 
@@ -533,7 +534,7 @@ export default function AdminViewDropoffPage() {
                       <div className="space-y-4">
                         <div className="flex flex-row items-center justify-between">
                           <h2 className="font-semibold text-xl">
-                            Products by seller
+                            Products by vendor
                           </h2>
                           <Select
                             value={timeRange}

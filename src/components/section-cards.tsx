@@ -135,9 +135,7 @@ export function SectionCards({
                       </div>
                     </div>
                   )}
-                  <span className=" text-[16px] font-medium">
-                  {card.title}
-                  </span>
+                  <span className=" text-[16px] font-medium">{card.title}</span>
                 </div>
 
                 {card.rightIcon && (
@@ -162,18 +160,6 @@ export function SectionCards({
                     </div>
                   </div>
                 )}
-              </CardDescription>
-              <CardTitle
-                className={cn(
-                  "@[250px]/card:text-5xl text-5xl mt-4 font-semibold tabular-nums",
-                  textColor || "text-foreground"
-                )}
-              >
-                {card.value}
-              </CardTitle>
-            </CardHeader>
-            <CardFooter className="flex-col items-start gap-1 text-sm">
-              <div className="flex items-center gap-2 w-full">
                 <Badge
                   variant="outline"
                   className={cn(
@@ -200,6 +186,18 @@ export function SectionCards({
                   )}
                   {card.change?.value}
                 </Badge>
+              </CardDescription>
+              <CardTitle
+                className={cn(
+                  "@[250px]/card:text-5xl text-5xl mt-4 font-semibold tabular-nums",
+                  textColor || "text-foreground"
+                )}
+              >
+                {card.value}
+              </CardTitle>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1 text-sm">
+              <div className="flex items-center gap-2 w-full">
                 <span className={mutedTextColor}>
                   {card.change?.description}
                 </span>

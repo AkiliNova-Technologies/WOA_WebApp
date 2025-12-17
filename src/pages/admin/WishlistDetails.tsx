@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useProducts } from "@/hooks/useProducts";
+import { useReduxProducts } from "@/hooks/useReduxProducts"; // Change this import
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import type { ProductStatus } from "@/types/product";
+// import type { Product as ReduxProduct } from "@/redux/slices/productsSlice";
 import { SiteHeader } from "@/components/site-header";
 import {
   Table,
@@ -41,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 
 // Extended status type for the drawer
 type ExtendedProductStatus =
@@ -53,21 +53,16 @@ type ExtendedProductStatus =
   | "out-of-stock"
   | "archived";
 
-// Function to convert ProductStatus to extended status for display
-const convertToExtendedStatus = (
-  status: ProductStatus
-): ExtendedProductStatus => {
+// Helper to map Redux status to extended status
+const mapReduxStatusToExtendedStatus = (status: string): ExtendedProductStatus => {
   switch (status) {
-    case "active":
-      return "active";
-    case "draft":
-      return "suspended";
-    case "archived":
-      return "deactivated";
-    case "out-of-stock":
-      return "deleted";
-    default:
-      return "active";
+    case "published": return "active";
+    case "draft": return "suspended";
+    case "pending_review": return "suspended";
+    case "approved": return "active";
+    case "rejected": return "deactivated";
+    case "archived": return "deactivated";
+    default: return "active";
   }
 };
 
@@ -237,7 +232,7 @@ const calculateTotalSaves = (colors: (typeof sizeVariants)[0]["colors"]) => {
   return colors.reduce((total, color) => total + color.savesCount, 0);
 };
 
-// Color Table Component
+// Color Table Component (unchanged)
 function ColorQuantityTable({
   colors,
 }: {
@@ -330,7 +325,7 @@ function ColorQuantityTable({
   );
 }
 
-// Size Variant Component
+// Size Variant Component (unchanged)
 function SizeVariantSection({
   variant,
 }: {
@@ -384,11 +379,68 @@ function SizeVariantSection({
 export default function AdminWishlistDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
-  const { getProductById } = useProducts();
+  const { 
+    product, 
+    loading, 
+    error,
+    getProduct 
+  } = useReduxProducts(); // Use Redux products hook
   const [timeRange, setTimeRange] = useState("90d");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const product = getProductById(productId!);
+  // Fetch product details when component mounts
+  useEffect(() => {
+    if (productId) {
+      setIsLoading(true);
+      getProduct(productId)
+        .finally(() => setIsLoading(false));
+    }
+  }, [productId, getProduct]);
 
+  // Helper to get primary image
+  const getPrimaryImage = () => {
+    if (!product?.images || product.images.length === 0) return "";
+    const primaryImage = product.images.find(img => img.isPrimary);
+    return primaryImage?.url || product.images[0]?.url || "";
+  };
+
+  // Helper to get category name
+  const getCategoryName = () => {
+    return product?.category?.name || "Uncategorized";
+  };
+
+  // Helper to get vendor name
+  const getVendorName = () => {
+    return product?.vendor?.businessName || "Unknown Vendor";
+  };
+
+  // Loading state
+  if (isLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p>Loading product details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center text-red-500">
+          <h2 className="text-2xl font-bold mb-4">Error Loading Product</h2>
+          <p className="mb-4">{error}</p>
+          <Button onClick={() => navigate("/admin/wishlist")}>
+            Return to Wishlist
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Product not found state
   if (!product) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -403,12 +455,12 @@ export default function AdminWishlistDetailPage() {
   }
 
   // Get display status for UI
-  const getDisplayStatus = (status: ProductStatus): ExtendedProductStatus => {
-    return convertToExtendedStatus(status);
+  const getDisplayStatus = (): ExtendedProductStatus => {
+    return mapReduxStatusToExtendedStatus(product.status);
   };
 
-  const getStatusColor = (status: ProductStatus) => {
-    const displayStatus = getDisplayStatus(status);
+  const getStatusColor = () => {
+    const displayStatus = getDisplayStatus();
     const colors = {
       active: "rounded-sm px-4 py-1",
       suspended: "rounded-sm px-4 py-1",
@@ -421,8 +473,8 @@ export default function AdminWishlistDetailPage() {
     return colors[displayStatus] || colors.active;
   };
 
-  const getDotColor = (status: ProductStatus) => {
-    const displayStatus = getDisplayStatus(status);
+  const getDotColor = () => {
+    const displayStatus = getDisplayStatus();
     const colors = {
       active: "bg-green-500",
       suspended: "bg-yellow-500",
@@ -435,8 +487,8 @@ export default function AdminWishlistDetailPage() {
     return colors[displayStatus] || colors.active;
   };
 
-  const getStatusLabel = (status: ProductStatus): string => {
-    const displayStatus = getDisplayStatus(status);
+  const getStatusLabel = (): string => {
+    const displayStatus = getDisplayStatus();
     const statusLabels = {
       active: "Active",
       suspended: "Suspended",
@@ -449,53 +501,18 @@ export default function AdminWishlistDetailPage() {
     return statusLabels[displayStatus] || "Active";
   };
 
-  // Get category name from ID
-  const getCategoryName = (categoryId: string): string => {
-    const categories: { [key: string]: string } = {
-      "1": "Clothing",
-      "2": "Men's Fashion",
-      "3": "Women's Fashion",
-      "4": "Accessories",
-      "5": "Headwear",
-    };
-    return categories[categoryId] || "Uncategorized";
-  };
-
-  // Get subcategory name
-  const getSubCategoryName = (subCategoryId: string): string => {
-    const subCategories: { [key: string]: string } = {
-      "1-1": "Traditional Wear",
-      "1-2": "Modern Wear",
-      "2-1": "Men's Shirts",
-      "1-1-1": "Kente",
-      "1-1-2": "Ankara",
-    };
-    return subCategories[subCategoryId] || "General";
-  };
-
-  // Calculate total saves
+  // Calculate total saves (mock data - you might want to fetch real wishlist data)
   const totalSaves = mockBuyers.reduce(
     (sum, buyer) => sum + buyer.quantitySaved,
     0
   );
 
-  // Calculate average days on wishlist
-  // const avgDaysOnWishlist = Math.round(
-  //   mockBuyers.reduce((sum, buyer) => sum + buyer.daysOnWishlist, 0) /
-  //     mockBuyers.length
-  // );
+  const primaryImage = getPrimaryImage();
 
-  // Calculate conversion rate
-  // const conversionRate = Math.round(
-  //   (mockBuyers.filter((buyer) => buyer.firstPurchase === "Yes").length /
-  //     mockBuyers.length) *
-  //     100
-  // );
-
-  // Table fields for buyers - FIXED: Using actual keys from mockBuyers
+  // Table fields for buyers
   const buyerFields: TableField<(typeof mockBuyers)[0]>[] = [
     {
-      key: "name", // Changed from "buyer" to "name"
+      key: "name",
       header: "Name",
       cell: (_, row) => (
         <div className="flex items-center gap-3">
@@ -512,13 +529,13 @@ export default function AdminWishlistDetailPage() {
       ),
     },
     {
-      key: "productSaved", // Changed from "product"
+      key: "productSaved",
       header: "Product Saved",
       cell: (_, row) => <span className="font-medium">{row.productSaved}</span>,
       align: "center",
     },
     {
-      key: "quantitySaved", // Changed from "quantity"
+      key: "quantitySaved",
       header: "Qty Saved",
       cell: (_, row) => (
         <span className="font-medium">{row.quantitySaved}</span>
@@ -526,13 +543,13 @@ export default function AdminWishlistDetailPage() {
       align: "center",
     },
     {
-      key: "stockCount", // Changed from "stockQuantity"
+      key: "stockCount",
       header: "Stock Count",
       cell: (_, row) => <span className="font-medium">{row.stockCount}</span>,
       align: "center",
     },
     {
-      key: "addedOn", // Changed from "added"
+      key: "addedOn",
       header: "Added on",
       cell: (_, row) => (
         <span className="font-medium">{formatDate(row.addedOn)}</span>
@@ -540,7 +557,7 @@ export default function AdminWishlistDetailPage() {
       align: "center",
     },
     {
-      key: "daysOnWishlist", // Changed from "added"
+      key: "daysOnWishlist",
       header: "Days spent on wishlist",
       cell: (_, row) => (
         <span className="font-medium">{row.daysOnWishlist} days</span>
@@ -548,7 +565,7 @@ export default function AdminWishlistDetailPage() {
       align: "center",
     },
     {
-      key: "firstPurchase", // Changed from "status"
+      key: "firstPurchase",
       header: "First Purchase",
       cell: (_, row) => (
         <Badge
@@ -672,12 +689,20 @@ export default function AdminWishlistDetailPage() {
                       <ChevronUp className="w-5 h-5" />
                     </Button>
 
-                    {[1, 2, 3, 4].map((i) => (
+                    {product.images && product.images.slice(0, 4).map((img, i) => (
                       <div
                         key={i}
-                        className="w-12 h-12 bg-muted rounded border border-border flex items-center justify-center"
+                        className="w-12 h-12 bg-muted rounded border border-border flex items-center justify-center overflow-hidden"
                       >
-                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        {img.url ? (
+                          <img 
+                            src={img.url} 
+                            alt={`Product thumbnail ${i + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        )}
                       </div>
                     ))}
 
@@ -687,12 +712,12 @@ export default function AdminWishlistDetailPage() {
                   </div>
 
                   {/* Main Image */}
-                  {product.image ? (
-                    <div className="relative w-80 h-96 bg-muted rounded-lg flex items-center justify-center">
+                  {primaryImage ? (
+                    <div className="relative w-80 h-96 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
                       <img
-                        src={product.image}
+                        src={primaryImage}
                         alt={product.name}
-                        className="rounded-md h-full w-full"
+                        className="rounded-md h-full w-full object-cover"
                       />
                     </div>
                   ) : (
@@ -714,27 +739,44 @@ export default function AdminWishlistDetailPage() {
                     {/* Display current status badge */}
                     <Badge
                       variant="outline"
-                      className={getStatusColor(product.status)}
+                      className={getStatusColor()}
                     >
                       <div
                         className={cn(
                           "h-2 w-2 rounded-full mr-1",
-                          getDotColor(product.status)
+                          getDotColor()
                         )}
                       ></div>
-                      {getStatusLabel(product.status)}
+                      {getStatusLabel()}
                     </Badge>
                   </div>
 
+                  {/* Price */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-bold">${product.price}</span>
+                      {product.salePrice && (
+                        <>
+                          <span className="text-lg text-muted-foreground line-through">
+                            ${product.salePrice}
+                          </span>
+                          <Badge variant="secondary" className="ml-2">
+                            Sale
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 gap-6">
-                    {/* Left Column */}
+                    {/* Category Information */}
                     <div className="flex flex-row justify-between border p-4 rounded-lg">
                       <div className="p-4 rounded-lg">
                         <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
                           Category
                         </Label>
                         <p className="text-muted-foreground">
-                          {getCategoryName(product.categoryId)}
+                          {getCategoryName()}
                         </p>
                       </div>
 
@@ -743,7 +785,7 @@ export default function AdminWishlistDetailPage() {
                           Sub Category
                         </Label>
                         <p className="text-muted-foreground">
-                          {getSubCategoryName(product.subCategoryId || "")}
+                          {product.subcategory?.name || "Not specified"}
                         </p>
                       </div>
 
@@ -752,19 +794,28 @@ export default function AdminWishlistDetailPage() {
                           Vendor
                         </Label>
                         <p className="text-muted-foreground">
-                          {product.vendor}
+                          {getVendorName()}
                         </p>
                       </div>
                     </div>
 
-                    {/* Right Column */}
+                    {/* Stock Information */}
                     <div className="flex flex-row justify-between border p-4 rounded-lg">
                       <div className="p-4 rounded-lg">
                         <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
                           Available Stock
                         </Label>
                         <p className="text-muted-foreground">
-                          {product.stockQuantity}
+                          {product.stock} units
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-lg">
+                        <Label className="text-md font-medium text-primary block mb-2 dark:text-white">
+                          SKU
+                        </Label>
+                        <p className="text-muted-foreground">
+                          {product.sku}
                         </p>
                       </div>
 

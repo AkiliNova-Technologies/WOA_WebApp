@@ -15,7 +15,8 @@ const mockProducts: Product[] = [
   {
     id: "1",
     name: "Colorful Bolga Shirt",
-    description: "Perfect for complete traditional outfits with vibrant colors and patterns",
+    description:
+      "Perfect for complete traditional outfits with vibrant colors and patterns",
     price: 35,
     originalPrice: 45,
     rating: 4.5,
@@ -75,7 +76,8 @@ const mockProducts: Product[] = [
   {
     id: "7",
     name: "Handmade Leather Sandals",
-    description: "Comfortable handmade leather sandals with traditional patterns",
+    description:
+      "Comfortable handmade leather sandals with traditional patterns",
     price: 55,
     originalPrice: 65,
     rating: 4.4,
@@ -160,7 +162,7 @@ const mockProducts: Product[] = [
     productionMethod: "handwoven",
     status: "active",
     sales: 22,
-  }
+  },
 ];
 
 // Mock cart items with different quantities and dates
@@ -205,8 +207,10 @@ export function useCart() {
   const addToCart = (product: Product, quantity: number = 1) => {
     setCartItems((prev) => {
       // Check if product is already in cart
-      const existingItemIndex = prev.findIndex(item => item.productId === product.id);
-      
+      const existingItemIndex = prev.findIndex(
+        (item) => item.productId === product.id
+      );
+
       if (existingItemIndex !== -1) {
         // Update quantity if product already exists
         const updatedItems = [...prev];
@@ -230,9 +234,7 @@ export function useCart() {
 
   // Remove item from cart
   const removeFromCart = (productId: string) => {
-    setCartItems((prev) => 
-      prev.filter(item => item.productId !== productId)
-    );
+    setCartItems((prev) => prev.filter((item) => item.productId !== productId));
   };
 
   // Update item quantity in cart
@@ -243,10 +245,8 @@ export function useCart() {
     }
 
     setCartItems((prev) =>
-      prev.map(item =>
-        item.productId === productId
-          ? { ...item, quantity }
-          : item
+      prev.map((item) =>
+        item.productId === productId ? { ...item, quantity } : item
       )
     );
   };
@@ -258,7 +258,7 @@ export function useCart() {
 
   // Check if product is in cart
   const isInCart = (productId: string): boolean => {
-    return cartItems.some(item => item.productId === productId);
+    return cartItems.some((item) => item.productId === productId);
   };
 
   // Get cart item count (total quantity of all items)
@@ -273,34 +273,34 @@ export function useCart() {
 
   // Get cart items sorted by date added (newest first)
   const getSortedCartItems = useMemo(() => {
-    return [...cartItems].sort((a, b) => 
-      new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
+    return [...cartItems].sort(
+      (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
     );
   }, [cartItems]);
 
   // Get cart items by category
   const getCartItemsByCategory = (categoryId: string): CartItem[] => {
-    return cartItems.filter(item => item.product.categoryId === categoryId);
+    return cartItems.filter((item) => item.product.categoryId === categoryId);
   };
 
   // Get cart items that are on sale
   const getOnSaleCartItems = (): CartItem[] => {
-    return cartItems.filter(item => item.product.isOnSale);
+    return cartItems.filter((item) => item.product.isOnSale);
   };
 
   // Get cart items that are in stock
   const getInStockCartItems = (): CartItem[] => {
-    return cartItems.filter(item => item.product.inStock);
+    return cartItems.filter((item) => item.product.inStock);
   };
 
   // Get cart items that are out of stock
   const getOutOfStockCartItems = (): CartItem[] => {
-    return cartItems.filter(item => !item.product.inStock);
+    return cartItems.filter((item) => !item.product.inStock);
   };
 
   // Move item to wishlist (remove from cart and potentially add to wishlist)
   const moveToWishlist = (productId: string) => {
-    const itemToMove = cartItems.find(item => item.productId === productId);
+    const itemToMove = cartItems.find((item) => item.productId === productId);
     if (itemToMove) {
       removeFromCart(productId);
       return itemToMove.product;
@@ -310,7 +310,7 @@ export function useCart() {
 
   // Move all items to wishlist
   const moveAllToWishlist = () => {
-    const movedProducts = cartItems.map(item => item.product);
+    const movedProducts = cartItems.map((item) => item.product);
     clearCart();
     return movedProducts;
   };
@@ -319,14 +319,21 @@ export function useCart() {
   const getCartStats = () => {
     const totalItems = getCartCount();
     const uniqueProducts = getUniqueProductCount();
-    const subtotal = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+    const subtotal = cartItems.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0
+    );
     const totalDiscount = cartItems.reduce((sum, item) => {
-      const discount = item.product.originalPrice ? (item.product.originalPrice - item.product.price) : 0;
-      return sum + (discount * item.quantity);
+      const discount = item.product.originalPrice
+        ? item.product.originalPrice - item.product.price
+        : 0;
+      return sum + discount * item.quantity;
     }, 0);
     const onSaleCount = getOnSaleCartItems().length;
     const outOfStockCount = getOutOfStockCartItems().length;
-    const categoriesCount = new Set(cartItems.map(item => item.product.categoryId)).size;
+    const categoriesCount = new Set(
+      cartItems.map((item) => item.product.categoryId)
+    ).size;
 
     // Calculate estimated shipping (free over $50, otherwise $5)
     const shipping = subtotal >= 50 ? 0 : 5;
@@ -344,40 +351,57 @@ export function useCart() {
       onSaleCount,
       outOfStockCount,
       categoriesCount,
-      averageRating: cartItems.length > 0 
-        ? cartItems.reduce((sum, item) => sum + item.product.rating, 0) / cartItems.length 
-        : 0,
+      averageRating:
+        cartItems.length > 0
+          ? cartItems.reduce((sum, item) => sum + item.product.rating, 0) /
+            cartItems.length
+          : 0,
     };
+  };
+
+  const getVendorName = (product: Product): string => {
+    if (!product.vendor) return "";
+    if (typeof product.vendor === "string") return product.vendor;
+    // Handle Vendor object - use 'name' property
+    return product.vendor.name || "";
   };
 
   // Search cart items
   const searchCart = (query: string): CartItem[] => {
     if (!query) return cartItems;
-    
+
     const lowercaseQuery = query.toLowerCase();
-    return cartItems.filter(item =>
-      item.product.name.toLowerCase().includes(lowercaseQuery) ||
-      item.product.description.toLowerCase().includes(lowercaseQuery) ||
-      item.product.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery)) ||
-      item.product.vendor.toLowerCase().includes(lowercaseQuery)
-    );
+    return cartItems.filter((item) => {
+      const vendorName = getVendorName(item.product);
+      return (
+        item.product.name.toLowerCase().includes(lowercaseQuery) ||
+        item.product.description.toLowerCase().includes(lowercaseQuery) ||
+        item.product.tags.some((tag) =>
+          tag.toLowerCase().includes(lowercaseQuery)
+        ) ||
+        vendorName.toLowerCase().includes(lowercaseQuery)
+      );
+    });
   };
 
   // Filter cart by price range
-  const filterCartByPrice = (minPrice: number, maxPrice: number): CartItem[] => {
-    return cartItems.filter(item =>
-      item.product.price >= minPrice && item.product.price <= maxPrice
+  const filterCartByPrice = (
+    minPrice: number,
+    maxPrice: number
+  ): CartItem[] => {
+    return cartItems.filter(
+      (item) => item.product.price >= minPrice && item.product.price <= maxPrice
     );
   };
 
   // Filter cart by rating
   const filterCartByRating = (minRating: number): CartItem[] => {
-    return cartItems.filter(item => item.product.rating >= minRating);
+    return cartItems.filter((item) => item.product.rating >= minRating);
   };
 
   // Get unique categories in cart
   const getCartCategories = (): string[] => {
-    const categoryIds = cartItems.map(item => item.product.categoryId);
+    const categoryIds = cartItems.map((item) => item.product.categoryId);
     return Array.from(new Set(categoryIds));
   };
 
@@ -385,16 +409,14 @@ export function useCart() {
   const getRecentCartItems = (days: number = 7): CartItem[] => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
-    
-    return cartItems.filter(item => 
-      new Date(item.addedAt) >= cutoffDate
-    );
+
+    return cartItems.filter((item) => new Date(item.addedAt) >= cutoffDate);
   };
 
   // Get most expensive item in cart
   const getMostExpensiveItem = (): CartItem | undefined => {
     if (cartItems.length === 0) return undefined;
-    return cartItems.reduce((max, item) => 
+    return cartItems.reduce((max, item) =>
       item.product.price > max.product.price ? item : max
     );
   };
@@ -402,44 +424,50 @@ export function useCart() {
   // Get cheapest item in cart
   const getCheapestItem = (): CartItem | undefined => {
     if (cartItems.length === 0) return undefined;
-    return cartItems.reduce((min, item) => 
+    return cartItems.reduce((min, item) =>
       item.product.price < min.product.price ? item : min
     );
   };
 
   // Get items by vendor
   const getItemsByVendor = (vendor: string): CartItem[] => {
-    return cartItems.filter(item => 
-      item.product.vendor.toLowerCase().includes(vendor.toLowerCase())
-    );
+    const lowercaseVendor = vendor.toLowerCase();
+    return cartItems.filter((item) => {
+      const vendorName = getVendorName(item.product);
+      return vendorName.toLowerCase().includes(lowercaseVendor);
+    });
   };
 
   // Get total quantity for a specific product
   const getProductQuantity = (productId: string): number => {
-    const item = cartItems.find(item => item.productId === productId);
+    const item = cartItems.find((item) => item.productId === productId);
     return item ? item.quantity : 0;
   };
 
   // Check if cart has items with insufficient stock
   const hasInsufficientStock = (): boolean => {
-    return cartItems.some(item => item.quantity > item.product.stockQuantity);
+    return cartItems.some((item) => item.quantity > item.product.stockQuantity);
   };
 
   // Get items with insufficient stock
   const getInsufficientStockItems = (): CartItem[] => {
-    return cartItems.filter(item => item.quantity > item.product.stockQuantity);
+    return cartItems.filter(
+      (item) => item.quantity > item.product.stockQuantity
+    );
   };
 
   // Apply coupon code (mock implementation)
-  const applyCoupon = (code: string): { success: boolean; message: string; discount?: number } => {
+  const applyCoupon = (
+    code: string
+  ): { success: boolean; message: string; discount?: number } => {
     const couponCodes: { [key: string]: number } = {
-      'WELCOME10': 10,
-      'SAVE20': 20,
-      'SUMMER15': 15,
+      WELCOME10: 10,
+      SAVE20: 20,
+      SUMMER15: 15,
     };
 
     const discount = couponCodes[code.toUpperCase()];
-    
+
     if (discount) {
       return {
         success: true,
@@ -450,7 +478,7 @@ export function useCart() {
 
     return {
       success: false,
-      message: 'Invalid coupon code',
+      message: "Invalid coupon code",
     };
   };
 
@@ -492,8 +520,8 @@ export function useCart() {
 
     // Helper values
     isEmpty: cartItems.length === 0,
-    hasOutOfStockItems: cartItems.some(item => !item.product.inStock),
-    hasOnSaleItems: cartItems.some(item => item.product.isOnSale),
+    hasOutOfStockItems: cartItems.some((item) => !item.product.inStock),
+    hasOnSaleItems: cartItems.some((item) => item.product.isOnSale),
   };
 }
 
@@ -501,8 +529,8 @@ export function useCart() {
 export function usePersistentCart() {
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     // Initialize from localStorage or use mock data if empty
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('cart');
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("cart");
       return saved ? JSON.parse(saved) : mockCartItems;
     }
     return mockCartItems;
@@ -511,15 +539,17 @@ export function usePersistentCart() {
   // Helper function to update both state and localStorage
   const updateCart = (newCart: CartItem[]) => {
     setCartItems(newCart);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cart', JSON.stringify(newCart));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("cart", JSON.stringify(newCart));
     }
   };
 
   const addToCart = (product: Product, quantity: number = 1) => {
     setCartItems((prev: CartItem[]) => {
       // Check if product is already in cart
-      const existingItemIndex = prev.findIndex(item => item.productId === product.id);
+      const existingItemIndex = prev.findIndex(
+        (item) => item.productId === product.id
+      );
       let newCart: CartItem[];
 
       if (existingItemIndex !== -1) {
@@ -541,8 +571,8 @@ export function usePersistentCart() {
       }
 
       // Update localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cart', JSON.stringify(newCart));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("cart", JSON.stringify(newCart));
       }
 
       return newCart;
@@ -551,13 +581,13 @@ export function usePersistentCart() {
 
   const removeFromCart = (productId: string) => {
     setCartItems((prev: CartItem[]) => {
-      const newCart = prev.filter(item => item.productId !== productId);
-      
+      const newCart = prev.filter((item) => item.productId !== productId);
+
       // Update localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cart', JSON.stringify(newCart));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("cart", JSON.stringify(newCart));
       }
-      
+
       return newCart;
     });
   };
@@ -569,15 +599,13 @@ export function usePersistentCart() {
     }
 
     setCartItems((prev: CartItem[]) => {
-      const newCart = prev.map(item =>
-        item.productId === productId
-          ? { ...item, quantity }
-          : item
+      const newCart = prev.map((item) =>
+        item.productId === productId ? { ...item, quantity } : item
       );
 
       // Update localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cart', JSON.stringify(newCart));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("cart", JSON.stringify(newCart));
       }
 
       return newCart;
@@ -586,14 +614,14 @@ export function usePersistentCart() {
 
   const clearCart = () => {
     setCartItems([]);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cart', JSON.stringify([]));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("cart", JSON.stringify([]));
     }
   };
 
   // Check if product is in cart
   const isInCart = (productId: string): boolean => {
-    return cartItems.some(item => item.productId === productId);
+    return cartItems.some((item) => item.productId === productId);
   };
 
   // Get cart item count (total quantity of all items)
@@ -608,8 +636,8 @@ export function usePersistentCart() {
 
   // Get cart items sorted by date added (newest first)
   const getSortedCartItems = useMemo(() => {
-    return [...cartItems].sort((a, b) => 
-      new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
+    return [...cartItems].sort(
+      (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
     );
   }, [cartItems]);
 

@@ -6,7 +6,6 @@ import {
   Package,
   Truck,
   DollarSign,
-  FolderTree,
 } from "lucide-react";
 
 import { NavSecondary } from "@/components/nav-secondary";
@@ -36,8 +35,8 @@ const data = {
       icon: Users,
       items: [
         {
-          title: "admins",
-          url: "/admin/users",
+          title: "Sellers",
+          url: "/admin/users/vendors",
         },
         {
           title: "Customers",
@@ -45,20 +44,19 @@ const data = {
         },
         {
           title: "Staff",
-          url: "/admin/users/admins",
+          url: "/admin/users/staff",
         },
       ],
-    },
-    {
-      title: "Category Management",
-      url: "/admin/categories",
-      icon: FolderTree,
     },
     {
       title: "Product Management",
       url: "/admin/products",
       icon: Package,
       items: [
+        {
+          title: "Categories",
+          url: "/admin/products/categories",
+        },
         {
           title: "Approvals",
           url: "/admin/products/approvals",
@@ -81,6 +79,16 @@ const data = {
       title: "Logistics Studio",
       url: "/admin/logistics",
       icon: Truck,
+      items: [
+        {
+          title: "Warehouses",
+          url: "/admin/logistics/warehouses",
+        },
+        {
+          title: "Drop off zones",
+          url: "/admin/logistics/drop-off-zones",
+        },
+      ]
     },
     {
       title: "Revenue",

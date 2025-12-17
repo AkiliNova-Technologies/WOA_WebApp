@@ -1,9 +1,9 @@
-// components/dashboard-product-card.tsx
 import { Edit, MoreVertical } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Rate } from "antd";
 import { Badge } from "./ui/badge";
+import type { ProductStatus } from "@/types/product";
 // import { useNavigate } from "react-router-dom";
 
 interface DashboardProduct {
@@ -15,17 +15,20 @@ interface DashboardProduct {
   price: number;
   originalPrice?: number;
   vendor: string;
-  status: "active" | "draft" | "out-of-stock" | "archived";
+  status: ProductStatus;
   stockQuantity: number;
   sales: number;
+  revenue: number; // Make sure this is required
   createdAt: string;
   category?: string;
+  sku?: string;
 }
 
 interface DashboardProductCardProps {
   product: DashboardProduct;
   onView?: (product: DashboardProduct) => void;
   onEdit?: (product: DashboardProduct) => void;
+  onDelete?: (product: DashboardProduct) => void;
   onToggleStatus?: (product: DashboardProduct) => void;
 }
 
