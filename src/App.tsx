@@ -50,7 +50,7 @@ import AdminCategoriesPage from "@/pages/admin/Categories.tsx";
 import AdminProductApprovalsPage from "@/pages/admin/ProductApprovals.tsx";
 import AdminWishlistPage from "@/pages/admin/Wishlist.tsx";
 import AdminOrdersPage from "@/pages/admin/Orders";
-import AdminLogisticsPage from "@/pages/admin/Logistics.tsx";
+import AdminLogisticsPage from "@/pages/admin/DropOffZones.tsx";
 import AdminRevenuePage from "@/pages/admin/Revenue.tsx";
 import AdminSettingsPage from "@/pages/admin/Settings.tsx";
 import AdminSimpleLayout from "@/layout/AdminSimpleLayout.tsx";
@@ -78,6 +78,11 @@ import VendorAuthLayout from "./layout/VendorAuthLayout.tsx";
 import CreatePasswordPage from "./pages/auth/CreatePassword.tsx";
 import AdminDashboardPage from "./pages/admin/Dashboard.tsx";
 import { Toaster } from "sonner";
+import CheckoutPage from "./pages/consumer/Checkout.tsx";
+import AdminCreateWarehousePage from "./pages/admin/CreateWarehouse.tsx";
+import AdminWarehousesPage from "./pages/admin/Warehouses.tsx";
+import AdminWarehouseDetailsPage from "./pages/admin/WarehouseDetails.tsx";
+import AdminDropOffZonesPage from "@/pages/admin/DropOffZones.tsx";
 
 function App() {
   return (
@@ -108,7 +113,11 @@ function App() {
                 </Route>
 
                 <Route path="/wishlist" element={<WishListPage />} />
-                <Route path="/cart" element={<CartPage />} />
+
+                <Route path="/cart" element={<SimpleLayout />}>
+                  <Route index element={<CartPage />} />
+                  <Route path="checkout" element={<CheckoutPage />} />
+                </Route>
 
                 <Route path="/category" element={<CategoryLayout />}>
                   <Route index element={<CategoryPage />} />
@@ -263,7 +272,20 @@ function App() {
                 </Route>
 
                 <Route path="logistics" element={<AdminSimpleLayout />}>
-                  <Route index element={<AdminLogisticsPage />} />
+                  <Route index element={<AdminDropOffZonesPage />} />
+                  <Route path="drop-off-zones" element={<AdminDropOffZonesPage />} />
+                   <Route
+                    path="warehouses"
+                    element={<AdminWarehousesPage />}
+                  />
+                   <Route
+                    path=":id/warehouse-details"
+                    element={<AdminWarehouseDetailsPage />}
+                  />
+                  <Route
+                    path="create-warehouse"
+                    element={<AdminCreateWarehousePage />}
+                  />
                   <Route
                     path="create-dropoff"
                     element={<AdminCreateDropoffPage />}

@@ -43,7 +43,7 @@ export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { getProductById, products } = useProducts();
-  
+
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState("");
@@ -60,23 +60,25 @@ export default function ProductDetailPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Product Not Found</h2>
-          <Button onClick={() => navigate("/")}>
-            Return to Home
-          </Button>
+          <Button onClick={() => navigate("/")}>Return to Home</Button>
         </div>
       </div>
     );
   }
 
   // Get related products
-  const relatedProducts = product.relatedProducts 
-    ? products.filter(p => product.relatedProducts!.includes(p.id))
-    : products.filter(p => p.categoryId === product.categoryId && p.id !== product.id).slice(0, 4);
+  const relatedProducts = product.relatedProducts
+    ? products.filter((p) => product.relatedProducts!.includes(p.id))
+    : products
+        .filter(
+          (p) => p.categoryId === product.categoryId && p.id !== product.id
+        )
+        .slice(0, 4);
 
   // Get vendor's other products
-  const vendorProducts = products.filter(p => 
-    p.vendor === product.vendor && p.id !== product.id
-  ).slice(0, 4);
+  const vendorProducts = products
+    .filter((p) => p.vendor === product.vendor && p.id !== product.id)
+    .slice(0, 4);
 
   const ratingDistribution = [
     { stars: 5, percentage: 75 },
@@ -89,29 +91,34 @@ export default function ProductDetailPage() {
   // Handle vendor data safely
   const getVendorInfo = (): VendorInfo => {
     // If vendor is already an object, use it
-    if (typeof product.vendor === 'object' && product.vendor !== null) {
+    if (typeof product.vendor === "object" && product.vendor !== null) {
       return {
-        id: product.vendor.id || '1',
-        name: product.vendor.name || 'Unknown Vendor',
-        title: product.vendor.title || `Owner of ${product.vendor.name || 'Unknown'}`,
+        id: product.vendor.id || "1",
+        name: product.vendor.name || "Unknown Vendor",
+        title:
+          product.vendor.title ||
+          `Owner of ${product.vendor.name || "Unknown"}`,
         rating: product.vendor.rating || 4.5,
         reviews: product.vendor.reviews || 12,
         itemsSold: product.vendor.itemsSold || 16,
         memberMonths: product.vendor.memberMonths || 8,
-        avatar: product.vendor.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+        avatar:
+          product.vendor.avatar ||
+          "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
       };
     }
-    
+
     // If vendor is a string, create a basic vendor object
     return {
-      id: '1',
-      name: product.vendor || 'Unknown Vendor',
-      title: `Owner of ${product.vendor || 'Unknown'}`,
+      id: "1",
+      name: product.vendor || "Unknown Vendor",
+      title: `Owner of ${product.vendor || "Unknown"}`,
       rating: 4.5,
       reviews: 12,
       itemsSold: 16,
       memberMonths: 8,
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+      avatar:
+        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
     };
   };
 
@@ -149,10 +156,10 @@ export default function ProductDetailPage() {
 
   // Get vendor name for ProductCard
   const getVendorName = (): string => {
-    if (typeof product.vendor === 'object' && product.vendor !== null) {
-      return product.vendor.name || 'Unknown Vendor';
+    if (typeof product.vendor === "object" && product.vendor !== null) {
+      return product.vendor.name || "Unknown Vendor";
     }
-    return product.vendor || 'Unknown Vendor';
+    return product.vendor || "Unknown Vendor";
   };
 
   const vendorName = getVendorName();
@@ -222,7 +229,10 @@ export default function ProductDetailPage() {
               <button
                 onClick={() =>
                   setSelectedImage(
-                    Math.min((product.images?.length || 1) - 1, selectedImage + 1)
+                    Math.min(
+                      (product.images?.length || 1) - 1,
+                      selectedImage + 1
+                    )
                   )
                 }
                 className="p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 disabled:opacity-50"
@@ -232,21 +242,108 @@ export default function ProductDetailPage() {
               </button>
             </div>
 
-            {/* Product Story Video Section */}
-            <Card className="mt-6 bg-white rounded-lg py-4 px-6 shadow-none border-none">
-              <h3 className="font-semibold">Product Story</h3>
-              <div className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video">
-                <img
-                  src="https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=800"
-                  alt="Product story"
-                  className="w-full h-full object-cover opacity-70"
+            {/* Product Reviews Section */}
+            <Card className="p-6 mb-12 shadow-none border-none">
+              <button
+                onClick={() => setShowReviews(!showReviews)}
+                className="flex items-center justify-between w-full mb-6"
+              >
+                <h2 className="text-2xl font-bold">Product Reviews</h2>
+                <ChevronRight
+                  className={`w-6 h-6 transform transition-transform ${
+                    showReviews ? "rotate-90" : ""
+                  }`}
                 />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <button className="w-16 h-16 bg-white bg-opacity-90 rounded-full flex items-center justify-center hover:bg-opacity-100">
-                    <div className="w-0 h-0 border-l-20 border-l-gray-900 border-y-12 border-y-transparent ml-1" />
-                  </button>
-                </div>
-              </div>
+              </button>
+
+              {showReviews && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-4">
+                    <div className="text-center">
+                      <div className="text-5xl font-bold mb-2">
+                        {product.rating}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2">
+                        {reviews.length} reviews
+                      </p>
+                    </div>
+
+                    <div className="col-span-5 space-y-2">
+                      {ratingDistribution.map((item) => (
+                        <div
+                          key={item.stars}
+                          className="flex items-center gap-1"
+                        >
+                          <div className="flex items-center gap-1 w-38">
+                            <Rate
+                              disabled
+                              defaultValue={item.stars}
+                              className="text-yellow-400 text-xl"
+                            />
+                          </div>
+                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-yellow-400 h-2 rounded-full"
+                              style={{ width: `${item.percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-gray-600 w-12 text-right">
+                            {item.percentage}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    {reviews.map((review) => (
+                      <div key={review.id} className="border-t pt-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gray-300 rounded-full" />
+                            <div>
+                              <h4 className="font-semibold">{review.author}</h4>
+                              <p className="text-sm text-gray-600">
+                                {review.date}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Rate
+                              disabled
+                              defaultValue={review.rating}
+                              className="text-yellow-400"
+                            />
+                            <span className="text-sm font-semibold">
+                              {review.rating}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-gray-700 mb-3">{review.text}</p>
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <button className="flex items-center gap-1 hover:text-orange-500">
+                            <ThumbsUp className="w-4 h-4" />
+                            Helpful ({review.helpful})
+                          </button>
+                          <button className="flex items-center gap-1 hover:text-orange-500">
+                            <Share className="w-4 h-4" />
+                            Share
+                          </button>
+                          {review.verified && (
+                            <span className="text-green-600">
+                              ✓ Verified stock
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button variant="outline" className="w-full mt-6">
+                    Read all reviews
+                  </Button>
+                </>
+              )}
             </Card>
           </div>
 
@@ -255,9 +352,9 @@ export default function ProductDetailPage() {
             {/* Rating and Title */}
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Rate 
-                  disabled 
-                  defaultValue={product.rating} 
+                <Rate
+                  disabled
+                  defaultValue={product.rating}
                   className="text-yellow-400"
                 />
                 <span className="text-sm font-semibold">
@@ -303,11 +400,13 @@ export default function ProductDetailPage() {
                     <SelectValue placeholder="Select color" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(product.colors || ["blue", "red", "green"]).map((color) => (
-                      <SelectItem key={color} value={color}>
-                        {color.charAt(0).toUpperCase() + color.slice(1)}
-                      </SelectItem>
-                    ))}
+                    {(product.colors || ["blue", "red", "green"]).map(
+                      (color) => (
+                        <SelectItem key={color} value={color}>
+                          {color.charAt(0).toUpperCase() + color.slice(1)}
+                        </SelectItem>
+                      )
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -337,7 +436,7 @@ export default function ProductDetailPage() {
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="h-10 w-10 hover:bg-gray-100 bg-[#F2F2F2] rounded-full text-[#303030]"
                 >
-                  <Minus/>
+                  <Minus />
                 </Button>
                 <Input
                   type="text"
@@ -381,6 +480,23 @@ export default function ProductDetailPage() {
               </button>
             </div>
 
+            {/* Product Story Video Section */}
+            <Card className="mt-6 bg-white rounded-lg py-4 shadow-none border-none">
+              <h3 className="font-semibold">Product Story</h3>
+              <div className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video">
+                <img
+                  src="https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=800"
+                  alt="Product story"
+                  className="w-full h-full object-cover opacity-70"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <button className="w-16 h-16 bg-white bg-opacity-90 rounded-full flex items-center justify-center hover:bg-opacity-100">
+                    <div className="w-0 h-0 border-l-20 border-l-gray-900 border-y-12 border-y-transparent ml-1" />
+                  </button>
+                </div>
+              </div>
+            </Card>
+
             {/* Care Instructions */}
             <div className="border-t pt-4">
               <button
@@ -396,11 +512,13 @@ export default function ProductDetailPage() {
               </button>
               {showCareInstructions && (
                 <ul className="mt-3 space-y-2 text-sm text-gray-700">
-                  {(product.careInstructions || [
-                    "Keep dry when possible - If it gets wet, air-dry them in a shaded area.",
-                    "Clean gently - Wipe with a soft, damp cloth.",
-                    "Condition occasionally - Use natural conditioner to maintain quality.",
-                  ]).map((instruction, idx) => (
+                  {(
+                    product.careInstructions || [
+                      "Keep dry when possible - If it gets wet, air-dry them in a shaded area.",
+                      "Clean gently - Wipe with a soft, damp cloth.",
+                      "Condition occasionally - Use natural conditioner to maintain quality.",
+                    ]
+                  ).map((instruction, idx) => (
                     <li key={idx} className="flex gap-2">
                       <span className="text-orange-500">•</span>
                       <span>{instruction}</span>
@@ -427,12 +545,17 @@ export default function ProductDetailPage() {
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="grid grid-cols-3 gap-2">
                     <span className="text-gray-600">Material:</span>
-                    <span className="col-span-2">{product.material || product.specifications?.material || "100% Cotton"}</span>
+                    <span className="col-span-2">
+                      {product.material ||
+                        product.specifications?.material ||
+                        "100% Cotton"}
+                    </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <span className="text-gray-600">Color:</span>
                     <span className="col-span-2">
-                      Available in various colors including {(product.colors || ["blue", "red", "green"]).join(", ")}
+                      Available in various colors including{" "}
+                      {(product.colors || ["blue", "red", "green"]).join(", ")}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
@@ -484,7 +607,10 @@ export default function ProductDetailPage() {
             <div className="border-t pt-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold">Meet your vendor</h3>
-                <button className="text-orange-500 text-sm hover:underline" onClick={()=> navigate("/category/vendor-profile")}>
+                <button
+                  className="text-orange-500 text-sm hover:underline"
+                  onClick={() => navigate("/category/vendor-profile")}
+                >
                   Check out the store
                 </button>
               </div>
@@ -502,18 +628,18 @@ export default function ProductDetailPage() {
                 )}
                 <div>
                   <h4 className="font-semibold">{vendor.name}</h4>
-                  <p className="text-sm text-gray-600">
-                    {vendor.title}
-                  </p>
+                  <p className="text-sm text-gray-600">{vendor.title}</p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
                     <div className="flex items-center gap-1">
-                      <Rate disabled defaultValue={vendor.rating || 4.5} className="text-yellow-400 text-xs" />
+                      <Rate
+                        disabled
+                        defaultValue={vendor.rating || 4.5}
+                        className="text-yellow-400 text-xs"
+                      />
                       <span>({vendor.reviews || 0})</span>
                     </div>
                     <span>• {vendor.itemsSold || 0} Items sold</span>
-                    <span>
-                      • Member for {vendor.memberMonths || 0} months
-                    </span>
+                    <span>• Member for {vendor.memberMonths || 0} months</span>
                   </div>
                 </div>
               </div>
@@ -523,96 +649,6 @@ export default function ProductDetailPage() {
             </div>
           </div>
         </div>
-
-        {/* Product Reviews Section */}
-        <Card className="p-6 mb-12 shadow-none border-none">
-          <button
-            onClick={() => setShowReviews(!showReviews)}
-            className="flex items-center justify-between w-full mb-6"
-          >
-            <h2 className="text-2xl font-bold">Product Reviews</h2>
-            <ChevronRight
-              className={`w-6 h-6 transform transition-transform ${
-                showReviews ? "rotate-90" : ""
-              }`}
-            />
-          </button>
-
-          {showReviews && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-                <div className="text-center">
-                  <div className="text-5xl font-bold mb-2">
-                    {product.rating}
-                  </div>
-                  <Rate disabled defaultValue={product.rating} className="text-yellow-400 text-lg" />
-                  <p className="text-sm text-gray-600 mt-2">
-                    {reviews.length} reviews
-                  </p>
-                </div>
-
-                <div className="col-span-2 space-y-2">
-                  {ratingDistribution.map((item) => (
-                    <div key={item.stars} className="flex items-center gap-3">
-                      <div className="flex items-center gap-1 w-20">
-                        <Rate disabled defaultValue={item.stars} className="text-yellow-400 text-sm" />
-                      </div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-yellow-400 h-2 rounded-full"
-                          style={{ width: `${item.percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-600 w-12 text-right">
-                        {item.percentage}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                {reviews.map((review) => (
-                  <div key={review.id} className="border-t pt-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-300 rounded-full" />
-                        <div>
-                          <h4 className="font-semibold">{review.author}</h4>
-                          <p className="text-sm text-gray-600">{review.date}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Rate disabled defaultValue={review.rating} className="text-yellow-400" />
-                        <span className="text-sm font-semibold">
-                          {review.rating}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-gray-700 mb-3">{review.text}</p>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <button className="flex items-center gap-1 hover:text-orange-500">
-                        <ThumbsUp className="w-4 h-4" />
-                        Helpful ({review.helpful})
-                      </button>
-                      <button className="flex items-center gap-1 hover:text-orange-500">
-                        <Share className="w-4 h-4" />
-                        Share
-                      </button>
-                      {review.verified && (
-                        <span className="text-green-600">✓ Verified stock</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <Button variant="outline" className="w-full mt-6">
-                Read all reviews
-              </Button>
-            </>
-          )}
-        </Card>
 
         {/* More from the vendor */}
         <div className="mb-12">
@@ -624,8 +660,8 @@ export default function ProductDetailPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {vendorProducts.map((product) => (
-              <ProductCard 
-                key={product.id} 
+              <ProductCard
+                key={product.id}
                 id={parseInt(product.id)}
                 name={product.name}
                 rating={product.rating}
@@ -648,8 +684,8 @@ export default function ProductDetailPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {relatedProducts.map((product) => (
-              <ProductCard 
-                key={product.id} 
+              <ProductCard
+                key={product.id}
                 id={parseInt(product.id)}
                 name={product.name}
                 rating={product.rating}

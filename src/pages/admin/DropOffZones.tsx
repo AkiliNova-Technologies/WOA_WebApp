@@ -125,7 +125,7 @@ const mockDropOffPoints: DropOffPoint[] = [
   }
 ];
 
-export default function AdminLogisticsPage() {
+export default function AdminDropOffZonesPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<LogisticsStatus[]>([]);

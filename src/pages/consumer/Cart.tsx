@@ -73,37 +73,25 @@ const recentlyViewed = [
   },
 ];
 
-const paymentMethods = [
+const shippingOptions = [
   {
-    id: "cash",
-    name: "Cash on Delivery",
-    icon: "$",
-    description: "Pay when you receive your order",
+    id: "standard",
+    name: "Standard Shipping",
+    price: 6.0,
+    description: "Estimated delivery: 3-5 business days",
   },
   {
-    id: "venmo",
-    name: "Venmo",
-    icon: "V",
-    description: "Fast and secure digital payments",
-  },
-  {
-    id: "paypal",
-    name: "Paypal",
-    icon: "P",
-    description: "Pay with your PayPal account",
-  },
-  {
-    id: "card",
-    name: "Debit/Credit Card",
-    icon: "💳",
-    description: "Pay with Visa, Mastercard, or Amex",
+    id: "express",
+    name: "DHL EXPRESS",
+    price: 40.0,
+    description: "Estimated delivery: 3-5 business days",
   },
 ];
 
 export default function CartPage() {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState(initialCartItems);
-  const [selectedPayment, setSelectedPayment] = useState("card");
+  const [selectedShipping, setSelectedShipping] = useState("standard");
 
   const updateQuantity = (id: number, delta: number) => {
     setCartItems(
@@ -120,7 +108,6 @@ export default function CartPage() {
   };
 
   const saveForLater = (id: number) => {
-    // Implement save for later functionality
     console.log("Save for later:", id);
   };
 
@@ -128,8 +115,11 @@ export default function CartPage() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const shipping = 5.99;
-  const discount = 2.5;
+  const selectedShippingOption = shippingOptions.find(
+    (opt) => opt.id === selectedShipping
+  );
+  const shipping = selectedShippingOption?.price || 0;
+  const discount = 0;
   const total = subtotal + shipping - discount;
 
   if (cartItems.length === 0) {
@@ -161,7 +151,7 @@ export default function CartPage() {
           {/* Recently Viewed */}
           <div className="mt-12">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">Recently Viewed</h2>
+              <h2 className="text-2xl font-bold">Recently viewed</h2>
               <Button
                 variant="ghost"
                 className="text-[#CC5500] hover:text-[#CC5500]/80"
@@ -195,9 +185,7 @@ export default function CartPage() {
       {/* Header */}
       <div className="bg-[#F7F7F7]">
         <div className="max-w-7xl mx-auto px-4 py-8">
-          <div className="flex justify-center items-center gap-2 text-md text-[#999999]">
-            <h1 className="text-2xl font-semibold text-center">Your Cart</h1>
-          </div>
+          <h1 className="text-2xl font-semibold text-center">Your Cart</h1>
         </div>
       </div>
 
@@ -207,7 +195,7 @@ export default function CartPage() {
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold">
-                Cart <span className="font-medium">({cartItems.length})</span>
+                Cart <span className="font-normal text-gray-600">({cartItems.length})</span>
               </h2>
             </div>
 
@@ -318,107 +306,87 @@ export default function CartPage() {
                 </Card>
               ))}
             </div>
-
-            {/* Cart Summary for Mobile */}
-            <Card className="p-6 mt-6 lg:hidden shadow-none">
-              <h3 className="font-semibold mb-4">Order Summary</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Shipping</span>
-                  <span className="font-medium">${shipping.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Discount</span>
-                  <span className="font-medium text-green-600">
-                    -${discount.toFixed(2)}
-                  </span>
-                </div>
-                <Separator />
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span>${total.toFixed(2)}</span>
-                </div>
-              </div>
-
-              <Button className="w-full h-11 bg-[#CC5500] text-white mt-6">
-                Proceed to Checkout
-              </Button>
-            </Card>
           </div>
 
-          {/* Right Column - Payment Summary */}
+          {/* Right Column - Shipping & Summary */}
           <div className="lg:col-span-1">
-            <Card className="p-6 sticky top-4 shadow-none border-none">
-              <h3 className="font-semibold">Payment Method</h3>
+            <Card className="p-6 sticky top-4 shadow-none border-none rounded-lg">
+              {/* Shipping Options */}
+              <h3 className="font-semibold mb-4">Shipping Options</h3>
 
-              <div className="space-y-3 grid grid-cols-1">
-                {paymentMethods.map((method) => (
+              <div className="space-y-3">
+                {shippingOptions.map((option) => (
                   <div
-                    key={method.id}
-                    className={`p-3 rounded-lg flex flex-col border cursor-pointer transition-all ${
-                      selectedPayment === method.id
+                    key={option.id}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                      selectedShipping === option.id
                         ? "border-[#CC5500] bg-orange-50"
                         : "border-gray-200 hover:border-gray-300"
                     }`}
-                    onClick={() => setSelectedPayment(method.id)}
+                    onClick={() => setSelectedShipping(option.id)}
                   >
-                    <div className="flex flex-row items-center gap-3">
-                      <div className="flex flex-row items-center gap-4 flex-1">
-                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-bold">
-                          {method.icon}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 ${
+                            selectedShipping === option.id
+                              ? "border-[#CC5500]"
+                              : "border-gray-300"
+                          }`}
+                        >
+                          {selectedShipping === option.id && (
+                            <div className="w-3 h-3 bg-[#CC5500] rounded-full" />
+                          )}
                         </div>
-                        <div className="">
-                          <div className="font-medium text-sm text-center">
-                            {method.name}
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">
+                            {option.name}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {option.description}
                           </div>
                         </div>
                       </div>
-                      <div
-                        className={`w-4 h-4 flex rounded-full border-2 ${
-                          selectedPayment === method.id
-                            ? "border-[#CC5500] bg-[#CC5500]"
-                            : "border-gray-300"
-                        }`}
-                      >
-                        {selectedPayment === method.id && (
-                          <div className="w-2 h-2 bg-white rounded-full m-auto" />
-                        )}
+                      <div className="font-semibold text-sm">
+                        USD {option.price.toFixed(2)}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <Separator className="my-2" />
+              <Separator className="my-4" />
+
+              {/* Order Summary */}
+              <h3 className="font-semibold mb-4">
+                Items <span className="font-normal text-gray-600">(a)</span> total
+              </h3>
 
               <div className="space-y-3">
-                <div className="flex justify-between text-lg font-medium">
-                  <span className="text-[#303030]">Items Total</span>
-                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
                   <span className="font-medium">USD {subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shop discount</span>
-                  <span className="font-medium ">
-                    USD {discount.toFixed(2)}
-                  </span>
+                  <span className="font-medium">USD {discount.toFixed(2)}</span>
                 </div>
-                <Separator />
-                <div className="flex justify-between text-md font-medium">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Shipping</span>
+                  <span className="font-medium">USD {shipping.toFixed(2)}</span>
+                </div>
+                <Separator className="my-3" />
+                <div className="flex justify-between text-base">
                   <span className="text-gray-600">
-                    Estimated Total ({cartItems.length} items)
+                    Estimated total ({cartItems.length} items)
                   </span>
-                  <span className="text-[#303030]">USD {total.toFixed(2)}</span>
+                  <span className="font-semibold text-[#303030]">
+                    USD {total.toFixed(2)}
+                  </span>
                 </div>
               </div>
 
-              <Button className="w-full h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 rounded-full text-white font-semibold mt-6">
+              <Button className="w-full h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 rounded-full text-white font-semibold mt-6" onClick={()=> navigate("/cart/checkout")}>
                 Proceed to Checkout
               </Button>
             </Card>
@@ -428,7 +396,7 @@ export default function CartPage() {
         {/* Recently Viewed */}
         <div className="mt-12">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Recently Viewed</h2>
+            <h2 className="text-2xl font-bold">Recently viewed</h2>
             <Button
               variant="ghost"
               className="text-[#CC5500] hover:text-[#CC5500]/80"

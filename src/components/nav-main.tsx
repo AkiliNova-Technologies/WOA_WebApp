@@ -1,4 +1,9 @@
-import { type LucideIcon, ChevronDown } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -6,13 +11,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
-  SidebarMenuSubItem,
   SidebarMenuSubButton,
+  SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 
 export function NavMain({
   items,
@@ -21,6 +25,7 @@ export function NavMain({
     title: string;
     url: string;
     icon?: LucideIcon;
+    isActive?: boolean;
     items?: {
       title: string;
       url: string;
@@ -30,30 +35,33 @@ export function NavMain({
   const { state } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
-  
-  // State to track which menu items are open
-  const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
 
-  // Function to check if a menu item or any of its children are active
-  const isActive = (url: string, subItems?: { url: string }[]) => {
-    if (currentPath === url) return true;
-    if (subItems) {
-      return subItems.some(item => currentPath === item.url);
-    }
-    return false;
+  // Helper function to check if an item has sub-items
+  const hasSubItems = (item: { items?: any[] }): boolean => {
+    return !!(item.items && item.items.length > 0);
+  };
+
+  // Function to check if a main item without sub-items is active
+  const isMainItemActive = (item: {
+    url: string;
+    items?: { url: string }[];
+  }) => {
+    // If item has sub-items, main item should NEVER be active
+    if (hasSubItems(item)) return false;
+
+    // Only check for exact match for main items without sub-items
+    return currentPath === item.url;
   };
 
   // Function to check if a sub-item is active
-  const isSubItemActive = (url: string) => {
-    return currentPath === url;
+  const isSubItemActive = (subItem: { url: string }) => {
+    return currentPath === subItem.url;
   };
 
-  // Toggle dropdown
-  const toggleItem = (title: string) => {
-    setOpenItems(prev => ({
-      ...prev,
-      [title]: !prev[title]
-    }));
+  // Function to check if any sub-item is active (for opening collapsible)
+  const hasActiveSubItem = (item: { items?: { url: string }[] }) => {
+    if (!hasSubItems(item)) return false;
+    return item.items?.some((subItem) => isSubItemActive(subItem)) || false;
   };
 
   return (
@@ -61,90 +69,117 @@ export function NavMain({
       <SidebarGroupContent className="flex flex-col gap-2">
         <SidebarMenu className={cn(state === "collapsed" ? "mt-13" : "mt-4")}>
           {items.map((item) => {
-            const active = isActive(item.url, item.items);
-            const hasSubItems = item.items && item.items.length > 0;
-            const isOpen = openItems[item.title];
+            const itemHasSubItems = hasSubItems(item);
+            const mainItemActive = isMainItemActive(item);
+            const subItemActive = hasActiveSubItem(item);
 
-            return (
-              <SidebarMenuItem key={item.title}>
-                {state === "collapsed" ? (
-                  <Link to={item.url}>
+            if (state === "collapsed") {
+              // Collapsed state - show only icons with tooltips
+              return (
+                <SidebarMenuItem key={item.title}>
+                  {itemHasSubItems ? (
                     <SidebarMenuButton
                       tooltip={item.title}
                       className={cn(
                         "min-h-12 min-w-full text-center justify-center text-white transition-colors duration-200",
-                        active
-                          ? "bg-white border-l-2 border-[#FFB800] text-[#303030]"
+                        // Main items with sub-items NEVER get active state in collapsed mode
+                        subItemActive
+                          ? "hover:bg-white/10" // Just show hover, no active state
                           : "hover:bg-white/10"
                       )}
                     >
                       {item.icon && <item.icon className="h-6" />}
                     </SidebarMenuButton>
-                  </Link>
-                ) : (
-                  <>
-                    {hasSubItems ? (
+                  ) : (
+                    <Link to={item.url}>
                       <SidebarMenuButton
-                        onClick={() => toggleItem(item.title)}
+                        tooltip={item.title}
                         className={cn(
-                          "h-12 text-white transition-colors duration-200 cursor-pointer",
-                          active
-                            ? "bg-white/10 text-white"
+                          "min-h-12 min-w-full text-center justify-center text-white transition-colors duration-200",
+                          mainItemActive
+                            ? "bg-white border-l-3 border-[#CC5500] text-[#303030]"
                             : "hover:bg-white/10"
                         )}
                       >
-                        {item.icon && <item.icon />}
-                        <span>{item.title}</span>
-                        <ChevronDown
-                          className={cn(
-                            "ml-auto transition-transform duration-200",
-                            isOpen && "rotate-180"
-                          )}
-                        />
+                        {item.icon && <item.icon className="h-6" />}
                       </SidebarMenuButton>
-                    ) : (
-                      <Link to={item.url}>
+                    </Link>
+                  )}
+                </SidebarMenuItem>
+              );
+            }
+
+            // Expanded state - show full menu with collapsible sub-items
+            return (
+              <Collapsible
+                key={item.title}
+                asChild
+                defaultOpen={subItemActive} // Open if any sub-item is active
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  {itemHasSubItems ? (
+                    <>
+                      <CollapsibleTrigger asChild>
                         <SidebarMenuButton
                           className={cn(
                             "h-12 text-white transition-colors duration-200",
-                            active
-                              ? "bg-white border-l-2 border-[#FFB800] text-[#303030]"
-                              : "hover:bg-white/10"
+                            // Main items with sub-items NEVER get active state
+                            subItemActive
+                              ? "hover:bg-white hover:text-[#303030]" // Just hover when sub-item is active
+                              : "hover:bg-white hover:text-[#303030]" // Regular hover
                           )}
                         >
                           {item.icon && <item.icon />}
                           <span>{item.title}</span>
+                          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                         </SidebarMenuButton>
-                      </Link>
-                    )}
-
-                    {hasSubItems && isOpen && (
-                      <SidebarMenuSub className="border-l-0 mx-0 px-0 py-1">
-                        {item.items!.map((subItem) => {
-                          const subActive = isSubItemActive(subItem.url);
-                          return (
-                            <SidebarMenuSubItem key={subItem.title}>
-                              <Link to={subItem.url} className="w-full">
-                                <SidebarMenuSubButton
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pr-0">
+                        <SidebarMenuSub className="pr-0">
+                          {item.items?.map((subItem) => (
+                            <SidebarMenuSubItem
+                              key={subItem.title}
+                              className=""
+                            >
+                              <SidebarMenuSubButton
+                                asChild
+                                className="h-11 rounded-none pl-4"
+                              >
+                                <Link
+                                  to={subItem.url}
                                   className={cn(
-                                    "text-white/70 hover:text-white hover:bg-white/5 h-10 pl-12 relative transition-colors duration-200",
-                                    subActive && "text-white font-medium"
+                                    "transition-colors duration-200",
+                                    isSubItemActive(subItem)
+                                      ? "font-medium bg-white text-[#121212] dark:text-[#121212] border-l-3 border-[#CC5500] hover:bg-white dark:hover:bg-white"
+                                      : "text-white/80 hover:text-[#303030] dark:hover:text-[#303030] hover:bg-white dark:hover:bg-white"
                                   )}
                                 >
-                                  {subActive && (
-                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FFB800]" />
-                                  )}
                                   <span>{subItem.title}</span>
-                                </SidebarMenuSubButton>
-                              </Link>
+                                </Link>
+                              </SidebarMenuSubButton>
                             </SidebarMenuSubItem>
-                          );
-                        })}
-                      </SidebarMenuSub>
-                    )}
-                  </>
-                )}
-              </SidebarMenuItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </>
+                  ) : (
+                    <Link to={item.url}>
+                      <SidebarMenuButton
+                        className={cn(
+                          "h-12 text-white transition-colors duration-200",
+                          mainItemActive
+                            ? "bg-white border-l-3 border-[#CC5500] text-[#303030]"
+                            : "hover:bg-white hover:text-[#303030]"
+                        )}
+                      >
+                        {item.icon && <item.icon />}
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    </Link>
+                  )}
+                </SidebarMenuItem>
+              </Collapsible>
             );
           })}
         </SidebarMenu>

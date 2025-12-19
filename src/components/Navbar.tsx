@@ -330,7 +330,7 @@ export default function NavbarSection() {
 
 {isAuthenticated ? (
             <button
-              onClick={() => navigate("/profile/myaccount")}
+              onClick={() => navigate("/profile")}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity duration-200"
             >
               <Avatar className="h-10 w-10 rounded-full cursor-pointer ring-2 ring-yellow-400 hover:ring-yellow-300 transition-all">
