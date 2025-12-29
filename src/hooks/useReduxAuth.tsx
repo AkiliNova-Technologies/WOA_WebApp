@@ -19,6 +19,21 @@ import {
   selectFirebaseUser,
   extractSerializableFirebaseUser,
   setSerializableFirebaseUser,
+  // Email verification and password management
+  verifyEmail,
+  resendVerificationEmail,
+  forgotPassword,
+  resetPassword,
+  changePassword,
+  checkEmailAvailability,
+  selectVerificationState,
+  selectVerificationPending,
+  selectVerificationEmail,
+  selectVerificationLastSent,
+  selectVerificationAttempts,
+  setVerificationPending,
+  clearVerification,
+  incrementVerificationAttempts,
 } from "@/redux/slices/authSlice";
 import type { User } from "@/redux/slices/authSlice";
 import { useNavigate } from "react-router-dom";
@@ -36,6 +51,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { toast } from "sonner";
+import { selectUserProfile } from "@/redux/slices/usersSlice";
 
 export function useReduxAuth() {
   const dispatch = useAppDispatch();
@@ -43,11 +59,19 @@ export function useReduxAuth() {
 
   // Use selectors directly for better performance
   const user = useAppSelector(selectCurrentUser);
+  const profile = useAppSelector(selectUserProfile);
   const firebaseUser = useAppSelector(selectFirebaseUser);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const loading = useAppSelector(selectAuthLoading);
   const initialLoading = useAppSelector(selectInitialLoading);
   const error = useAppSelector(selectAuthError);
+
+  // Verification state selectors
+  const verificationState = useAppSelector(selectVerificationState);
+  const verificationPending = useAppSelector(selectVerificationPending);
+  const verificationEmail = useAppSelector(selectVerificationEmail);
+  const verificationLastSent = useAppSelector(selectVerificationLastSent);
+  const verificationAttempts = useAppSelector(selectVerificationAttempts);
 
   // Local state for Firebase auth status
   const [firebaseAuthLoading, setFirebaseAuthLoading] = useState(false);
@@ -91,6 +115,13 @@ export function useReduxAuth() {
       "auth/popup-blocked": "Sign-in popup was blocked. Please allow popups.",
       "auth/network-request-failed":
         "Network error. Please check your internet.",
+      "auth/requires-recent-login":
+        "Please log in again to perform this action.",
+      "auth/too-many-requests": "Too many attempts. Please try again later.",
+      "auth/invalid-verification-code": "Invalid verification code.",
+      "auth/invalid-verification-id": "Invalid verification ID.",
+      "auth/expired-action-code": "The action code has expired.",
+      "auth/invalid-action-code": "The action code is invalid.",
       default: "An error occurred. Please try again.",
     };
 
@@ -103,7 +134,23 @@ export function useReduxAuth() {
 
   const signin = useCallback(
     async (email: string, password: string) => {
-      return dispatch(login({ email, password })).unwrap();
+      try {
+        const result = await dispatch(login({ email, password })).unwrap();
+
+        // Only show success toast if user is authenticated
+        if (result.user && result.user.isActive) {
+          toast.success("Login successful!");
+        } else if (result.user && !result.user.emailVerified) {
+          // Set verification pending state
+          dispatch(setVerificationPending({ email: result.user.email }));
+        }
+
+        return result;
+      } catch (error: any) {
+        console.error("Login failed:", error);
+        toast.error(error || "Login failed");
+        throw error;
+      }
     },
     [dispatch]
   );
@@ -116,7 +163,23 @@ export function useReduxAuth() {
       lastName: string;
       [key: string]: any;
     }) => {
-      return dispatch(register(registrationData)).unwrap();
+      try {
+        const result = await dispatch(register(registrationData)).unwrap();
+
+        // Show verification message instead of success
+        toast.success(
+          "Account created successfully! Please check your email for verification instructions."
+        );
+
+        // Set verification pending state
+        dispatch(setVerificationPending({ email: result.user.email }));
+
+        return result;
+      } catch (error: any) {
+        console.error("Registration failed:", error);
+        toast.error(error || "Registration failed");
+        throw error;
+      }
     },
     [dispatch]
   );
@@ -130,6 +193,7 @@ export function useReduxAuth() {
 
       // Logout from Redux/backend
       await dispatch(logoutAsync()).unwrap();
+      toast.success("Logged out successfully");
       navigate("/login");
     } catch (error) {
       console.error("Logout failed:", error);
@@ -176,6 +240,153 @@ export function useReduxAuth() {
   }, [dispatch]);
 
   // ========================
+  // EMAIL VERIFICATION & PASSWORD MANAGEMENT
+  // ========================
+
+  const verifyEmailWithOTP = useCallback(
+    async (email: string, otp: string) => {
+      try {
+        const result = await dispatch(verifyEmail({ email, otp })).unwrap();
+        toast.success(result.message || "Email verified successfully!");
+
+        // Clear verification state
+        dispatch(clearVerification());
+
+        // Navigate to login or dashboard
+        navigate("/login");
+
+        return result;
+      } catch (error: any) {
+        console.error("Email verification failed:", error);
+        toast.error(error || "Email verification failed");
+        throw error;
+      }
+    },
+    [dispatch, navigate]
+  );
+
+  const resendVerificationOTP = useCallback(
+    async (email: string) => {
+      try {
+        // Check if we've sent too many attempts
+        if (verificationAttempts >= 3) {
+          const lastSent = new Date(verificationLastSent || 0);
+          const now = new Date();
+          const minutesDiff =
+            (now.getTime() - lastSent.getTime()) / (1000 * 60);
+
+          if (minutesDiff < 5) {
+            throw new Error(
+              "Please wait 5 minutes before requesting another verification email."
+            );
+          }
+        }
+
+        const result = await dispatch(
+          resendVerificationEmail({ email })
+        ).unwrap();
+        toast.success(result.message || "Verification email resent!");
+
+        // Update verification attempts
+        dispatch(incrementVerificationAttempts());
+
+        return result;
+      } catch (error: any) {
+        console.error("Failed to resend verification:", error);
+        toast.error(error || "Failed to resend verification email");
+        throw error;
+      }
+    },
+    [dispatch, verificationAttempts, verificationLastSent]
+  );
+
+  const requestPasswordReset = useCallback(
+    async (email: string) => {
+      try {
+        const result = await dispatch(forgotPassword({ email })).unwrap();
+        toast.success(result.message || "Password reset email sent!");
+
+        // Set verification pending state for password reset
+        dispatch(setVerificationPending({ email }));
+
+        return result;
+      } catch (error: any) {
+        console.error("Forgot password failed:", error);
+        toast.error(error || "Failed to send password reset email");
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  const resetPasswordWithOTP = useCallback(
+    async (email: string, otp: string, newPassword: string) => {
+      try {
+        const result = await dispatch(
+          resetPassword({ email, otp, newPassword })
+        ).unwrap();
+        toast.success(result.message || "Password reset successful!");
+
+        // Clear verification state
+        dispatch(clearVerification());
+
+        // Navigate to login
+        navigate("/login");
+
+        return result;
+      } catch (error: any) {
+        console.error("Password reset failed:", error);
+        toast.error(error || "Password reset failed");
+        throw error;
+      }
+    },
+    [dispatch, navigate]
+  );
+
+  const changeUserPassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      try {
+        const result = await dispatch(
+          changePassword({ currentPassword, newPassword })
+        ).unwrap();
+        toast.success(result.message || "Password changed successfully!");
+        return result;
+      } catch (error: any) {
+        console.error("Password change failed:", error);
+        toast.error(error || "Password change failed");
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  const checkEmailAvailable = useCallback(
+    async (email: string) => {
+      try {
+        const result = await dispatch(
+          checkEmailAvailability({ email })
+        ).unwrap();
+        return result;
+      } catch (error: any) {
+        console.error("Email availability check failed:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  const setEmailVerificationPending = useCallback(
+    (email: string) => {
+      dispatch(setVerificationPending({ email }));
+    },
+    [dispatch]
+  );
+
+  const clearEmailVerification = useCallback(() => {
+    dispatch(clearVerification());
+  }, [dispatch]);
+
+  // ========================
   // GOOGLE AUTH WITH BACKEND ENDPOINT
   // ========================
 
@@ -217,9 +428,13 @@ export function useReduxAuth() {
               idToken,
               signal: abortController.signal,
             } as any)
-          ).unwrap(); // Cast as any if TypeScript complains
+          ).unwrap();
 
           clearTimeout(timeoutId);
+
+          // Clear any verification state
+          dispatch(clearVerification());
+
           toast.success("Google login successful!");
           return response.user;
         } catch (error: any) {
@@ -276,6 +491,9 @@ export function useReduxAuth() {
       // You could create a similar Facebook endpoint or use Google endpoint
       const response = await dispatch(loginWithGoogle({ idToken })).unwrap();
 
+      // Clear verification state
+      dispatch(clearVerification());
+
       toast.success("Facebook login successful!");
       return response.user;
     } catch (error: any) {
@@ -301,11 +519,22 @@ export function useReduxAuth() {
         const result = await firebaseSignIn(auth, email, password);
         const user = result.user;
 
+        // Check if email is verified
+        if (!user.emailVerified) {
+          toast.warning("Please verify your email before logging in.");
+          // You might want to send verification email or redirect to verification page
+          await sendEmailVerification(user);
+          throw new Error("Email not verified");
+        }
+
         // Get Firebase ID token
         const idToken = await user.getIdToken();
 
         // Use your Google endpoint for Firebase email/password auth too
         const response = await dispatch(loginWithGoogle({ idToken })).unwrap();
+
+        // Clear verification state
+        dispatch(clearVerification());
 
         toast.success("Login successful!");
         return response.user;
@@ -315,6 +544,8 @@ export function useReduxAuth() {
         let errorMessage = "Login failed";
         if (error.code) {
           errorMessage = getFirebaseErrorMessage(error.code);
+        } else if (error.message === "Email not verified") {
+          errorMessage = "Please verify your email first.";
         }
 
         toast.error(errorMessage);
@@ -349,6 +580,10 @@ export function useReduxAuth() {
         toast.success(
           "Account created successfully! Please check your email to verify your account."
         );
+
+        // Set verification pending state
+        dispatch(setVerificationPending({ email }));
+
         return response.user;
       } catch (error: any) {
         console.error("Firebase registration failed:", error);
@@ -389,6 +624,49 @@ export function useReduxAuth() {
   }, [dispatch]);
 
   // ========================
+  // VERIFICATION HELPER FUNCTIONS
+  // ========================
+
+  const canResendVerification = useCallback((): boolean => {
+    if (!verificationLastSent) return true;
+
+    const lastSent = new Date(verificationLastSent);
+    const now = new Date();
+    const minutesDiff = (now.getTime() - lastSent.getTime()) / (1000 * 60);
+
+    // Allow resend after 1 minute
+    return minutesDiff >= 1;
+  }, [verificationLastSent]);
+
+  const getResendCooldown = useCallback((): number => {
+    if (!verificationLastSent) return 0;
+
+    const lastSent = new Date(verificationLastSent);
+    const now = new Date();
+    const secondsDiff = Math.max(
+      0,
+      60 - Math.floor((now.getTime() - lastSent.getTime()) / 1000)
+    );
+
+    return secondsDiff;
+  }, [verificationLastSent]);
+
+  const isUserVerified = useCallback((): boolean => {
+    // First check profile data (most reliable)
+    if (profile?.emailVerified !== undefined) {
+      return profile.emailVerified === true;
+    }
+
+    // Fallback to auth user data
+    if (user?.emailVerified !== undefined) {
+      return user.emailVerified === true;
+    }
+
+    // Default to false if we can't determine
+    return false;
+  }, [user, profile]);
+
+  // ========================
   // HELPER FUNCTIONS
   // ========================
 
@@ -417,9 +695,18 @@ export function useReduxAuth() {
   );
 
   const getFullName = useCallback((): string => {
-    if (!user) return "";
-    return `${user.firstName} ${user.lastName}`.trim();
-  }, [user]);
+    // Check profile first (most accurate)
+    if (profile?.user?.firstName && profile?.user?.lastName) {
+      return `${profile.user.firstName} ${profile.user.lastName}`.trim();
+    }
+
+    // Fallback to auth user
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName} ${user.lastName}`.trim();
+    }
+
+    return "";
+  }, [user, profile]);
 
   const getAvatar = useCallback((): string | undefined => {
     if (!user) return undefined;
@@ -458,6 +745,13 @@ export function useReduxAuth() {
     initialLoading,
     error,
 
+    // Verification State
+    verificationState,
+    verificationPending,
+    verificationEmail,
+    verificationLastSent,
+    verificationAttempts,
+
     // Existing Redux Auth Actions
     signin,
     signup,
@@ -477,6 +771,21 @@ export function useReduxAuth() {
     signUpWithEmailAndPassword: signUpWithEmailAndPasswordFirebase,
     getFirebaseToken,
     syncCurrentFirebaseUser,
+
+    // Email Verification & Password Functions
+    verifyEmail: verifyEmailWithOTP,
+    resendVerificationEmail: resendVerificationOTP,
+    forgotPassword: requestPasswordReset,
+    resetPassword: resetPasswordWithOTP,
+    changePassword: changeUserPassword,
+    checkEmailAvailability: checkEmailAvailable,
+    setEmailVerificationPending,
+    clearEmailVerification,
+
+    // Verification Helper Functions
+    canResendVerification,
+    getResendCooldown,
+    isUserVerified,
 
     // Helper functions
     hasPermission,

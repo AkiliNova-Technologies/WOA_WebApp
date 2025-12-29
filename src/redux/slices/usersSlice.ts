@@ -112,7 +112,7 @@ export const updateUserProfile = createAsyncThunk(
   'users/updateProfile',
   async (profileData: Partial<UserProfile>, { rejectWithValue }) => {
     try {
-      const response = await api.patch('/api/v1/user/profile', profileData);
+      const response = await api.patch('/api/v1/user/profile/edit', profileData);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(

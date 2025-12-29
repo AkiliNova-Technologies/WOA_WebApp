@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { auth } from '@/config/firebase';
 
-const BASE_URL = "https://woa-backend-1.onrender.com";
+const BASE_URL = "https://woa-backend.onrender.com";
 
 const api = axios.create({
   baseURL: BASE_URL,

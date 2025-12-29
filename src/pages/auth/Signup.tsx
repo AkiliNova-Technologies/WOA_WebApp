@@ -1,16 +1,17 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Loader2, AlertCircle } from "lucide-react";
+import { Check, Loader2, CheckCircle } from "lucide-react";
 import images from "@/assets/images";
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import icons from "@/assets/icons";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { AfricanPhoneInput } from "@/components/african-phone-input";
 import { useReduxAuth } from "@/hooks/useReduxAuth";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+
+import { debounce } from "lodash";
 
 interface FormData {
   firstName: string;
@@ -27,8 +28,8 @@ export default function SignUpPage() {
     phoneNumber: "",
   });
 
-  const [countryCode, setCountryCode] = useState("+256"); // Internal state for UI
-  const [phoneInputValue, setPhoneInputValue] = useState(""); // Internal state for phone input
+  const [countryCode, setCountryCode] = useState("+256");
+  const [phoneInputValue, setPhoneInputValue] = useState("");
   const [formErrors, setFormErrors] = useState<Partial<FormData>>({});
   const [touched, setTouched] = useState<Record<keyof FormData, boolean>>({
     firstName: false,
@@ -37,12 +38,16 @@ export default function SignUpPage() {
     phoneNumber: false,
   });
 
+  // New states for email validation
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
+
   const navigate = useNavigate();
   const {
     loading,
-    error: authError,
     isAuthenticated,
     clearError,
+    checkEmailAvailability,
   } = useReduxAuth();
 
   // Redirect if already authenticated
@@ -52,32 +57,64 @@ export default function SignUpPage() {
     }
   }, [isAuthenticated, navigate]);
 
+  // Debounced email availability check
+  const checkEmailAvailabilityDebounced = useCallback(
+    debounce(async (email: string) => {
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setEmailAvailable(null);
+
+        return;
+      }
+
+      setCheckingEmail(true);
+      try {
+        const result = await checkEmailAvailability(email);
+        setEmailAvailable(result.available);
+
+        if (!result.available) {
+          setFormErrors((prev) => ({
+            ...prev,
+            email: "This email is already registered",
+          }));
+        } else {
+          setFormErrors((prev) => ({ ...prev, email: "" }));
+        }
+      } catch (error) {
+        console.error("Email check failed:", error);
+        setEmailAvailable(null);
+      } finally {
+        setCheckingEmail(false);
+      }
+    }, 500),
+    [checkEmailAvailability]
+  );
+
   const updateFormData = (updates: Partial<FormData>) => {
     setFormData((prev) => ({ ...prev, ...updates }));
+
+    // Check email availability when email changes
+    if (updates.email !== undefined) {
+      checkEmailAvailabilityDebounced(updates.email);
+    }
+
+    // Clear error when user starts typing
+    if (updates.email && formErrors.email) {
+      setFormErrors((prev) => ({ ...prev, email: "" }));
+    }
   };
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     updateFormData({ [field]: value });
-
-    // Clear error when user starts typing
-    if (formErrors[field]) {
-      setFormErrors((prev) => ({ ...prev, [field]: "" }));
-    }
   };
 
   const handlePhoneNumberChange = (value: string) => {
     setPhoneInputValue(value);
-
-    // Combine country code and phone number (remove + from country code)
     const combinedPhone = `${countryCode.replace("+", "")}${value}`;
     handleInputChange("phoneNumber", combinedPhone);
   };
 
   const handleCountryCodeChange = (value: string) => {
-    // Update country code
     setCountryCode(value);
-
-    // Recalculate combined phone number
     const combinedPhone = `${value.replace("+", "")}${phoneInputValue}`;
     handleInputChange("phoneNumber", combinedPhone);
   };
@@ -85,7 +122,6 @@ export default function SignUpPage() {
   const handleBlur = (field: keyof FormData) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
 
-    // Validate the blurred field
     if (field === "email") {
       validateEmail();
     } else if (field === "phoneNumber") {
@@ -104,6 +140,15 @@ export default function SignUpPage() {
       setFormErrors((prev) => ({
         ...prev,
         email: "Please enter a valid email address",
+      }));
+      return false;
+    }
+
+    // Check if email is available
+    if (emailAvailable === false) {
+      setFormErrors((prev) => ({
+        ...prev,
+        email: "This email is already registered",
       }));
       return false;
     }
@@ -151,6 +196,12 @@ export default function SignUpPage() {
     if (!validateEmail()) isValid = false;
     if (!validatePhoneNumber()) isValid = false;
 
+    // Check if email is still being validated
+    if (checkingEmail) {
+      errors.email = "Checking email availability...";
+      isValid = false;
+    }
+
     setFormErrors(errors);
     return isValid;
   };
@@ -162,6 +213,25 @@ export default function SignUpPage() {
 
     // Validate form
     if (!validateForm()) {
+      return;
+    }
+
+    // Ensure email is available
+    if (emailAvailable === false) {
+      setFormErrors((prev) => ({
+        ...prev,
+        email:
+          "This email is already registered. Please use a different email.",
+      }));
+      return;
+    }
+
+    // If still checking, wait
+    if (checkingEmail) {
+      setFormErrors((prev) => ({
+        ...prev,
+        email: "Please wait while we check email availability...",
+      }));
       return;
     }
 
@@ -181,12 +251,21 @@ export default function SignUpPage() {
     });
   };
 
-  const handleGoogleSignIn = () => {
-    console.log("Google sign in");
+  // Add Google sign-in functionality
+  const handleGoogleSignIn = async () => {
+    try {
+      const { signInWithGoogle } = useReduxAuth();
+      const user = await signInWithGoogle();
+      console.log("Google sign in successful:", user);
+      navigate("/profile", { replace: true });
+    } catch (error) {
+      console.error("Google sign in failed:", error);
+    }
   };
 
   const handleAppleSignIn = () => {
     console.log("Apple sign in");
+    // TODO: Implement Apple sign in
   };
 
   return (
@@ -253,7 +332,7 @@ export default function SignUpPage() {
             <div className="flex flex-row justify-center gap-6">
               <Button
                 variant={"outline"}
-                className="h-11 shadow-xs px-10 text-[#4B5675] dark:text-white"
+                className="h-11 shadow-none px-10 flex flex-1 text-[#4B5675] dark:text-white"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
               >
@@ -262,7 +341,7 @@ export default function SignUpPage() {
               </Button>
               <Button
                 variant={"outline"}
-                className="h-11 shadow-xs px-10 text-[#4B5675] dark:text-white"
+                className="h-11 flex flex-1 shadow-none px-10 text-[#4B5675] dark:text-white"
                 onClick={handleAppleSignIn}
                 disabled={loading}
               >
@@ -279,20 +358,6 @@ export default function SignUpPage() {
           </div>
 
           <CardContent>
-            {/* Error Messages */}
-            {(authError ||
-              Object.keys(formErrors).some(
-                (key) => formErrors[key as keyof typeof formErrors]
-              )) && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {authError ||
-                    Object.values(formErrors).find((error) => error) ||
-                    "Please fix the errors above"}
-                </AlertDescription>
-              </Alert>
-            )}
 
             <form className="space-y-4" onSubmit={handleContinue}>
               {/* Full Names */}
@@ -345,9 +410,28 @@ export default function SignUpPage() {
 
               {/* Email */}
               <div className="space-y-2">
-                <Label className="text-sm text-gray-700 dark:text-white">
-                  Email
-                </Label>
+                <div className="flex justify-between items-center">
+                  <Label className="text-sm text-gray-700 dark:text-white">
+                    Email
+                  </Label>
+                  {checkingEmail && (
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Checking...
+                    </span>
+                  )}
+                  {emailAvailable === true && !checkingEmail && (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Email available
+                    </span>
+                  )}
+                  {emailAvailable === false && !checkingEmail && (
+                    <span className="text-xs text-red-600">
+                      Email already registered
+                    </span>
+                  )}
+                </div>
                 <Input
                   type="email"
                   placeholder="email@email.com"
@@ -391,7 +475,7 @@ export default function SignUpPage() {
               <Button
                 type="submit"
                 className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm mt-5"
-                disabled={loading}
+                disabled={loading || checkingEmail}
               >
                 {loading ? (
                   <>

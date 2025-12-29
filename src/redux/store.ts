@@ -8,6 +8,9 @@ import cartReducer from './slices/cartSlice';
 import adminReducer from './slices/adminSlice';
 import vendorsReducer from './slices/vendorsSlice';
 import ordersReducer from  './slices/ordersSlice';
+import inboxReducer from  './slices/inboxSlice';
+import addressesReducer from  './slices/addressesSlice';
+import vendorfollowsReducer from  './slices/vendorFollowsSlice';
 import notificationsReducer from './slices/notificationsSlice'
 
 export const store = configureStore({
@@ -22,6 +25,9 @@ export const store = configureStore({
     vendors: vendorsReducer,
     orders: ordersReducer,
     notifications: notificationsReducer,
+    inbox: inboxReducer,
+    addresses: addressesReducer,
+    vendorFollows: vendorfollowsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -15,160 +15,165 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
-import {
-  EyeIcon,
-
-  ListFilter,
-  Plus,
-  PenIcon,
-  MapPin,
-  Box,
-} from "lucide-react";
+import { ListFilter, Download, Plus, MoreHorizontal } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
+import images from "@/assets/images";
 
-type LogisticsStatus = "all" | "active" | "inactive" | "maintenance";
+type DOZStatus = "active" | "inactive" | "closed" | "draft";
+type DOZTab = "all" | "active" | "inactive" | "closed" | "draft";
+type DateRange = "last-7-days" | "last-30-days" | "all-time";
 
-interface LogisticsStats {
-  totalPoints: number;
-  activePoints: number;
-  newPoints: number;
-  avgProductsPerPoint: number;
-}
-
-interface DropOffPoint {
+interface DropOffZoneData {
   id: string;
-  name: string;
-  manager: {
-    name: string;
-    email: string;
-  };
-  location: string;
+  dozId: string;
+  country: string;
+  city: string;
+  currentVolume: number;
+  capacityUsage: number;
+  status: DOZStatus;
   createdOn: string;
-  productsHandled: number;
-  status: "active" | "inactive" | "maintenance";
+  manager: string;
   [key: string]: any;
 }
 
-// Mock logistics data
-const mockDropOffPoints: DropOffPoint[] = [
-  {
-    id: "1",
-    name: "Accra Central Hub",
-    manager: {
-      name: "Kwame Mensah",
-      email: "kwame.mensah@afrika.com"
-    },
-    location: "Accra, Ghana",
-    createdOn: "2024-01-15T14:30:00.000Z",
-    productsHandled: 245,
-    status: "active"
-  },
-  {
-    id: "2",
-    name: "Lagos Distribution Center",
-    manager: {
-      name: "Amina Okafor",
-      email: "amina.okafor@afrika.com"
-    },
-    location: "Lagos, Nigeria",
-    createdOn: "2024-02-10T09:15:00.000Z",
-    productsHandled: 189,
-    status: "active"
-  },
-  {
-    id: "3",
-    name: "Nairobi Warehouse",
-    manager: {
-      name: "David Kimani",
-      email: "david.kimani@afrika.com"
-    },
-    location: "Nairobi, Kenya",
-    createdOn: "2024-01-28T11:45:00.000Z",
-    productsHandled: 312,
-    status: "maintenance"
-  },
-  {
-    id: "4",
-    name: "Cairo Logistics Point",
-    manager: {
-      name: "Fatima Hassan",
-      email: "fatima.hassan@afrika.com"
-    },
-    location: "Cairo, Egypt",
-    createdOn: "2024-03-01T16:20:00.000Z",
-    productsHandled: 156,
-    status: "active"
-  },
-  {
-    id: "5",
-    name: "Johannesburg South Hub",
-    manager: {
-      name: "Thabo Moloi",
-      email: "thabo.moloi@afrika.com"
-    },
-    location: "Johannesburg, South Africa",
-    createdOn: "2024-02-22T13:10:00.000Z",
-    productsHandled: 278,
-    status: "inactive"
-  },
-  {
-    id: "6",
-    name: "Dakar Collection Center",
-    manager: {
-      name: "Mariama Diop",
-      email: "mariama.diop@afrika.com"
-    },
-    location: "Dakar, Senegal",
-    createdOn: "2024-03-05T08:30:00.000Z",
-    productsHandled: 134,
-    status: "active"
-  }
-];
+interface DOZStats {
+  totalDOZ: number;
+  activeDOZ: number;
+  inactiveDOZ: number;
+  closedDOZ: number;
+  totalChange?: { trend: "up" | "down"; value: string };
+  activeChange?: { trend: "up" | "down"; value: string };
+  inactiveChange?: { trend: "up" | "down"; value: string };
+  closedChange?: { trend: "up" | "down"; value: string };
+}
 
 export default function AdminDropOffZonesPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatuses, setSelectedStatuses] = useState<LogisticsStatus[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<DOZStatus[]>([]);
+  const [activeTab, setActiveTab] = useState<DOZTab>("all");
+  const [dateRange, setDateRange] = useState<DateRange>("last-7-days");
 
-  // Use mock logistics data
-  // const [dropOffPoints, setDropOffPoints] = useState<DropOffPoint[]>(mockDropOffPoints);
-  const [dropOffPoints] = useState<DropOffPoint[]>(mockDropOffPoints);
+  // Mock DOZ data
+  const mockDropOffZones: DropOffZoneData[] = [
+    {
+      id: "1",
+      dozId: "DOA-001",
+      country: "Nigeria",
+      city: "Lagos",
+      currentVolume: 10,
+      capacityUsage: 5,
+      status: "active",
+      createdOn: "2024-01-15",
+      manager: "Victor Wandulu",
+    },
+    {
+      id: "2",
+      dozId: "DOA-002",
+      country: "Kenya",
+      city: "Nairobi",
+      currentVolume: 20,
+      capacityUsage: 10,
+      status: "inactive",
+      createdOn: "2024-02-10",
+      manager: "Jane Doe",
+    },
+    {
+      id: "3",
+      dozId: "DOA-003",
+      country: "South Africa",
+      city: "Cape town",
+      currentVolume: 30,
+      capacityUsage: 15,
+      status: "inactive",
+      createdOn: "2024-03-05",
+      manager: "John Smith",
+    },
+    {
+      id: "4",
+      dozId: "DOA-004",
+      country: "Egypt",
+      city: "Cairo",
+      currentVolume: 40,
+      capacityUsage: 20,
+      status: "inactive",
+      createdOn: "2024-04-20",
+      manager: "Ahmed Ali",
+    },
+    {
+      id: "5",
+      dozId: "DOA-005",
+      country: "Ghana",
+      city: "Accra",
+      currentVolume: 50,
+      capacityUsage: 25,
+      status: "active",
+      createdOn: "2024-05-12",
+      manager: "Kwame Nkrumah",
+    },
+    {
+      id: "6",
+      dozId: "DOA-006",
+      country: "Ethiopia",
+      city: "Adis Ababa",
+      currentVolume: 60,
+      capacityUsage: 10,
+      status: "active",
+      createdOn: "2024-06-08",
+      manager: "Haile Selassie",
+    },
+  ];
 
-  // Calculate logistics statistics
-  const stats: LogisticsStats = {
-    totalPoints: dropOffPoints.length,
-    activePoints: dropOffPoints.filter(point => point.status === "active").length,
-    newPoints: dropOffPoints.filter(point => {
-      const createdDate = new Date(point.createdOn);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      return createdDate >= thirtyDaysAgo;
-    }).length,
-    avgProductsPerPoint: Math.round(
-      dropOffPoints.reduce((sum, point) => sum + point.productsHandled, 0) / dropOffPoints.length
-    ),
+  const [dropOffZones] = useState<DropOffZoneData[]>(mockDropOffZones);
+
+  // Calculate statistics
+  const calculateStats = (): DOZStats => {
+    const totalDOZ = dropOffZones.length;
+    const activeDOZ = dropOffZones.filter((d) => d.status === "active").length;
+    const inactiveDOZ = dropOffZones.filter(
+      (d) => d.status === "inactive"
+    ).length;
+    const closedDOZ = dropOffZones.filter((d) => d.status === "closed").length;
+
+    return {
+      totalDOZ,
+      activeDOZ,
+      inactiveDOZ,
+      closedDOZ,
+      totalChange: { trend: "up", value: "10%" },
+      activeChange: { trend: "down", value: "10%" },
+      inactiveChange: { trend: "up", value: "5%" },
+      closedChange: { trend: "up", value: "10%" },
+    };
   };
 
-  // Filter drop-off points based on search and status filters
-  const filteredDropOffPoints = dropOffPoints.filter((point) => {
+  const stats = calculateStats();
+
+  // Filter drop off zones based on tab, search, and status filters
+  const filteredDropOffZones = dropOffZones.filter((doz) => {
+    // Tab filtering
+    const matchesTab =
+      activeTab === "all" ||
+      (activeTab === "active" && doz.status === "active") ||
+      (activeTab === "inactive" && doz.status === "inactive") ||
+      (activeTab === "closed" && doz.status === "closed") ||
+      (activeTab === "draft" && doz.status === "draft");
+
     // Search filtering
     const matchesSearch =
       searchQuery === "" ||
-      point.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      point.manager.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      point.location.toLowerCase().includes(searchQuery.toLowerCase());
+      doz.dozId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doz.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doz.city.toLowerCase().includes(searchQuery.toLowerCase());
 
-    // Status filtering
+    // Status filter (additional to tab filter)
     const matchesStatus =
-      selectedStatuses.length === 0 ||
-      (selectedStatuses.includes("active") && point.status === "active") ||
-      (selectedStatuses.includes("inactive") && point.status === "inactive") ||
-      (selectedStatuses.includes("maintenance") && point.status === "maintenance");
+      selectedStatuses.length === 0 || selectedStatuses.includes(doz.status);
 
-    return matchesSearch && matchesStatus;
+    return matchesTab && matchesSearch && matchesStatus;
   });
 
-  const handleStatusFilterChange = (status: LogisticsStatus) => {
+  const handleStatusFilterChange = (status: DOZStatus) => {
     setSelectedStatuses((prev) =>
       prev.includes(status)
         ? prev.filter((s) => s !== status)
@@ -176,152 +181,125 @@ export default function AdminDropOffZonesPage() {
     );
   };
 
+  const handleTabClick = (tab: DOZTab) => {
+    setActiveTab(tab);
+    if (tab !== "all") {
+      setSelectedStatuses([]);
+    }
+  };
+
+  const getTabButtonClass = (tab: DOZTab) => {
+    const baseClass = "px-4 py-4 text-sm font-medium whitespace-nowrap";
+
+    if (activeTab === tab) {
+      return `${baseClass} text-gray-900 dark:text-white border-b-2 border-gray-900 dark:border-white font-semibold`;
+    }
+
+    return `${baseClass} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white`;
+  };
+
   const clearAllFilters = () => {
     setSelectedStatuses([]);
     setSearchQuery("");
   };
 
-  const formatNumberShort = (num: number): string => {
-    if (num >= 1_000_000) {
-      return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1)}M`;
-    }
-    if (num >= 1_000) {
-      return `${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}K`;
-    }
-    return num.toString();
-  };
-
-  // Logistics cards with relevant metrics
-  const logisticsCards: CardData[] = [
+  // DOZ cards
+  const dozCards: CardData[] = [
     {
-      title: "Total drop off points",
-      value: formatNumberShort(stats.totalPoints),
-      rightIcon: <MapPin className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#FFE4E4]",
-      change: {
-        trend: "up",
-        value: "8%",
-        description: "from last month",
+      title: "Total DOZ",
+      value: stats.totalDOZ.toString(),
+      change: stats.totalChange && {
+        trend: stats.totalChange.trend,
+        value: stats.totalChange.value,
+        description: "",
       },
     },
     {
-      title: "New Opens",
-      value: formatNumberShort(stats.newPoints),
-      rightIcon: <Plus className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#C4E8D1]",
-      change: {
-        trend: "down",
-        value: "5%",
-        description: "from last month",
+      title: "Active DOZ",
+      value: stats.activeDOZ.toString(),
+      change: stats.activeChange && {
+        trend: stats.activeChange.trend,
+        value: stats.activeChange.value,
+        description: "",
       },
     },
     {
-      title: "Avg products handled per point",
-      value: formatNumberShort(stats.avgProductsPerPoint),
-      rightIcon: <Box className="h-4 w-4 text-[#303030]" />,
-      iconBgColor: "bg-[#C4E8D1]",
-      change: {
-        trend: "up",
-        value: "15%",
-        description: "from last month",
+      title: "Inactive DOZ",
+      value: stats.inactiveDOZ.toString(),
+      change: stats.inactiveChange && {
+        trend: stats.inactiveChange.trend,
+        value: stats.inactiveChange.value,
+        description: "",
+      },
+    },
+    {
+      title: "Closed DOZ",
+      value: stats.closedDOZ.toString(),
+      change: stats.closedChange && {
+        trend: stats.closedChange.trend,
+        value: stats.closedChange.value,
+        description: "",
       },
     },
   ];
 
-  // Available status options for filter
-  const statusOptions: { value: LogisticsStatus; label: string }[] = [
+  // Status options for filter
+  const statusOptions: { value: DOZStatus; label: string }[] = [
     { value: "active", label: "Active" },
     { value: "inactive", label: "Inactive" },
-    { value: "maintenance", label: "Maintenance" },
+    { value: "closed", label: "Closed" },
+    { value: "draft", label: "Draft" },
   ];
 
   // Status configuration
   const statusConfig = {
     active: {
       label: "Active",
-      dotColor: "bg-green-500",
-      textColor: "text-green-700",
-      bgColor: "bg-green-50",
+      className: "bg-green-100 text-green-700 border-green-300",
     },
     inactive: {
       label: "Inactive",
-      dotColor: "bg-red-500",
-      textColor: "text-red-700",
-      bgColor: "bg-red-50",
+      className: "bg-yellow-100 text-yellow-700 border-yellow-300",
     },
-    maintenance: {
-      label: "Maintenance",
-      dotColor: "bg-yellow-500",
-      textColor: "text-yellow-700",
-      bgColor: "bg-yellow-50",
+    closed: {
+      label: "Closed",
+      className: "bg-gray-100 text-gray-700 border-gray-300",
+    },
+    draft: {
+      label: "Draft",
+      className: "bg-blue-100 text-blue-700 border-blue-300",
     },
   } as const;
 
-  // Format date for display
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  // Table fields for logistics view
-  const logisticsFields: TableField<DropOffPoint>[] = [
+  // Table fields
+  const dozFields: TableField<DropOffZoneData>[] = [
     {
-      key: "name",
-      header: "Drop off point name",
-      cell: (_, row) => (
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col">
-            <span className="font-medium text-md">{row.name}</span>
-          </div>
-        </div>
-      ),
+      key: "dozId",
+      header: "DOZ ID",
+      cell: (value) => <span className="font-semibold">{value as string}</span>,
     },
     {
-      key: "manager",
-      header: "Manager",
-      cell: (_, row) => (
-        <div className="flex flex-col items-center">
-          <span className="font-medium">{row.manager.name}</span>
-          <span className="text-sm text-muted-foreground">{row.manager.email}</span>
-        </div>
-      ),
+      key: "country",
+      header: "Country",
+      cell: (value) => <span>{value as string}</span>,
       align: "center",
     },
     {
-      key: "location",
-      header: "Location",
-      cell: (_, row) => (
-        <div className="flex flex-col items-center">
-          
-          <span className="font-medium">{row.location}</span>
-        </div>
-      ),
+      key: "city",
+      header: "City",
+      cell: (value) => <span>{value as string}</span>,
       align: "center",
     },
     {
-      key: "createdOn",
-      header: "Created on",
-      cell: (_, row) => (
-        <div className="flex flex-col items-center">
-          
-          <span className="font-medium">{formatDate(row.createdOn)}</span>
-        </div>
-      ),
+      key: "currentVolume",
+      header: "Current volume",
+      cell: (value) => <span>{value as number}</span>,
       align: "center",
     },
     {
-      key: "productsHandled",
-      header: "Products handled",
-      cell: (_, row) => (
-        <div className="flex flex-col items-center">
-          
-          <span className="font-medium text-lg">{row.productsHandled}</span>
-          
-        </div>
-      ),
+      key: "capacityUsage",
+      header: "Capacity usage (%)",
+      cell: (value) => <span>{value as number}</span>,
       align: "center",
     },
     {
@@ -332,152 +310,215 @@ export default function AdminDropOffZonesPage() {
         return (
           <Badge
             variant="outline"
-            className="flex flex-row items-center py-2 w-28 gap-2 bg-transparent rounded-md"
+            className={`${config.className} font-medium`}
           >
-            <div className={`size-2 rounded-full ${config.dotColor}`} />
             {config.label}
           </Badge>
         );
       },
       align: "center",
+      enableSorting: true,
     },
   ];
 
-  const logisticsActions: TableAction<DropOffPoint>[] = [
+  const dozActions: TableAction<DropOffZoneData>[] = [
     {
-      type: "view",
-      label: "View Details",
-      icon: <EyeIcon className="size-5" />,
-      onClick: (point) => {
-        // navigate(`/admin/logistics/${point.id}`);
-        navigate(`/admin/logistics/details`);
-        console.log("Viewing details for point:", point);
-
-      },
-    },
-    {
-      type: "edit",
-      label: "Edit Point",
-      icon: <PenIcon className="size-5" />,
-      onClick: (point) => {
-        navigate(`/admin/logistics/${point.id}/edit`);
+      type: "custom",
+      label: "Actions",
+      icon: <MoreHorizontal className="size-5" />,
+      onClick: (doz) => {
+        navigate(`/admin/logistics/${doz.id}/dropoff-details`);
       },
     },
   ];
+
+  // Empty state
+  const EmptyState = () => (
+    <div className="flex flex-col items-center text-center py-12">
+      <div className="mb-6">
+        <img src={images.EmptyFallback} alt="No drop off zones" className="w-80" />
+      </div>
+      <h3 className="text-xl font-semibold mb-2">No drop off zones</h3>
+    </div>
+  );
 
   return (
     <>
-      <SiteHeader label="Logistics Studio" rightActions={
-        <Button variant={"secondary"} className="h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white" onClick={()=> navigate("/admin/logistics/create-dropoff")} > 
-          <Plus className="h-4 w-4"/> Create dropoff point
-        </Button>
-      } />
+      <SiteHeader />
       <div className="min-h-screen">
         <main className="flex-1">
           <div className="space-y-6 p-6">
-            <SectionCards cards={logisticsCards} layout="1x3" />
+            <SectionCards cards={dozCards} layout="1x4" />
 
             <div className="space-y-6">
-              {/* Logistics Section */}
-              <div className="rounded-lg border bg-card py-6 mb-6 dark:bg-[#303030]">
-                {/* Search and Filter Section */}
-                {dropOffPoints.length > 0 && (
-                  <div className="px-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                    <div className="w-full sm:w-auto flex flex-1">
-                      <Search
-                        placeholder="Search drop-off points by name, manager, or location..."
-                        value={searchQuery}
-                        onSearchChange={setSearchQuery}
-                        className="rounded-full flex-1 w-full"
-                      />
+              {/* Drop Off Zones Section */}
+              <div className="rounded-lg border bg-white dark:bg-[#303030]">
+                {/* Header */}
+                <div className="p-6 border-b">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h2 className="text-2xl font-bold">All Drop off zones</h2>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                        Manage and monitor all drop off zones.
+                      </p>
                     </div>
-
-                    <div className="flex flex-row items-center gap-4">
-                      <div className="flex gap-2 items-center">
-                        {/* Status Filter Dropdown */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="flex items-center gap-2 h-10"
-                            >
-                              Filter
-                              <ListFilter className="w-4 h-4" />
-                              {selectedStatuses.length > 0 && (
-                                <Badge variant="secondary" className="ml-1">
-                                  {selectedStatuses.length}
-                                </Badge>
-                              )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            {statusOptions.map((status) => (
-                              <DropdownMenuCheckboxItem
-                                key={status.value}
-                                checked={selectedStatuses.includes(status.value)}
-                                onCheckedChange={() =>
-                                  handleStatusFilterChange(status.value)
-                                }
-                              >
-                                {status.label}
-                              </DropdownMenuCheckboxItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        {/* Clear Filters Button */}
-                        {(selectedStatuses.length > 0 || searchQuery) && (
-                          <Button
-                            variant="ghost"
-                            onClick={clearAllFilters}
-                            className="text-sm"
-                          >
-                            Clear Filters
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                    <Button
+                      onClick={() => navigate("/admin/logistics/create-dropoff")}
+                      className="bg-black text-white hover:bg-black/90 rounded-md"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create DOZ
+                    </Button>
                   </div>
-                )}
+                </div>
 
-                {/* Drop-off Points Display */}
-                <div className="px-6">
-                  {dropOffPoints.length === 0 ? (
-                    <div className="text-center py-12 space-y-4">
-                      <MapPin className="h-16 w-16 mx-auto text-muted-foreground opacity-50" />
-                      <h3 className="text-xl font-semibold">
-                        No drop-off points yet
-                      </h3>
-                      <p className="text-muted-foreground max-w-md mx-auto">
-                        Create your first drop-off point to start managing your logistics network. 
-                        Drop-off points help you organize product distribution and returns.
-                      </p>
-                      <Button onClick={() => {/* Add create functionality */}}>
-                        Create First Point
-                      </Button>
+                {/* Search and Filters */}
+                <div className="p-6 border-b flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                  <div className="w-full sm:w-96">
+                    <Search
+                      placeholder="Search"
+                      value={searchQuery}
+                      onSearchChange={setSearchQuery}
+                      className="rounded-md"
+                    />
+                  </div>
+
+                  <div className="flex flex-row items-center gap-3">
+                    <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]">
+                      <button
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${
+                          dateRange === "last-7-days"
+                            ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
+                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
+                        } rounded-l-lg`}
+                        onClick={() => setDateRange("last-7-days")}
+                      >
+                        Last 7 days
+                      </button>
+                      <button
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${
+                          dateRange === "last-30-days"
+                            ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
+                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
+                        }`}
+                        onClick={() => setDateRange("last-30-days")}
+                      >
+                        Last 30 days
+                      </button>
+                      <button
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${
+                          dateRange === "all-time"
+                            ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
+                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
+                        } rounded-r-lg`}
+                        onClick={() => setDateRange("all-time")}
+                      >
+                        All time
+                      </button>
                     </div>
-                  ) : filteredDropOffPoints.length === 0 ? (
-                    <div className="text-center py-12">
-                      <p className="text-muted-foreground">
-                        No drop-off points found matching your search criteria.
-                      </p>
+
+                    {/* Filter Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="flex items-center gap-2"
+                        >
+                          <ListFilter className="w-4 h-4" />
+                          Filter
+                          {selectedStatuses.length > 0 && (
+                            <Badge variant="secondary" className="ml-1">
+                              {selectedStatuses.length}
+                            </Badge>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        {statusOptions.map((status) => (
+                          <DropdownMenuCheckboxItem
+                            key={status.value}
+                            checked={selectedStatuses.includes(status.value)}
+                            onCheckedChange={() =>
+                              handleStatusFilterChange(status.value)
+                            }
+                          >
+                            {status.label}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Export Button */}
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export
+                    </Button>
+
+                    {/* Clear Filters */}
+                    {(selectedStatuses.length > 0 || searchQuery) && (
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         onClick={clearAllFilters}
-                        className="mt-4"
+                        className="text-sm"
                       >
                         Clear Filters
                       </Button>
-                    </div>
-                  ) : (
-                    <DataTable<DropOffPoint>
-                      data={filteredDropOffPoints}
-                      fields={logisticsFields}
-                      actions={logisticsActions}
+                    )}
+                  </div>
+                </div>
+
+                {/* Tab Navigation */}
+                <div className="border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex gap-0 px-6 overflow-x-auto">
+                    <button
+                      className={getTabButtonClass("all")}
+                      onClick={() => handleTabClick("all")}
+                    >
+                      All DOZs
+                    </button>
+                    <button
+                      className={getTabButtonClass("active")}
+                      onClick={() => handleTabClick("active")}
+                    >
+                      Active
+                    </button>
+                    <button
+                      className={getTabButtonClass("inactive")}
+                      onClick={() => handleTabClick("inactive")}
+                    >
+                      Inactive
+                    </button>
+                    <button
+                      className={getTabButtonClass("closed")}
+                      onClick={() => handleTabClick("closed")}
+                    >
+                      Closed
+                    </button>
+                    <button
+                      className={getTabButtonClass("draft")}
+                      onClick={() => handleTabClick("draft")}
+                    >
+                      Draft
+                    </button>
+                  </div>
+                </div>
+
+                {/* DOZ Table/Empty State */}
+                <div className="px-6 pb-6">
+                  {filteredDropOffZones.length > 0 ? (
+                    <DataTable<DropOffZoneData>
+                      data={filteredDropOffZones}
+                      fields={dozFields}
+                      actions={dozActions}
                       enableSelection={true}
                       enablePagination={true}
                       pageSize={10}
                     />
+                  ) : (
+                    <EmptyState />
                   )}
                 </div>
               </div>

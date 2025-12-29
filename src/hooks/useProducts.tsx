@@ -287,36 +287,6 @@ export function useProducts() {
       status: "archived" as ProductStatus,
       sales: 15,
     },
-    {
-      id: "9",
-      name: "Gele Headtie",
-      description: "Elegant Nigerian gele headtie for special occasions",
-      price: 30,
-      originalPrice: 40,
-      rating: 4.8,
-      reviews: 22,
-      vendor: "Nigerian Treasures",
-      image: images.Product1, // You can add more images as needed
-      images: [images.Product1],
-      categoryId: "5", // Headwear & Wraps
-      subCategoryId: "",
-      subCategoryTypeId: undefined,
-      tags: ["gele", "headdress", "formal", "nigerian"],
-      inStock: false,
-      stockQuantity: 0,
-      isFeatured: false,
-      isOnSale: false,
-      createdAt: "2024-01-22T08:30:00.000Z",
-      updatedAt: "2024-01-22T08:30:00.000Z",
-      specifications: {
-        material: "Stiffened fabric",
-        care: "Dry clean only",
-        origin: "Nigeria",
-      },
-      productionMethod: "custom-tailored",
-      status: "out-of-stock" as ProductStatus,
-      sales: 35,
-    },
   ]);
 
   const [categories] = useState<Category[]>([

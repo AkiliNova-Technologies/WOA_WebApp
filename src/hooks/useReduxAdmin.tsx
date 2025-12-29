@@ -112,7 +112,7 @@ export function useReduxAdmin() {
     }
   }, [dispatch]);
 
-  const createNewAdmin = useCallback(async (adminData: { email: string; firstName: string; lastName: string; roleIds: string[] }) => {
+  const createNewAdmin = useCallback(async (adminData: { email: string; firstName: string; lastName: string; role: string }) => {
     try {
       return await dispatch(createAdmin(adminData)).unwrap();
     } catch (error) {

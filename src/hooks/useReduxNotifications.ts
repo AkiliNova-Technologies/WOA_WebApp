@@ -10,9 +10,11 @@ import {
   fetchNotificationPreferences,
   updateNotificationPreferences,
   resetNotificationPreferences,
+  sendTestNotification,
   addNotification,
   clearNotifications,
   setPage,
+  setPreferences,
   type Notification,
   type NotificationPreferences,
 } from '@/redux/slices/notificationsSlice';
@@ -21,7 +23,6 @@ import {
 export type AppThunkDispatch = ThunkDispatch<RootState, any, AnyAction>;
 
 export const useReduxNotifications = () => {
-  // Use the typed dispatch
   const dispatch = useDispatch<AppThunkDispatch>();
   
   const {
@@ -63,12 +64,16 @@ export const useReduxNotifications = () => {
       dispatch(updateNotificationPreferences(prefs)),
     resetPreferences: () => 
       dispatch(resetNotificationPreferences()),
+    sendTestNotification: () => 
+      dispatch(sendTestNotification()),
     addNotification: (notification: Notification) => 
       dispatch(addNotification(notification)),
     clearNotifications: () => 
       dispatch(clearNotifications()),
     setPage: (pageNumber: number) => 
       dispatch(setPage(pageNumber)),
+    setPreferences: (prefs: NotificationPreferences) => 
+      dispatch(setPreferences(prefs)),
 
     // Helper methods
     getUnreadNotifications: () => 

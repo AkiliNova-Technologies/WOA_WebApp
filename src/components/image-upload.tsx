@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { X, Eye, FolderUp } from "lucide-react";
+import { X, Eye, FolderUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { uploadToStorage, deleteFromStorage } from "@/config/superbase/storage";
 
 export interface UploadDocument {
   id: string;
@@ -11,11 +12,15 @@ export interface UploadDocument {
   name?: string;
   file?: File;
   previewUrl: string;
+  storageUrl?: string; // Supabase URL
+  storagePath?: string; // Path in Supabase storage
+  uploading?: boolean;
+  uploadProgress?: number;
   [key: string]: any;
 }
 
 export interface ImageUploadProps {
-  onImageChange?: (files: UploadDocument[]) => void;
+  onImageChange?: (urls: string[]) => void; // Now returns URLs instead of files
   className?: string;
   maxSize?: number;
   acceptedFormats?: string;
@@ -25,8 +30,10 @@ export interface ImageUploadProps {
   description?: string;
   footer?: boolean;
   disabled?: boolean;
-  initialDocuments?: UploadDocument[];
+  initialUrls?: string[]; // Accept initial URLs
   readOnly?: boolean;
+  bucket?: string;
+  folder?: string;
 }
 
 export function ImageUpload({
@@ -40,18 +47,28 @@ export function ImageUpload({
   description,
   footer = true,
   disabled = false,
-  initialDocuments = [],
+  initialUrls = [],
   readOnly = false,
+  bucket = "vendor-assets",
+  folder = "products",
 }: ImageUploadProps) {
-  const [documents, setDocuments] =
-    React.useState<UploadDocument[]>(initialDocuments);
+  const [documents, setDocuments] = React.useState<UploadDocument[]>([]);
   const [isDragging, setIsDragging] = React.useState(false);
 
+  // Initialize with URLs if provided
   React.useEffect(() => {
-    setDocuments(initialDocuments);
-  }, [initialDocuments]);
+    if (initialUrls.length > 0) {
+      const initialDocs: UploadDocument[] = initialUrls.map((url, index) => ({
+        id: `initial_${index}`,
+        previewUrl: url,
+        storageUrl: url,
+        name: `Image ${index + 1}`,
+      }));
+      setDocuments(initialDocs);
+    }
+  }, [initialUrls]);
 
-  const handleFile = (
+  const handleFile = async (
     file: File,
     type: "front" | "back" | "other" = "other"
   ) => {
@@ -75,20 +92,52 @@ export function ImageUpload({
     }
 
     const previewUrl = URL.createObjectURL(file);
-    const newDocument: UploadDocument = {
-      id: `doc_${Date.now()}`,
+    const tempDocument: UploadDocument = {
+      id: `temp_${Date.now()}`,
       type,
       name: file.name,
       file,
       previewUrl,
+      uploading: true,
+      uploadProgress: 0,
     };
 
-    const updatedDocuments = [...documents, newDocument];
-    setDocuments(updatedDocuments);
+    // Add temp document with loading state
+    setDocuments((prev) => [...prev, tempDocument]);
 
-    if (onImageChange) {
-      onImageChange(updatedDocuments);
+    // Upload to Supabase
+    const result = await uploadToStorage(file, bucket, folder, false);
+
+    if (result.error) {
+      alert(`Upload failed: ${result.error}`);
+      // Remove temp document on error
+      setDocuments((prev) => prev.filter((doc) => doc.id !== tempDocument.id));
+      return;
     }
+
+    // Update document with storage URL
+    const uploadedDocument: UploadDocument = {
+      ...tempDocument,
+      id: `doc_${Date.now()}`,
+      storageUrl: result.url!,
+      storagePath: result.path,
+      uploading: false,
+      uploadProgress: 100,
+    };
+
+    setDocuments((prev) => {
+      const newDocs = prev.map((doc) =>
+        doc.id === tempDocument.id ? uploadedDocument : doc
+      );
+      
+      // Notify parent with URLs
+      const urls = newDocs
+        .filter((d) => d.storageUrl)
+        .map((d) => d.storageUrl!);
+      onImageChange?.(urls);
+      
+      return newDocs;
+    });
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -99,13 +148,12 @@ export function ImageUpload({
 
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      handleFile(files[0]);
+      Array.from(files).forEach((file) => handleFile(file));
     }
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     if (disabled || readOnly) return;
-
     e.preventDefault();
     setIsDragging(true);
   };
@@ -120,44 +168,43 @@ export function ImageUpload({
 
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFile(files[0]);
+      Array.from(files).forEach((file) => handleFile(file));
     }
     e.target.value = "";
   };
 
-  const removeDocument = (id: string) => {
+  const removeDocument = async (id: string) => {
     if (disabled || readOnly) return;
 
     const documentToRemove = documents.find((doc) => doc.id === id);
-    if (documentToRemove?.previewUrl) {
+    
+    // Delete from Supabase if it has a storage path
+    if (documentToRemove?.storagePath) {
+      await deleteFromStorage(bucket, documentToRemove.storagePath);
+    }
+
+    // Clean up preview URL
+    if (documentToRemove?.previewUrl && !documentToRemove.storageUrl) {
       URL.revokeObjectURL(documentToRemove.previewUrl);
     }
 
-    const updatedDocuments = documents.filter((doc) => doc.id !== id);
-    setDocuments(updatedDocuments);
-
-    if (onImageChange) {
-      onImageChange(updatedDocuments);
-    }
-  };
-
-  const updateDocumentType = (id: string, type: "front" | "back" | "other") => {
-    if (disabled || readOnly) return;
-
-    const updatedDocuments = documents.map((doc) =>
-      doc.id === id ? { ...doc, type } : doc
-    );
-    setDocuments(updatedDocuments);
-
-    if (onImageChange) {
-      onImageChange(updatedDocuments);
-    }
+    setDocuments((prev) => {
+      const newDocs = prev.filter((doc) => doc.id !== id);
+      
+      // Notify parent with updated URLs
+      const urls = newDocs
+        .filter((d) => d.storageUrl)
+        .map((d) => d.storageUrl!);
+      onImageChange?.(urls);
+      
+      return newDocs;
+    });
   };
 
   React.useEffect(() => {
     return () => {
       documents.forEach((doc) => {
-        if (doc.previewUrl) {
+        if (doc.previewUrl && !doc.storageUrl) {
           URL.revokeObjectURL(doc.previewUrl);
         }
       });
@@ -174,9 +221,9 @@ export function ImageUpload({
             "border-2 border-dashed rounded-lg transition-colors overflow-hidden",
             canInteract ? "cursor-pointer" : "cursor-not-allowed opacity-60",
             isDragging
-              ? "border-blue-500 bg-blue-50"
-              : "border-gray-300 bg-gray-100 hover:border-[#CC5500] dark:border-white/30 dark:bg-[#505050] dark:hover:border-[#CC5500]",
-            documents.length > 0 ? "border-solid border-gray-300" : height,
+              ? "border-[#CC5500] bg-orange-50 dark:bg-orange-950/20"
+              : "border-gray-300 bg-gray-50 hover:border-[#CC5500] dark:border-gray-600 dark:bg-[#303030] dark:hover:border-[#CC5500]",
+            documents.length > 0 ? "border-solid border-gray-300 dark:border-gray-600" : height,
             maxHeight
           )}
           onDrop={handleDrop}
@@ -189,8 +236,8 @@ export function ImageUpload({
         >
           {documents.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-              <div className="p-3 bg-white rounded-full mb-3">
-                <FolderUp className="w-5 h-5 text-gray-600" />
+              <div className="p-3 bg-white dark:bg-gray-700 rounded-full mb-3">
+                <FolderUp className="w-5 h-5 text-[#CC5500]" />
               </div>
               <div className="space-y-2">
                 <p className="font-medium text-gray-900 mb-1 dark:text-white">
@@ -198,13 +245,13 @@ export function ImageUpload({
                     (disabled
                       ? "Upload disabled"
                       : readOnly
-                      ? "No documents uploaded"
-                      : "Click or drop image")}
+                      ? "No images uploaded"
+                      : "Click to upload from computer")}
                 </p>
                 {canInteract && (
                   <>
-                    <p className="text-sm text-gray-400">OR</p>
-                    <p className="text-sm text-gray-400">Drag and Drop</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">OR</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Drag and Drop</p>
                   </>
                 )}
               </div>
@@ -218,32 +265,39 @@ export function ImageUpload({
             onChange={handleFileInput}
             className="hidden"
             disabled={!canInteract}
+            multiple
           />
         </div>
       )}
 
       {documents.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {documents.map((doc) => (
             <div
               key={doc.id}
               className={cn(
                 "relative border rounded-lg overflow-hidden group",
-                !canInteract && "opacity-80"
+                !canInteract && "opacity-80",
+                "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]"
               )}
             >
-              <img
-                src={doc.previewUrl}
-                alt={`Document: ${doc.name || "Document"}`}
-                className={cn(
-                  "w-full h-full object-contain",
-                  aspectRatio === "square" ? "aspect-square" : "aspect-video",
-                  "max-h-48"
-                )}
-              />
+              {doc.uploading ? (
+                <div className="w-full aspect-square flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                  <Loader2 className="w-8 h-8 animate-spin text-[#CC5500]" />
+                </div>
+              ) : (
+                <img
+                  src={doc.previewUrl}
+                  alt={`Document: ${doc.name || "Image"}`}
+                  className={cn(
+                    "w-full h-full object-cover",
+                    aspectRatio === "square" ? "aspect-square" : "aspect-video"
+                  )}
+                />
+              )}
 
-              {canInteract && (
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              {canInteract && !doc.uploading && (
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                   <Button
                     variant="secondary"
                     size="sm"
@@ -251,7 +305,7 @@ export function ImageUpload({
                       e.stopPropagation();
                       window.open(doc.previewUrl, "_blank");
                     }}
-                    className="bg-white/80 backdrop-blur-sm border-white/30 hover:bg-white"
+                    className="bg-white/90 backdrop-blur-sm hover:bg-white text-gray-900"
                   >
                     <Eye className="w-4 h-4 mr-1" />
                     View
@@ -263,7 +317,7 @@ export function ImageUpload({
                       e.stopPropagation();
                       removeDocument(doc.id);
                     }}
-                    className="bg-red-500/80 backdrop-blur-sm border-white/30 hover:bg-red-600"
+                    className="bg-red-500/90 backdrop-blur-sm hover:bg-red-600"
                   >
                     <X className="w-4 h-4 mr-1" />
                     Remove
@@ -271,46 +325,38 @@ export function ImageUpload({
                 </div>
               )}
 
-              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs truncate">
-                    {doc.name || "Document"}
-                  </span>
-                  {canInteract && doc.type !== undefined && (
-                    <select
-                      value={doc.type}
-                      onChange={(e) =>
-                        updateDocumentType(
-                          doc.id,
-                          e.target.value as "front" | "back" | "other"
-                        )
-                      }
-                      className="text-xs bg-black/50 border border-white/30 rounded px-1 py-0.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <option value="front">Front</option>
-                      <option value="back">Back</option>
-                      <option value="other">Other</option>
-                    </select>
-                  )}
-                </div>
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white p-2">
+                <span className="text-xs truncate block">
+                  {doc.name || "Image"}
+                </span>
               </div>
+
+              {doc.uploading && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-full bg-[#CC5500] transition-all duration-300"
+                    style={{ width: `${doc.uploadProgress || 0}%` }}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
       {footer && canInteract && (
-        <div className="flex flex-wrap items-center gap-2 text-sm dark:text-gray-400">
-          <p>Recommended size: 1920x1080px</p>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <p>Recommended: 1920x1080px</p>
           <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-          <p>Format: JPEG or PNG</p>
+          <p>Format: JPEG, PNG</p>
           <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-          <p>Max size: {maxSize}MB</p>
+          <p>Max: {maxSize}MB</p>
           {documents.length > 0 && (
             <>
               <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-              <p>{documents.length} document(s) uploaded</p>
+              <p className="text-[#CC5500] font-medium">
+                {documents.length} image(s) uploaded
+              </p>
             </>
           )}
         </div>

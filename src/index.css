@@ -3,6 +3,11 @@
 @plugin "tailwindcss-animate";
 @import "tw-animate-css";
 
+@import "swiper/css";
+@import "swiper/css/effect-coverflow";
+@import "swiper/css/pagination";
+@import "swiper/css/navigation";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -119,23 +124,451 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[#F2F2F2] dark:bg-[#121212] text-foreground;
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
       sans-serif;
-   
+    user-select: none;
     margin: 0;
     padding: 0;
   }
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+/* Custom Carousel - Coverflow Effect */
+/* Add this to your global CSS file */
+
+.carousel-container {
+  position: relative;
+  width: 100%;
+  height: 500px;
+  overflow: visible;
+  padding: 3rem 0 5rem;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+}
+
+.carousel-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 600px;
+  transform-style: preserve-3d;
+}
+
+.carousel-slide {
+  position: absolute;
+  width: 320px;
+  height: 420px;
+  cursor: pointer;
+  will-change: transform, opacity;
+  pointer-events: all;
+}
+
+.carousel-slide:hover {
+  filter: brightness(1.05);
+}
+
+.custom-story-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+  background: #1a1a1a;
+  border: none;
+  outline: none;
+}
+
+.custom-story-card:hover {
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4);
+}
+
+.custom-story-card.is-active {
+  border: none;
+  outline: none;
+}
+
+.custom-story-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.custom-story-card:hover .custom-story-image {
+  transform: scale(1.05);
+}
+
+/* Story info card at bottom */
+.story-info-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  padding-bottom: 3.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  position: relative;
+  border: none;
+  outline: none;
+}
+
+.dark .story-info-card {
+  background: rgba(30, 30, 30, 0.95);
+}
+
+/* Side Navigation Arrows */
+.carousel-arrow-side {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #C75A00;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  color: black;
+  
+  z-index: 20;
+  outline: none;
+}
+
+.carousel-arrow-left {
+  left: -0.5rem;
+}
+
+.carousel-arrow-right {
+  right: -0.5rem;
+}
+
+.carousel-arrow-side:hover:not(:disabled) {
+  background: #2D2D2D;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.carousel-arrow-side:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.carousel-arrow-side:focus-visible {
+  outline: 2px solid #C75A00;
+  outline-offset: 2px;
+}
+
+.carousel-arrow-side svg {
+  color: white;
+}
+
+/* Pagination Dots - Bottom Center */
+.carousel-pagination-bottom {
+  position: absolute;
+  bottom: -3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 10;
+}
+
+.pagination-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #E5E7EB;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+  outline: none;
+}
+
+.pagination-dot:hover:not(:disabled) {
+  background: #D1D5DB;
+  transform: scale(1.2);
+}
+
+.pagination-dot:focus-visible {
+  outline: 2px solid #C75A00;
+  outline-offset: 2px;
+}
+
+.pagination-dot:disabled {
+  cursor: default;
+}
+
+.pagination-dot.active {
+  width: 40px;
+  height: 8px;
+  border-radius: 4px;
+  background: #C75A00;
+}
+
+/* Dark Mode */
+.dark .carousel-arrow-side {
+  background: #2D2D2D;
+  border: 1px solid #404040;
+}
+
+.dark .carousel-arrow-side:hover:not(:disabled) {
+  background: #404040;
+  border-color: #505050;
+}
+
+.dark .pagination-dot {
+  background: #4B5563;
+}
+
+.dark .pagination-dot:hover:not(:disabled) {
+  background: #6B7280;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1024px) {
+  .carousel-container {
+    height: 450px;
   }
-  body {
-    @apply bg-[#F2F2F2] text-foreground;
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-      sans-serif;
-    user-select: none;
+
+  .carousel-slide {
+    width: 280px;
+    height: 380px;
+  }
+
+  .carousel-arrow-side {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .carousel-arrow-left {
+    left: -0.5rem;
+  }
+
+  .carousel-arrow-right {
+    right: -0.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .carousel-container {
+    height: 420px;
+  }
+
+  .carousel-slide {
+    width: 260px;
+    height: 360px;
+  }
+
+  .story-info-card {
+    padding: 0.875rem;
+    padding-bottom: 3rem;
+  }
+
+  .carousel-arrow-left {
+    left: 0;
+  }
+
+  .carousel-arrow-right {
+    right: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .carousel-container {
+    height: 400px;
+  }
+
+  .carousel-slide {
+    width: 240px;
+    height: 340px;
+  }
+
+  .carousel-arrow-side {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .pagination-dot.active {
+    width: 30px;
+  }
+
+  .carousel-arrow-left {
+    left: 0.5rem;
+  }
+
+  .carousel-arrow-right {
+    right: 0.5rem;
+  }
+}
+
+/* Smooth animations */
+@media (prefers-reduced-motion: reduce) {
+  .carousel-slide,
+  .custom-story-card,
+  .carousel-arrow-side,
+  .pagination-dot {
+    transition: none;
+  }
+}
+
+
+
+
+
+/* Clipped Button Component Styles */
+/* Add this to your global CSS file */
+
+.clipped-button {
+  /* Reset all default button styles */
+  all: unset;
+  box-sizing: border-box;
+  
+  /* Base button styles */
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  color: white !important;
+  padding: 1rem 2rem !important;
+  border-radius:8px;
+  font-weight: 500 !important;
+  font-size: .8rem !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  outline: none !important;
+}
+
+/* Primary variant (orange) */
+.clipped-button-primary {
+  background: #C75A00 !important;
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(400% - 20px),
+    0 100%
+  ) !important;
+}
+
+.clipped-button-primary:hover {
+  background: #B54F00 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(199, 90, 0, 0.3) !important;
+}
+
+.clipped-button-primary:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 6px rgba(199, 90, 0, 0.2) !important;
+}
+
+/* Secondary variant (dark) */
+.clipped-button-secondary {
+  background: #1A1A1A !important;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 20px) 0,
+    100% 100%,
+    0 100%
+  ) !important;
+}
+
+.clipped-button-secondary:hover {
+  background: #2D2D2D !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.clipped-button-secondary:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Focus states for accessibility */
+.clipped-button:focus-visible {
+  outline: 2px solid #C75A00 !important;
+  outline-offset: 4px !important;
+}
+
+/* Dark mode adjustments */
+.dark .clipped-button-primary {
+  background: #C75A00 !important;
+}
+
+.dark .clipped-button-primary:hover {
+  background: #D66500 !important;
+}
+
+.dark .clipped-button-secondary {
+  background: #2D2D2D !important;
+}
+
+.dark .clipped-button-secondary:hover {
+  background: #404040 !important;
+}
+
+/* Disabled state */
+.clipped-button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+.clipped-button:disabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .clipped-button {
+    padding: 1.25rem 1.75rem !important;
+    font-size: 0.875rem !important;
+  }
+  
+  .clipped-button-primary,
+  .clipped-button-secondary {
+    clip-path: polygon(
+      0 0,
+      calc(100% - 15px) 0,
+      100% 100%,
+      0 100%
+    ) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .clipped-button {
+    padding: 1rem 1.5rem !important;
+    font-size: 0.875rem !important;
+  }
+  
+  .clipped-button-primary,
+  .clipped-button-secondary {
+    clip-path: polygon(
+      0 0,
+      calc(100% - 12px) 0,
+      100% 100%,
+      0 100%
+    ) !important;
+  }
+}
+
+/* Animation for smooth transitions */
+@media (prefers-reduced-motion: reduce) {
+  .clipped-button,
+  .clipped-button * {
+    transition: none !important;
   }
 }

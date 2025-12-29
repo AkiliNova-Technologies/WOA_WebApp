@@ -6,6 +6,7 @@ import {
   Package,
   Truck,
   DollarSign,
+  CircleQuestionMark,
 } from "lucide-react";
 
 import { NavSecondary } from "@/components/nav-secondary";
@@ -94,6 +95,11 @@ const data = {
       title: "Revenue",
       url: "/admin/revenue",
       icon: DollarSign,
+    },
+    {
+      title: "Support",
+      url: "/admin/revenue",
+      icon: CircleQuestionMark,
     },
   ],
 

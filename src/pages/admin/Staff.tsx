@@ -21,6 +21,7 @@ import {
   Loader2,
   Download,
   FilterIcon,
+  Eye,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { useReduxAdmin } from "@/hooks/useReduxAdmin";
@@ -28,14 +29,15 @@ import { useReduxAdmin } from "@/hooks/useReduxAdmin";
 import images from "@/assets/images";
 
 // Staff type definition - Updated to match AdminUser
-type StaffStatus =
+export type StaffStatus =
   | "active"
   | "suspended"
   | "pending_approval"
   | "onboarded"
   | "deactivated"
   | "deleted";
-type StaffRole =
+
+export type StaffRole =
   | "superadmin"
   | "admin"
   | "operations"
@@ -43,7 +45,7 @@ type StaffRole =
   | "logistics"
   | "helpdesk"
   | "support";
-type StaffDepartment =
+export type StaffDepartment =
   | "Management"
   | "Operations"
   | "Marketing"
@@ -60,7 +62,7 @@ type StaffTab =
   | "suspended"
   | "deleted";
 
-interface StaffMember {
+export interface StaffMember {
   id: string;
   name: string;
   email: string;
@@ -80,7 +82,7 @@ interface StaffMember {
   accountStatus: StaffStatus;
   createdAt: string;
   updatedAt: string;
-  roles: Array<{
+  roles?: Array<{
     id: string;
     name: string;
     description?: string;
@@ -193,10 +195,9 @@ export default function AdminStaffPage() {
     }
 
     // Get permissions from roles
-    const permissions =
-      admin.roles?.flatMap((role: any) =>
-        role.permissions?.map((permission: any) => permission.name)
-      ) || ["Basic Access"];
+    const permissions = admin.roles?.flatMap((role: any) =>
+      role.permissions?.map((permission: any) => permission.name)
+    ) || ["Basic Access"];
 
     // Generate mock location and business name (you can replace with actual data)
     const locations = [
@@ -430,7 +431,7 @@ export default function AdminStaffPage() {
     },
     {
       key: "signedUpOn",
-      header: "Signed up on",
+      header: "Created on",
       cell: (_, row) => (
         <span className="text-gray-600 dark:text-gray-400">
           {formatSignedUpDate(row.signedUpOn)}
@@ -440,20 +441,16 @@ export default function AdminStaffPage() {
       enableSorting: true,
     },
     {
-      key: "businessName",
-      header: "Business name",
-      cell: (_, row) => (
-        <span className="font-medium">{row.businessName}</span>
-      ),
+      key: "emailAddress",
+      header: "Email Address",
+      cell: (_, row) => <span className="font-medium">{row.email}</span>,
       align: "left",
     },
     {
       key: "location",
       header: "Location",
       cell: (_, row) => (
-        <span className="text-gray-600 dark:text-gray-400">
-          {row.location}
-        </span>
+        <span className="text-gray-600 dark:text-gray-400">{row.location}</span>
       ),
       align: "left",
     },
@@ -478,6 +475,14 @@ export default function AdminStaffPage() {
   ];
 
   const staffActions: TableAction<StaffMember>[] = [
+    {
+      type: "view",
+      label: "View Staff Member",
+      icon: <Eye className="size-5" />,
+      onClick: (staff) => {
+        navigate(`/admin/users/staff/${staff.id}/details`);
+      },
+    },
     {
       type: "delete",
       label: "Delete Staff Member",

@@ -300,7 +300,7 @@ export const fetchAllVendors = createAsyncThunk(
   'vendors/fetchAll',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/api/v1/vendor');
+      const response = await api.get('/api/v1/vendor/all');
       return response.data;
     } catch (error: any) {
       return rejectWithValue(

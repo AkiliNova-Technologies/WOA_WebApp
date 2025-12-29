@@ -1,68 +1,123 @@
-import { uploadToStorage } from '@/config/superbase/storage';
-import { useState } from 'react';
+import { useState, useCallback } from "react";
+import { uploadService, type UploadedAsset } from "@/lib/upload-service";
 
+export interface UseSupabaseUploadOptions {
+  bucket?: string;
+  folder?: string;
+  isPublic?: boolean;
+  onUploadComplete?: (assets: UploadedAsset[]) => void;
+  onUploadError?: (error: string) => void;
+}
 
-export const useSupabaseUpload = () => {
-  const [uploading, setUploading] = useState(false);
+export function useSupabaseUpload(options: UseSupabaseUploadOptions = {}) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedAssets, setUploadedAssets] = useState<UploadedAsset[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const uploadFile = async (
-    file: File,
-    options?: {
-      bucket?: string;
-      folder?: string;
-      isPublic?: boolean;
-    }
-  ) => {
-    setUploading(true);
-    setError(null);
+  const uploadFile = useCallback(
+    async (file: File): Promise<UploadedAsset | null> => {
+      setIsUploading(true);
+      setError(null);
+      setUploadProgress(0);
 
-    try {
-      const result = await uploadToStorage(
-        file,
-        options?.bucket || 'vendor-assets',
-        options?.folder || '',
-        options?.isPublic || false
-      );
+      try {
+        const asset = await uploadService.uploadFile(
+          file,
+          options.folder || "",
+          options.bucket || "vendor-assets",
+          options.isPublic || false
+        );
 
-      if (result.error) {
-        setError(result.error);
+        if (asset) {
+          setUploadedAssets((prev) => [...prev, asset]);
+          options.onUploadComplete?.([asset]);
+        } else {
+          throw new Error("Upload failed");
+        }
+
+        setUploadProgress(100);
+        return asset;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Upload failed";
+        setError(errorMessage);
+        options.onUploadError?.(errorMessage);
         return null;
+      } finally {
+        setIsUploading(false);
       }
+    },
+    [options]
+  );
 
-      return result.url;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Upload failed';
-      setError(errorMsg);
-      return null;
-    } finally {
-      setUploading(false);
-    }
-  };
+  const uploadMultipleFiles = useCallback(
+    async (files: File[]): Promise<UploadedAsset[]> => {
+      setIsUploading(true);
+      setError(null);
+      setUploadProgress(0);
 
-  const uploadMultiple = async (
-    files: File[],
-    options?: {
-      bucket?: string;
-      folder?: string;
-      isPublic?: boolean;
-    }
-  ) => {
-    const urls: string[] = [];
+      try {
+        const assets = await uploadService.uploadMultipleFiles(
+          files,
+          options.folder || "",
+          options.bucket || "vendor-assets",
+          options.isPublic || false
+        );
 
-    for (const file of files) {
-      const url = await uploadFile(file, options);
-      if (url) urls.push(url);
-    }
+        setUploadedAssets((prev) => [...prev, ...assets]);
+        options.onUploadComplete?.(assets);
+        setUploadProgress(100);
 
-    return urls;
-  };
+        return assets;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Upload failed";
+        setError(errorMessage);
+        options.onUploadError?.(errorMessage);
+        return [];
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [options]
+  );
+
+  const deleteAsset = useCallback(
+    async (path: string): Promise<boolean> => {
+      try {
+        const success = await uploadService.deleteAsset(
+          path,
+          options.bucket || "vendor-assets"
+        );
+        if (success) {
+          setUploadedAssets((prev) =>
+            prev.filter((asset) => asset.path !== path)
+          );
+        }
+        return success;
+      } catch (err) {
+        console.error("Delete error:", err);
+        return false;
+      }
+    },
+    [options.bucket]
+  );
+
+  const reset = useCallback(() => {
+    setUploadedAssets([]);
+    setError(null);
+    setUploadProgress(0);
+  }, []);
 
   return {
     uploadFile,
-    uploadMultiple,
-    uploading,
+    uploadMultipleFiles,
+    deleteAsset,
+    isUploading,
+    uploadProgress,
+    uploadedAssets,
     error,
-    resetError: () => setError(null)
+    reset,
   };
-};
+}

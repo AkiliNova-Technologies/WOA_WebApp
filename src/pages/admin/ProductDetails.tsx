@@ -18,14 +18,14 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { Product as ReduxProduct } from "@/redux/slices/productsSlice";
 import { SiteHeader } from "@/components/site-header";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+// import {
+//   Table,
+//   TableBody,
+//   TableCell,
+//   TableHead,
+//   TableHeader,
+//   TableRow,
+// } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 // Extended status type for the drawer
@@ -39,15 +39,22 @@ type ExtendedProductStatus =
   | "archived";
 
 // Helper to map Redux status to extended status
-const mapReduxStatusToExtendedStatus = (status: string): ExtendedProductStatus => {
+const mapReduxStatusToExtendedStatus = (status: ReduxProduct["status"]): ExtendedProductStatus => {
   switch (status) {
-    case "published": return "active";
-    case "draft": return "suspended";
-    case "pending_review": return "suspended";
-    case "approved": return "active";
-    case "rejected": return "deactivated";
-    case "archived": return "deactivated";
-    default: return "active";
+    case "published":
+    case "approved":
+      return "active";
+    case "draft":
+    case "pending_approval":
+      return "draft";
+    case "RE_EVALUATION":
+      return "draft";
+    case "rejected":
+      return "suspended";
+    case "archived":
+      return "deactivated";
+    default:
+      return "active";
   }
 };
 
@@ -64,50 +71,6 @@ const mapExtendedStatusToReduxStatus = (status: ExtendedProductStatus): ReduxPro
     default: return "published";
   }
 };
-
-// Mock data for size variants and colors
-const sizeVariants = [
-  {
-    size: "S",
-    price: 45.99,
-    availableStock: 25,
-    colors: [
-      { color: "Red", quantity: 10 },
-      { color: "Blue", quantity: 8 },
-      { color: "Green", quantity: 7 },
-    ],
-  },
-  {
-    size: "M",
-    price: 45.99,
-    availableStock: 30,
-    colors: [
-      { color: "Red", quantity: 12 },
-      { color: "Blue", quantity: 10 },
-      { color: "Green", quantity: 8 },
-    ],
-  },
-  {
-    size: "L",
-    price: 49.99,
-    availableStock: 20,
-    colors: [
-      { color: "Red", quantity: 8 },
-      { color: "Blue", quantity: 7 },
-      { color: "Green", quantity: 5 },
-    ],
-  },
-  {
-    size: "XL",
-    price: 52.99,
-    availableStock: 15,
-    colors: [
-      { color: "Red", quantity: 6 },
-      { color: "Blue", quantity: 5 },
-      { color: "Green", quantity: 4 },
-    ],
-  },
-];
 
 function StatusChangeDrawer({
   isOpen,
@@ -282,60 +245,67 @@ function StatusChangeDrawer({
 }
 
 // Color Table Component
-function ColorQuantityTable({
-  colors,
-}: {
-  colors: { color: string; quantity: number }[];
-}) {
-  return (
-    <Table className="border">
-      <TableHeader>
-        <TableRow className="dark:bg-[#00000040]">
-          <TableHead className="w-1/2 font-semibold text-center p-4">
-            Color
-          </TableHead>
-          <TableHead className="w-1/2 font-semibold text-center p-4">
-            Quantity
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {colors.map((colorItem, index) => (
-          <TableRow key={index} className="p-4">
-            <TableCell className="font-medium p-4 text-center">
-              <div className="flex items-center justify-center gap-2">
-                {colorItem.color}
-              </div>
-            </TableCell>
-            <TableCell className="text-center">
-              <span className="font-medium text-md">
-                {colorItem.quantity} units
-              </span>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
+// function ColorQuantityTable({
+//   colors,
+// }: {
+//   colors: { color: string; quantity: number }[];
+// }) {
+//   return (
+//     <Table className="border">
+//       <TableHeader>
+//         <TableRow className="dark:bg-[#00000040]">
+//           <TableHead className="w-1/2 font-semibold text-center p-4">
+//             Color
+//           </TableHead>
+//           <TableHead className="w-1/2 font-semibold text-center p-4">
+//             Quantity
+//           </TableHead>
+//         </TableRow>
+//       </TableHeader>
+//       <TableBody>
+//         {colors.map((colorItem, index) => (
+//           <TableRow key={index} className="p-4">
+//             <TableCell className="font-medium p-4 text-center">
+//               <div className="flex items-center justify-center gap-2">
+//                 {colorItem.color}
+//               </div>
+//             </TableCell>
+//             <TableCell className="text-center">
+//               <span className="font-medium text-md">
+//                 {colorItem.quantity} units
+//               </span>
+//             </TableCell>
+//           </TableRow>
+//         ))}
+//       </TableBody>
+//     </Table>
+//   );
+// }
 
-// Size Variant Component
+// ✅ Size Variant Component - Now uses actual product variants
 function SizeVariantSection({
   variant,
 }: {
-  variant: (typeof sizeVariants)[0];
+  variant: ReduxProduct["variants"][0];
 }) {
   return (
     <Card className="space-y-6 px-8 border-b pb-6 shadow-none">
-      <h2 className="text-xl font-semibold">Size - {variant.size}</h2>
+      <h2 className="text-xl font-semibold">
+        Variant - {variant.name || variant.sku}
+      </h2>
       <div className="grid grid-cols-2 gap-6">
         <Card className="p-6 shadow-none border">
           <div className="space-y-4">
             <div>
               <Label className="font-semibold text-md mb-2 block">Price</Label>
               <p className="text-foreground text-lg font-semibold">
-                ${variant.price}
+                ${variant.price?.toFixed(2) || "0.00"}
               </p>
+              {variant.compareAtPrice && (
+                <p className="text-sm text-muted-foreground line-through">
+                  Was: ${variant.compareAtPrice.toFixed(2)}
+                </p>
+              )}
             </div>
           </div>
         </Card>
@@ -346,22 +316,34 @@ function SizeVariantSection({
                 Available Stock
               </Label>
               <p className="text-foreground text-lg font-semibold">
-                {variant.availableStock} units
+                {variant.stockQuantity} units
+              </p>
+              <p className="text-sm text-muted-foreground">
+                SKU: {variant.sku}
               </p>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Color Table Section */}
-      <div>
-        <Card className="p-6 shadow-none border">
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Colors Available</h3>
-            <ColorQuantityTable colors={variant.colors} />
-          </div>
-        </Card>
-      </div>
+      {/* Attributes Display */}
+      {variant.attributes && Object.keys(variant.attributes).length > 0 && (
+        <div>
+          <Card className="p-6 shadow-none border">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Variant Attributes</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {Object.entries(variant.attributes).map(([key, value]) => (
+                  <div key={key} className="flex justify-between">
+                    <span className="font-medium capitalize">{key}:</span>
+                    <span className="text-muted-foreground">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </Card>
   );
 }
@@ -373,7 +355,7 @@ export default function AdminProductDetailPage() {
     product, 
     loading, 
     error,
-    getProduct,
+    getPublicProduct, // ✅ Changed from getProduct
     updateExistingProduct 
   } = useReduxProducts();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -383,17 +365,16 @@ export default function AdminProductDetailPage() {
   useEffect(() => {
     if (productId) {
       setIsLoading(true);
-      getProduct(productId)
+      getPublicProduct(productId) // ✅ Use getPublicProduct
         .finally(() => setIsLoading(false));
     }
-  }, [productId, getProduct]);
+  }, [productId, getPublicProduct]);
 
   const handleStatusChange = async (newStatus: ReduxProduct['status']) => {
     if (product && productId) {
       try {
         const updateData = {
           status: newStatus,
-          updatedAt: new Date().toISOString()
         } as any;
         
         await updateExistingProduct(productId, updateData);
@@ -404,26 +385,38 @@ export default function AdminProductDetailPage() {
     }
   };
 
-  // Helper to get primary image
+  // ✅ Helper to get primary image - FIXED
   const getPrimaryImage = () => {
     if (!product?.images || product.images.length === 0) return "";
     const primaryImage = product.images.find(img => img.isPrimary);
-    return primaryImage?.url || product.images[0]?.url || "";
+    return primaryImage?.url || product.images[0]?.url || product.image || "";
   };
 
-  // Helper to get category name
+  // ✅ Helper to get category name - FIXED
   const getCategoryName = () => {
     return product?.category?.name || "Uncategorized";
   };
 
-  // Helper to get subcategory name
+  // ✅ Helper to get subcategory name - FIXED
   const getSubcategoryName = () => {
     return product?.subcategory?.name || "Not specified";
   };
 
-  // Helper to get vendor name
+  // ✅ Helper to get vendor name - FIXED
   const getVendorName = () => {
-    return product?.vendor?.businessName || "Unknown Vendor";
+    return product?.vendorName || product?.sellerName || "Unknown Vendor";
+  };
+
+  // ✅ Helper to get total stock from variants - FIXED
+  const getTotalStock = () => {
+    if (!product?.variants || product.variants.length === 0) return 0;
+    return product.variants.reduce((sum, v) => sum + (v.stockQuantity || 0), 0);
+  };
+
+  // ✅ Helper to get first variant SKU - FIXED
+  const getFirstVariantSKU = () => {
+    if (!product?.variants || product.variants.length === 0) return "N/A";
+    return product.variants[0]?.sku || "N/A";
   };
 
   // Loading state
@@ -514,13 +507,16 @@ export default function AdminProductDetailPage() {
     return statusLabels[displayStatus] || "Active";
   };
 
-  // Prepare form data from product
+  // ✅ Prepare form data from product - FIXED
+  const totalStock = getTotalStock();
+  const firstVariantSKU = getFirstVariantSKU();
+  
   const formData = {
-    description: product.description,
+    description: product.description || "No description available",
     specifications: `
       • Material: ${product.attributes?.material || "Not specified"}<br/>
-      • SKU: ${product.sku}<br/>
-      • Stock: ${product.stock} units<br/>
+      • SKU: ${firstVariantSKU}<br/>
+      • Total Stock: ${totalStock} units<br/>
       • Category: ${getCategoryName()}<br/>
       • Vendor: ${getVendorName()}<br/>
       • Created: ${new Date(product.createdAt).toLocaleDateString()}<br/>
@@ -643,30 +639,30 @@ export default function AdminProductDetailPage() {
                     </Badge>
                   </div>
 
-                  {/* SKU and Stock Info */}
+                  {/* ✅ SKU and Stock Info - FIXED */}
                   <div className="mb-4 text-sm text-muted-foreground">
-                    <p>SKU: {product.sku}</p>
+                    <p>SKU: {firstVariantSKU}</p>
                     <p className="mt-1">
                       <span className="font-medium text-foreground">Stock:</span>{" "}
-                      {product.stock > 0 ? (
-                        <span className="text-green-600">In Stock</span>
+                      {totalStock > 0 ? (
+                        <span className="text-green-600">In Stock ({totalStock} units)</span>
                       ) : (
                         <span className="text-red-600">Out of Stock</span>
                       )}
                     </p>
                   </div>
 
-                  {/* Price */}
+                  {/* ✅ Price - FIXED */}
                   <div className="mb-6">
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl font-bold">${product.price}</span>
-                      {product.salePrice && product.salePrice < product.price && (
+                      <span className="text-3xl font-bold">${product.price.toFixed(2)}</span>
+                      {product.compareAtPrice && product.compareAtPrice > product.price && (
                         <>
                           <span className="text-xl text-muted-foreground line-through">
-                            ${product.salePrice}
+                            ${product.compareAtPrice.toFixed(2)}
                           </span>
                           <Badge variant="destructive" className="ml-2">
-                            -{Math.round(((product.price - product.salePrice) / product.price) * 100)}%
+                            -{Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)}%
                           </Badge>
                         </>
                       )}
@@ -694,13 +690,19 @@ export default function AdminProductDetailPage() {
                     <div>
                       <span className="font-medium">Product Type: </span>
                       <span className="text-muted-foreground">
-                        {product.productTypeId || "Not specified"}
+                        {product.productType?.name || product.productTypeId || "Not specified"}
                       </span>
                     </div>
                     <div>
                       <span className="font-medium">Available Units: </span>
                       <span className="text-muted-foreground">
-                        {product.stock} units
+                        {totalStock} units
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Variants: </span>
+                      <span className="text-muted-foreground">
+                        {product.variants?.length || 0} variant(s)
                       </span>
                     </div>
                   </div>
@@ -755,12 +757,9 @@ export default function AdminProductDetailPage() {
                         Description
                       </h3>
                       <Card className="p-6 shadow-none border">
-                        <div
-                          className="prose max-w-none text-foreground"
-                          dangerouslySetInnerHTML={{
-                            __html: formData.description,
-                          }}
-                        />
+                        <div className="prose max-w-none text-foreground">
+                          {formData.description}
+                        </div>
                       </Card>
                     </div>
 
@@ -801,7 +800,7 @@ export default function AdminProductDetailPage() {
                               <Label className="font-semibold mb-2 block">
                                 SKU
                               </Label>
-                              <p className="text-foreground">{product.sku}</p>
+                              <p className="text-foreground">{firstVariantSKU}</p>
                             </div>
                             <div>
                               <Label className="font-semibold mb-2 block">
@@ -827,13 +826,19 @@ export default function AdminProductDetailPage() {
                 </Card>
               </TabsContent>
 
-              {/* Available Stock Tab */}
+              {/* ✅ Available Stock Tab - Now uses real variants */}
               <TabsContent value="available-stock" className="space-y-8 m-0">
                 <div className="shadow-none">
                   <div className="space-y-6">
-                    {sizeVariants.map((variant, index) => (
-                      <SizeVariantSection key={index} variant={variant} />
-                    ))}
+                    {product.variants && product.variants.length > 0 ? (
+                      product.variants.map((variant, index) => (
+                        <SizeVariantSection key={variant.id || index} variant={variant} />
+                      ))
+                    ) : (
+                      <Card className="p-8 text-center">
+                        <p className="text-muted-foreground">No variants available</p>
+                      </Card>
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -953,6 +958,9 @@ export default function AdminProductDetailPage() {
                             </div>
                           </div>
                           <h1 className="text-lg">No Reviews</h1>
+                          <p className="text-muted-foreground mt-2">
+                            Average Rating: {product.averageRating.toFixed(1)} ★ ({product.reviewCount} reviews)
+                          </p>
                         </CardContent>
                       </Card>
 

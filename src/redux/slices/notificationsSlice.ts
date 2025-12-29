@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
-import  api  from '@/utils/api';
+import api from '@/utils/api';
 
 export interface Notification {
   id: string;
@@ -11,16 +11,15 @@ export interface Notification {
   metadata?: Record<string, any>;
 }
 
+// Updated to match your notification settings structure
 export interface NotificationPreferences {
-  email: boolean;
-  push: boolean;
-  sms: boolean;
-  categories: {
-    order_updates: boolean;
-    promotions: boolean;
-    security: boolean;
-    system: boolean;
-  };
+  promotions: boolean;
+  myActivity: boolean;
+  orderUpdates: boolean;
+  wishlistFavorites: boolean;
+  messages: boolean;
+  reviewsFeedback: boolean;
+  // You can add more fields as needed
 }
 
 export interface NotificationsState {
@@ -68,7 +67,7 @@ export const markNotificationAsRead = createAsyncThunk(
 export const markAllNotificationsAsRead = createAsyncThunk(
   'notifications/markAllAsRead',
   async () => {
-    await api.patch('/notifications/read-all');
+    await api.patch('/api/v1/notifications/read-all');
     return null;
   }
 );
@@ -92,7 +91,7 @@ export const fetchNotificationPreferences = createAsyncThunk(
 export const updateNotificationPreferences = createAsyncThunk(
   'notifications/updatePreferences',
   async (preferences: Partial<NotificationPreferences>) => {
-    const response = await api.put('/notifications/preferences', preferences);
+    const response = await api.put('/api/v1/notifications/preferences', preferences);
     return response.data;
   }
 );
@@ -101,6 +100,15 @@ export const resetNotificationPreferences = createAsyncThunk(
   'notifications/resetPreferences',
   async () => {
     const response = await api.post('/api/v1/notifications/preferences/reset');
+    return response.data;
+  }
+);
+
+// Add test notification thunk
+export const sendTestNotification = createAsyncThunk(
+  'notifications/sendTest',
+  async () => {
+    const response = await api.post('/api/v1/notifications/send-test');
     return response.data;
   }
 );
@@ -138,6 +146,9 @@ const notificationsSlice = createSlice({
     setPage: (state, action: PayloadAction<number>) => {
       state.page = action.payload;
     },
+    setPreferences: (state, action: PayloadAction<NotificationPreferences>) => {
+      state.preferences = action.payload;
+    },
   },
   extraReducers: (builder) => {
     // Fetch notifications
@@ -147,15 +158,19 @@ const notificationsSlice = createSlice({
     });
     builder.addCase(fetchNotifications.fulfilled, (state, action) => {
       state.loading = false;
-      if (action.payload.page === 1) {
-        state.notifications = action.payload.notifications;
+      const notifications = action.payload.data || action.payload.notifications || action.payload;
+      const total = action.payload.total || action.payload.count || notifications.length;
+      
+      if (action.payload.page === 1 || action.payload.page === undefined) {
+        state.notifications = notifications;
       } else {
-        state.notifications = [...state.notifications, ...action.payload.notifications];
+        state.notifications = [...state.notifications, ...notifications];
       }
-      state.unreadCount = action.payload.notifications.filter((n: Notification) => !n.isRead).length;
-      state.total = action.payload.total;
-      state.page = action.payload.page;
-      state.hasMore = state.notifications.length < action.payload.total;
+      
+      state.unreadCount = notifications.filter((n: Notification) => !n.isRead).length;
+      state.total = total;
+      state.page = action.payload.page || 1;
+      state.hasMore = state.notifications.length < total;
     });
     builder.addCase(fetchNotifications.rejected, (state, action) => {
       state.loading = false;
@@ -190,18 +205,34 @@ const notificationsSlice = createSlice({
     });
 
     // Fetch preferences
+    builder.addCase(fetchNotificationPreferences.pending, (state) => {
+      state.loading = true;
+    });
     builder.addCase(fetchNotificationPreferences.fulfilled, (state, action) => {
-      state.preferences = action.payload;
+      state.loading = false;
+      state.preferences = action.payload.data || action.payload;
+    });
+    builder.addCase(fetchNotificationPreferences.rejected, (state, action) => {
+      state.loading = false;
+      state.error = action.error.message || 'Failed to fetch preferences';
     });
 
     // Update preferences
+    builder.addCase(updateNotificationPreferences.pending, (state) => {
+      state.loading = true;
+    });
     builder.addCase(updateNotificationPreferences.fulfilled, (state, action) => {
-      state.preferences = action.payload;
+      state.loading = false;
+      state.preferences = action.payload.data || action.payload;
+    });
+    builder.addCase(updateNotificationPreferences.rejected, (state, action) => {
+      state.loading = false;
+      state.error = action.error.message || 'Failed to update preferences';
     });
 
     // Reset preferences
     builder.addCase(resetNotificationPreferences.fulfilled, (state, action) => {
-      state.preferences = action.payload;
+      state.preferences = action.payload.data || action.payload;
     });
   },
 });
@@ -213,6 +244,7 @@ export const {
   incrementUnreadCount,
   decrementUnreadCount,
   setPage,
+  setPreferences,
 } = notificationsSlice.actions;
 
 export default notificationsSlice.reducer;

@@ -17,11 +17,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
 import { SiteHeader } from "@/components/site-header";
-import { Filter, Download, Eye, Pencil } from "lucide-react";
+import { Filter, Download, Eye, Pencil, Loader2 } from "lucide-react";
 import { useReduxProducts } from "@/hooks/useReduxProducts";
-import type { Product as ReduxProduct } from "@/redux/slices/productsSlice";
+import type { Product } from "@/redux/slices/productsSlice";
 import images from "@/assets/images";
 
+// Extended status for UI display
 type ExtendedProductStatus =
   | "active"
   | "suspended"
@@ -33,31 +34,41 @@ type ExtendedProductStatus =
 
 type TabFilter = "all" | "pending_approval" | "active" | "unpublished" | "suspended";
 
-// interface ProductStats {
-//   totalProducts: number;
-//   activeProducts: number;
-//   pendingApproval: number;
-//   suspendedProducts: number;
-// }
-
+// Map Redux product status to extended UI status
 const mapReduxStatusToExtendedStatus = (
-  status: string
+  status: Product["status"]
 ): ExtendedProductStatus => {
   switch (status) {
     case "published":
-      return "active";
-    case "draft":
-      return "draft";
-    case "pending_review":
-      return "draft";
     case "approved":
       return "active";
+    case "draft":
+    case "pending_approval":
+      return "draft";
     case "rejected":
       return "suspended";
     case "archived":
       return "deactivated";
+    case "RE_EVALUATION":
+      return "draft"; // Treat as pending approval
     default:
       return "active";
+  }
+};
+
+// Map tab filter to API status
+const mapTabToApiStatus = (tab: TabFilter): Product["status"] | undefined => {
+  switch (tab) {
+    case "active":
+      return "approved";
+    case "pending_approval":
+      return "pending_approval";
+    case "suspended":
+      return "rejected";
+    case "unpublished":
+      return "archived";
+    default:
+      return undefined; // "all" - no filter
   }
 };
 
@@ -69,25 +80,23 @@ const getInitials = (name: string): string => {
     .slice(0, 2);
 };
 
+// Table product type
 type TableProduct = {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   price: number;
-  salePrice?: number;
+  compareAtPrice?: number;
   vendor: string;
+  vendorId: string;
   image: string;
   categoryId: string;
-  status:
-    | "draft"
-    | "pending_review"
-    | "approved"
-    | "rejected"
-    | "published"
-    | "archived";
+  status: Product["status"];
   stockQuantity: number;
   sales: number;
   category: string;
+  averageRating: number;
+  reviewCount: number;
 };
 
 export default function AdminProductsPage() {
@@ -97,32 +106,39 @@ export default function AdminProductsPage() {
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
 
   const {
-    products,
-    getAdminProducts,
-    getPublishedProducts,
-    getPendingReviewProducts,
+    publicProducts, // ✅ Use publicProducts instead of products
+    loading,
+    error,
+    getPublicProducts,
+    getProductsByStatus,
   } = useReduxProducts();
 
+  // Debug logging
+  console.log("🔍 AdminProductsPage state:", {
+    publicProducts,
+    publicProductsLength: publicProducts.length,
+    loading,
+    error,
+  });
+
+  // Fetch products on mount and when tab changes
   useEffect(() => {
     const loadProducts = async () => {
       try {
-        await getAdminProducts({
-          status:
-            activeTab === "active"
-              ? "published"
-              : activeTab === "pending_approval"
-              ? "pending_review"
-              : activeTab === "suspended"
-              ? "rejected"
-              : undefined,
+        mapTabToApiStatus(activeTab);
+        console.log("📥 Loading products...");
+        await getPublicProducts({
+          page: 1,
+          limit: 100,
         });
+        console.log("✅ Products loaded");
       } catch (error) {
-        console.error("Failed to load products:", error);
+        console.error("❌ Failed to load products:", error);
       }
     };
 
     loadProducts();
-  }, [getAdminProducts, activeTab]);
+  }, [getPublicProducts, activeTab]);
 
   const statusOptions: { value: ExtendedProductStatus; label: string }[] = [
     { value: "active", label: "Active" },
@@ -145,42 +161,55 @@ export default function AdminProductsPage() {
     setActiveTab("all");
   };
 
-  const transformProductForTable = (
-    reduxProduct: ReduxProduct
-  ): TableProduct => ({
-    id: reduxProduct.id,
-    name: reduxProduct.name,
-    description: reduxProduct.description,
-    price: reduxProduct.price,
-    salePrice: reduxProduct.salePrice,
-    vendor: reduxProduct.vendor?.businessName || "Unknown Vendor",
-    image:
-      reduxProduct.images?.find((img) => img.isPrimary)?.url ||
-      reduxProduct.images?.[0]?.url ||
-      "",
-    categoryId: reduxProduct.categoryId,
-    status: reduxProduct.status,
-    stockQuantity: reduxProduct.stock,
-    sales: 10, // Placeholder
-    category: reduxProduct.category?.name || "Uncategorized",
+  // Transform Redux product to table product
+  const transformProductForTable = (product: Product): TableProduct => {
+    // Calculate total stock from all variants
+    const totalStock = product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
+    
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price, // Already from first active variant
+      compareAtPrice: product.compareAtPrice,
+      vendor: product.vendorName || "Unknown Vendor", // Use enriched vendorName
+      vendorId: product.sellerId,
+      image: product.image || "", // Already enriched
+      categoryId: product.categoryId,
+      status: product.status,
+      stockQuantity: totalStock,
+      sales: 0, // TODO: Get from orders API
+      category: product.category?.name || "Uncategorized",
+      averageRating: product.averageRating || 0,
+      reviewCount: product.reviewCount || 0,
+    };
+  };
+
+  const tableProducts: TableProduct[] = publicProducts.map(transformProductForTable);
+  
+  console.log("📊 Table products:", {
+    tableProductsLength: tableProducts.length,
+    firstProduct: tableProducts[0],
   });
 
-  const tableProducts: TableProduct[] = products.map(transformProductForTable);
-
-  // Filter products
+  // Filter products based on search, status filters, and tabs
   const filteredProducts = tableProducts.filter((product) => {
     const extendedStatus = mapReduxStatusToExtendedStatus(product.status);
 
+    // Search filter
     const matchesSearch =
       searchQuery === "" ||
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.vendor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchQuery.toLowerCase());
+      product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()));
 
+    // Status filter (dropdown)
     const matchesStatusFilter =
       selectedStatuses.length === 0 ||
       selectedStatuses.includes(extendedStatus);
 
+    // Tab filter
     const matchesTabFilter = 
       activeTab === "all" ||
       (activeTab === "active" && extendedStatus === "active") ||
@@ -190,14 +219,20 @@ export default function AdminProductsPage() {
 
     return matchesSearch && matchesStatusFilter && matchesTabFilter;
   });
+  
+  console.log("🔎 Filtered products:", {
+    filteredLength: filteredProducts.length,
+    totalLength: tableProducts.length,
+    activeTab,
+    searchQuery,
+    selectedStatuses,
+  });
 
   // Calculate statistics for cards
-  const totalProducts = products.length;
-  const activeProducts = getPublishedProducts().length;
-  const pendingApproval = getPendingReviewProducts().length;
-  const suspendedProducts = products.filter(
-    (p) => p.status === "rejected"
-  ).length;
+  const totalProducts = publicProducts.length;
+  const activeProducts = getProductsByStatus("approved").length + getProductsByStatus("published").length;
+  const pendingApproval = getProductsByStatus("pending_approval").length + getProductsByStatus("draft").length + getProductsByStatus("RE_EVALUATION").length;
+  const suspendedProducts = getProductsByStatus("rejected").length;
 
   const statsCards: CardData[] = [
     {
@@ -238,16 +273,7 @@ export default function AdminProductsPage() {
     },
   ];
 
-  // const handleDeleteProduct = async (productId: string) => {
-  //   if (window.confirm("Are you sure you want to delete this product?")) {
-  //     try {
-  //       console.log("Product deleted:", productId);
-  //     } catch (error) {
-  //       console.error("Failed to delete product:", error);
-  //     }
-  //   }
-  // };
-
+  // Table fields configuration
   const productFields: TableField<TableProduct>[] = [
     {
       key: "name",
@@ -266,9 +292,6 @@ export default function AdminProductsPage() {
           </Avatar>
           <div>
             <span className="font-medium text-md">{row.name}</span>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {row.vendor}
-            </p>
           </div>
         </div>
       ),
@@ -283,13 +306,13 @@ export default function AdminProductsPage() {
     },
     {
       key: "price",
-      header: "Price (USD)",
+      header: "Base Price (USD)",
       cell: (_, row) => (
         <div className="text-center">
-          {row.salePrice ? (
+          {row.compareAtPrice ? (
             <>
-              <span className="line-through text-gray-400">${row.price.toFixed(2)}</span>
-              <span className="ml-2 font-medium text-green-600">${row.salePrice.toFixed(2)}</span>
+              <span className="line-through text-gray-400">${row.compareAtPrice.toFixed(2)}</span>
+              <span className="ml-2 font-medium text-green-600">${row.price.toFixed(2)}</span>
             </>
           ) : (
             <span className="font-medium">${row.price.toFixed(2)}</span>
@@ -300,9 +323,31 @@ export default function AdminProductsPage() {
       enableSorting: true,
     },
     {
-      key: "sales",
-      header: "Orders",
-      cell: (value) => <span className="font-medium">{value as number}</span>,
+      key: "stockQuantity",
+      header: "Stock",
+      cell: (value) => {
+        const stock = value as number;
+        return (
+          <div className="text-center">
+            <span className={`font-medium ${stock === 0 ? 'text-red-600' : stock < 10 ? 'text-orange-600' : ''}`}>
+              {stock}
+            </span>
+          </div>
+        );
+      },
+      align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "averageRating",
+      header: "Rating",
+      cell: (_, row) => (
+        <div className="flex items-center justify-center gap-1">
+          <span className="font-medium">{row.averageRating.toFixed(1)}</span>
+          <span className="text-yellow-500">★</span>
+          <span className="text-gray-500 text-sm">({row.reviewCount})</span>
+        </div>
+      ),
       align: "center",
       enableSorting: true,
     },
@@ -314,31 +359,31 @@ export default function AdminProductsPage() {
         const statusConfig = {
           active: {
             label: "Active",
-            className: "bg-teal-50 text-teal-700 border-teal-200",
+            className: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800",
           },
           suspended: {
             label: "Suspended",
-            className: "bg-red-50 text-red-700 border-red-200",
+            className: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800",
           },
           deactivated: {
             label: "Unpublished",
-            className: "bg-blue-50 text-blue-700 border-blue-200",
+            className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800",
           },
           deleted: {
             label: "Deleted",
-            className: "bg-gray-100 text-gray-700 border-gray-300",
+            className: "bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700",
           },
           draft: {
             label: "Pending approval",
-            className: "bg-yellow-50 text-yellow-700 border-yellow-200",
+            className: "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-300 dark:border-yellow-800",
           },
           "out-of-stock": {
             label: "Out of Stock",
-            className: "bg-orange-50 text-orange-700 border-orange-200",
+            className: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800",
           },
           archived: {
             label: "Archived",
-            className: "bg-purple-50 text-purple-700 border-purple-200",
+            className: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800",
           },
         };
 
@@ -379,7 +424,7 @@ export default function AdminProductsPage() {
 
   const handleTabClick = (tab: TabFilter) => {
     setActiveTab(tab);
-    // Clear status filters when switching tabs (optional)
+    // Clear status filters when switching tabs
     if (tab !== "all") {
       setSelectedStatuses([]);
     }
@@ -397,9 +442,7 @@ export default function AdminProductsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#1a1a1a]">
-      <SiteHeader
-        label="Product Management"
-      />
+      <SiteHeader label="Product Management" />
       <div className="p-6 space-y-6">
         <SectionCards cards={statsCards} layout="1x4" />
 
@@ -407,42 +450,57 @@ export default function AdminProductsPage() {
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">All Products</h2>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                  All Products
+                </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   Manage and monitor all products on the platform
                 </p>
               </div>
-              
             </div>
 
+            {/* Search and Filters */}
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="w-full sm:w-96">
                 <Search
-                  placeholder="Search"
+                  placeholder="Search by name, vendor, or category"
                   value={searchQuery}
                   onSearchChange={setSearchQuery}
                   className="h-10"
+                  disabled={loading}
                 />
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                {/* Time Period Buttons */}
                 <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050] rounded-l-lg">
+                  <button 
+                    className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050] rounded-l-lg"
+                    disabled={loading}
+                  >
                     Last 7 days
                   </button>
-                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]">
+                  <button 
+                    className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
+                    disabled={loading}
+                  >
                     Last 30 days
                   </button>
-                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848] rounded-r-lg">
+                  <button 
+                    className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848] rounded-r-lg"
+                    disabled={loading}
+                  >
                     All time
                   </button>
                 </div>
 
+                {/* Filter Button */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
                       className="flex items-center gap-2 h-10"
+                      disabled={loading}
                     >
                       <Filter className="w-4 h-4" />
                       Filter
@@ -461,6 +519,7 @@ export default function AdminProductsPage() {
                         onCheckedChange={() =>
                           handleStatusFilterChange(status.value)
                         }
+                        disabled={loading}
                       >
                         {status.label}
                       </DropdownMenuCheckboxItem>
@@ -468,66 +527,110 @@ export default function AdminProductsPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Button variant="outline" className="gap-2 h-10">
+                {/* Export Button */}
+                <Button 
+                  variant="outline" 
+                  className="gap-2 h-10"
+                  disabled={loading}
+                >
                   <Download className="w-4 h-4" />
                   Export
                 </Button>
 
+                {/* Clear Filters Button */}
                 {(selectedStatuses.length > 0 || searchQuery || activeTab !== "all") && (
                   <Button
                     variant="ghost"
                     onClick={clearAllFilters}
                     className="text-sm h-10"
+                    disabled={loading}
                   >
                     Clear Filters
                   </Button>
                 )}
               </div>
             </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-red-600 dark:text-red-400 text-sm">
+                  Error: {error}
+                </p>
+              </div>
+            )}
           </div>
 
+          {/* Tab Navigation */}
           <div className="border-b border-gray-200 dark:border-gray-700">
             <div className="flex gap-0 px-6 overflow-x-auto">
               <button 
                 className={getTabButtonClass("all")}
                 onClick={() => handleTabClick("all")}
+                disabled={loading}
               >
-                All Products
+                All Products ({totalProducts})
               </button>
               <button 
                 className={getTabButtonClass("pending_approval")}
                 onClick={() => handleTabClick("pending_approval")}
+                disabled={loading}
               >
-                Pending Approval
+                Pending Approval ({pendingApproval})
               </button>
               <button 
                 className={getTabButtonClass("active")}
                 onClick={() => handleTabClick("active")}
+                disabled={loading}
               >
-                Active
+                Active ({activeProducts})
               </button>
               <button 
                 className={getTabButtonClass("unpublished")}
                 onClick={() => handleTabClick("unpublished")}
+                disabled={loading}
               >
-                Unpublished
+                Unpublished ({getProductsByStatus("archived").length})
               </button>
               <button 
                 className={getTabButtonClass("suspended")}
                 onClick={() => handleTabClick("suspended")}
+                disabled={loading}
               >
-                Suspended
+                Suspended ({suspendedProducts})
               </button>
             </div>
           </div>
 
+          {/* Products Table */}
           <div className="p-6">
-            {filteredProducts.length === 0 ? (
+            {loading ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="ml-2 text-gray-600 dark:text-gray-400">
+                  Loading products...
+                </span>
+              </div>
+            ) : filteredProducts.length === 0 ? (
               <div className="flex flex-col items-center text-center py-12">
                 <img src={images.EmptyFallback} alt="" className="h-60 mb-6"/>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                   No Products Found
                 </h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchQuery || selectedStatuses.length > 0 || activeTab !== "all"
+                    ? "No products found matching your criteria"
+                    : "No products have been added yet"}
+                </p>
+                {(searchQuery || selectedStatuses.length > 0 || activeTab !== "all") && (
+                  <Button
+                    variant="outline"
+                    onClick={clearAllFilters}
+                    className="mt-2"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
               </div>
             ) : (
               <DataTable<TableProduct>

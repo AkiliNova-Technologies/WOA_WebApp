@@ -3,13 +3,8 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ImageUpload, type UploadDocument } from "@/components/image-upload";
+import { ImageUpload} from "@/components/image-upload";
 
-// interface SubCategory {
-//   id: string;
-//   name: string;
-//   image: string; 
-// }
 
 interface AddSubCategoryDrawerProps {
   isOpen: boolean;
@@ -25,21 +20,16 @@ export function AddSubCategoryDrawer({
   const [subCategoryName, setSubCategoryName] = useState("");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
-  const [documents, setDocuments] = useState<UploadDocument[]>([]);
 
-  const handleImageChange = (files: UploadDocument[]) => {
-    if (files.length > 0 && files[0].file) {
-      // Use the first file if available
-      const file = files[0].file;
-      setSelectedImage(file);
-      setImagePreview(files[0].previewUrl);
-      
-      // Also update the documents state for the ImageUpload component
-      setDocuments(files);
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
+
+  const handleImageChange = (urls: string[]) => {
+    if (urls.length > 0) {
+      setUploadedUrls(urls);
+      setImagePreview(urls[0]);
     } else {
-      setSelectedImage(null);
+      setUploadedUrls([]);
       setImagePreview("");
-      setDocuments([]);
     }
   };
 
@@ -57,9 +47,9 @@ export function AddSubCategoryDrawer({
     // Call the parent function with the data
     onAddSubCategory({
       name: subCategoryName.trim(),
-      image: selectedImage
+      image: selectedImage,
     });
-    
+
     handleClose();
   };
 
@@ -67,7 +57,7 @@ export function AddSubCategoryDrawer({
     setSubCategoryName("");
     setSelectedImage(null);
     setImagePreview("");
-    setDocuments([]);
+
     onClose();
   };
 
@@ -85,7 +75,9 @@ export function AddSubCategoryDrawer({
       <div className="relative bg-white w-full max-w-3xl rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto dark:bg-[#1A1A1A]">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b dark:border-[#333333]">
-          <h2 className="text-xl font-semibold dark:text-white">Add Sub Category</h2>
+          <h2 className="text-xl font-semibold dark:text-white">
+            Add Sub Category
+          </h2>
           <Button
             variant="ghost"
             size="icon"
@@ -100,7 +92,10 @@ export function AddSubCategoryDrawer({
         <div className="p-6 space-y-6">
           {/* Sub Category Name */}
           <div className="space-y-2">
-            <Label htmlFor="subCategoryName" className="text-sm font-medium dark:text-white">
+            <Label
+              htmlFor="subCategoryName"
+              className="text-sm font-medium dark:text-white"
+            >
               Sub Category Name *
             </Label>
             <Input
@@ -116,7 +111,10 @@ export function AddSubCategoryDrawer({
 
           {/* Image Upload */}
           <div className="space-y-2">
-            <Label htmlFor="subCategoryImage" className="text-sm font-medium dark:text-white">
+            <Label
+              htmlFor="subCategoryImage"
+              className="text-sm font-medium dark:text-white"
+            >
               Sub Category Image *
             </Label>
             <ImageUpload
@@ -126,14 +124,16 @@ export function AddSubCategoryDrawer({
               maxHeight="max-h-48"
               maxSize={10}
               className="w-full"
-              initialDocuments={documents}
+              initialUrls={uploadedUrls}
             />
             {imagePreview && (
               <div className="mt-2">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Preview:</p>
-                <img 
-                  src={imagePreview} 
-                  alt="Preview" 
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Preview:
+                </p>
+                <img
+                  src={imagePreview}
+                  alt="Preview"
                   className="mt-1 w-24 h-24 object-cover rounded-md border dark:border-[#444444]"
                 />
               </div>

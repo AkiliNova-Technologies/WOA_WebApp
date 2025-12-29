@@ -11,261 +11,193 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useReduxAuth } from "@/hooks/useReduxAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import api from "@/utils/api";
+import { Progress } from "@/components/ui/progress";
 
-export default function EmailOTPPage() {
+// Helper function to format email for display (truncates if too long)
+const formatEmailForDisplay = (email: string): string => {
+  if (!email) return "";
+  if (email.length <= 25) return email;
+  const [localPart, domain] = email.split("@");
+  if (localPart.length > 15) {
+    return `${localPart.substring(0, 12)}...@${domain}`;
+  }
+  return email;
+};
+
+export default function VendorEmailOTPPage() {
   const [otp, setOtp] = useState("");
   const [email, setEmail] = useState("");
-  const [countdown, setCountdown] = useState(0);
-  const [canResend, setCanResend] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [verificationError, setVerificationError] = useState("");
-  const [verificationSuccess, setVerificationSuccess] = useState(false);
-
+  const [success, setSuccess] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [canResend, setCanResend] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  const {
-    verifyAuth,
-    clearError,
-    loading,
+  
+  const { 
+    verifyEmail, // This is the verifyEmailWithOTP function from useReduxAuth
+    resendVerificationEmail, // This is resendVerificationOTP from useReduxAuth
+    clearEmailVerification,
+    canResendVerification,
+    getResendCooldown,
+    verificationAttempts,
     error: authError,
-    isAuthenticated,
+    clearError: clearAuthError,
   } = useReduxAuth();
 
+  // Get email from navigation state or localStorage
   useEffect(() => {
-    console.log("EmailOTPPage - Location state:", location.state);
-    
-    // Try to get email from multiple sources in order of preference
-    let foundEmail = "";
-    
-    // 1. First check navigation state
     if (location.state?.email) {
-      foundEmail = location.state.email;
-      console.log("EmailOTPPage - Found email in location state:", foundEmail);
-    }
-    
-    // 2. Check localStorage backup
-    if (!foundEmail) {
+      setEmail(location.state.email);
+      console.log("EmailOTPPage - Found email in location state:", location.state.email);
+    } else {
+      // Try to get from localStorage
       const storedEmail = localStorage.getItem("pendingVerificationEmail");
       if (storedEmail) {
-        foundEmail = storedEmail;
-        console.log("EmailOTPPage - Found email in localStorage:", foundEmail);
+        setEmail(storedEmail);
+        console.log("EmailOTPPage - Found email in localStorage:", storedEmail);
+      } else {
+        // Fallback if no email is passed
+        console.warn("No email provided, redirecting back to signup...");
+        navigate("/auth/signup", { replace: true });
       }
     }
-    
-    // 3. Check other localStorage key (for backward compatibility)
-    if (!foundEmail) {
-      const storedEmail = localStorage.getItem("verificationEmail");
-      if (storedEmail) {
-        foundEmail = storedEmail;
-        console.log("EmailOTPPage - Found email in verificationEmail:", foundEmail);
-      }
-    }
-    
-    if (foundEmail) {
-      setEmail(foundEmail);
-      // Store in localStorage as fallback for page refresh
-      localStorage.setItem("verificationEmail", foundEmail);
-    } else {
-      console.log("EmailOTPPage - No email found, redirecting to signup");
-      // navigate("/auth/signup");
-    }
+  }, [location.state, navigate]);
 
-    // Start countdown for resend button
-    const lastResendTime = localStorage.getItem("lastResendTime");
-    if (lastResendTime) {
-      const timePassed = Date.now() - parseInt(lastResendTime);
-      const timeLeft = Math.max(0, 60 - Math.floor(timePassed / 1000));
-
-      if (timeLeft > 0) {
-        setCountdown(timeLeft);
-        setCanResend(false);
-        startCountdown(timeLeft);
-      }
-    }
-
-    // Cleanup localStorage on component unmount or after verification
-    return () => {
-      if (verificationSuccess) {
-        localStorage.removeItem("verificationEmail");
-        localStorage.removeItem("pendingVerificationEmail");
-        localStorage.removeItem("lastResendTime");
-      }
-    };
-  }, [location, navigate, verificationSuccess]);
-
-  // Redirect if already authenticated
+  // Resend cooldown timer
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/profile", { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
-
-  // Countdown timer remains same
-  useEffect(() => {
-    if (countdown > 0) {
+    if (resendCooldown > 0) {
       const timer = setTimeout(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
+        setResendCooldown(prev => prev - 1);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [countdown]);
+  }, [resendCooldown]);
 
-  const startCountdown = (seconds: number) => {
-    setCountdown(seconds);
-    setCanResend(false);
-  };
-
-  // Actual OTP verification API call
-  const verifyOTP = async (emailToVerify: string, otpToVerify: string) => {
-    try {
-      console.log("EmailOTPPage - Verifying OTP for:", emailToVerify);
-      const response = await api.post("/api/v1/auth/verify-email", {
-        email: emailToVerify,
-        otp: otpToVerify,
-      });
-      console.log("EmailOTPPage - OTP verification response:", response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error("EmailOTPPage - OTP verification error:", error);
-      throw new Error(
-        error.response?.data?.message || "Failed to verify OTP. Please try again."
-      );
+  // Initialize cooldown and check resend availability
+  useEffect(() => {
+    const cooldown = getResendCooldown();
+    if (cooldown > 0) {
+      setResendCooldown(cooldown);
+      setCanResend(false);
+    } else {
+      setCanResend(true);
     }
-  };
+  }, [getResendCooldown]);
 
-  // Actual resend OTP API call
-  const resendOTP = async (emailToResend: string) => {
-    try {
-      console.log("EmailOTPPage - Resending OTP to:", emailToResend);
-      const response = await api.post("/api/v1/auth/email-verification/resend", {
-        email: emailToResend,
-      });
-      console.log("EmailOTPPage - Resend OTP response:", response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error("EmailOTPPage - Resend OTP error:", error);
-      throw new Error(
-        error.response?.data?.message || "Failed to resend OTP. Please try again."
-      );
+  // Update canResend when cooldown reaches 0
+  useEffect(() => {
+    if (resendCooldown === 0) {
+      setCanResend(canResendVerification());
+    } else {
+      setCanResend(false);
     }
-  };
+  }, [resendCooldown, canResendVerification]);
 
   const handleOTPVerification = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    clearError();
-    setVerificationError("");
-
+    
     if (otp.length !== 5) {
-      setVerificationError("Please enter a valid 5-digit OTP code");
+      setVerificationError("Please enter a 5-digit verification code");
       return;
     }
 
-    if (!email) {
-      setVerificationError("Email not found. Please try signing up again.");
-      return;
-    }
+    setLoading(true);
+    setVerificationError("");
+    setSuccess("");
+    clearAuthError(); // Clear any previous auth errors
 
     try {
-      console.log("EmailOTPPage - Starting OTP verification for:", email);
-      const response = await verifyOTP(email, otp);
-
-      if (response.success) {
-        console.log("EmailOTPPage - OTP verification successful");
-        setVerificationSuccess(true);
-        
-        localStorage.removeItem("verificationEmail");
-        localStorage.removeItem("pendingVerificationEmail");
-        localStorage.removeItem("lastResendTime");
-
-        console.log("EmailOTPPage - Verifying authentication status...");
-        const isAuthVerified = await verifyAuth();
-
-        if (isAuthVerified) {
-          console.log("EmailOTPPage - Auth verified, navigating to profile");
-          navigate("/profile", { replace: true });
-        } else {
-          console.log("EmailOTPPage - Auth not verified, navigating to signin");
-          navigate("/auth/signin", {
-            state: {
-              message: "Email verified successfully! Please sign in.",
-              email: email,
-            },
-          });
-        }
-      } else {
-        console.log("EmailOTPPage - OTP verification failed:", response.message);
-        setVerificationError(
-          response.message || "Invalid OTP code. Please try again."
-        );
-      }
-    } catch (error) {
+      console.log("EmailOTPPage - Verifying OTP for email:", email, "with code:", otp);
+      
+      // IMPORTANT: Use the verifyEmail function from useReduxAuth
+      // This calls the correct endpoint: /api/v1/auth/email-verification
+      const result = await verifyEmail(email, otp);
+      console.log("EmailOTPPage - OTP verification result:", result);
+      
+      setSuccess("Email verified successfully! Redirecting to login...");
+      
+      // Clear pending data from localStorage
+      localStorage.removeItem("pendingVerificationEmail");
+      localStorage.removeItem("pendingRegistrationData");
+      
+      // Clear verification state
+      clearEmailVerification();
+      
+      // Navigate to success page or login page after 2 seconds
+      setTimeout(() => {
+        navigate("/auth/signin", { 
+          state: { 
+            message: "Email verified successfully! Please sign in to continue.",
+            email: email
+          },
+          replace: true 
+        });
+      }, 2000);
+      
+    } catch (error: any) {
       console.error("EmailOTPPage - OTP verification failed:", error);
-      setVerificationError(
-        error instanceof Error
-          ? error.message
-          : "Verification failed. Please try again."
-      );
+      setVerificationError(error.message || "Invalid verification code. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
-    if (!canResend || !email) return;
+    if (resendCooldown > 0 || !canResendVerification()) {
+      setVerificationError(`Please wait ${resendCooldown} seconds before resending`);
+      return;
+    }
 
-    clearError();
+    if (verificationAttempts >= 3) {
+      setVerificationError("Too many attempts. Please try again later.");
+      return;
+    }
+
+    setLoading(true);
     setVerificationError("");
-
+    setSuccess("");
+    clearAuthError(); // Clear any previous auth errors
+    
     try {
-      const response = await resendOTP(email);
-
-      if (response.success) {
-        startCountdown(60);
-        localStorage.setItem("lastResendTime", Date.now().toString());
-        console.log("EmailOTPPage - OTP resent successfully");
-        setVerificationError(""); // Clear any errors
-      } else {
-        setVerificationError(
-          response.message || "Failed to resend OTP. Please try again."
-        );
-      }
-    } catch (error) {
+      console.log("EmailOTPPage - Resend OTP requested for email:", email);
+      
+      // IMPORTANT: Use the resendVerificationEmail function from useReduxAuth
+      // This calls the correct endpoint: /api/v1/auth/email-verification/resend
+      const result = await resendVerificationEmail(email);
+      console.log("EmailOTPPage - Resend OTP result:", result);
+      
+      setSuccess("Verification code has been resent to your email.");
+      setResendCooldown(60); // 60 second cooldown
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
+      
+    } catch (error: any) {
       console.error("EmailOTPPage - Resend OTP failed:", error);
-      setVerificationError(
-        error instanceof Error
-          ? error.message
-          : "Failed to resend OTP. Please try again."
-      );
+      setVerificationError(error.message || "Failed to resend verification code.");
+      setResendCooldown(60); // Still set cooldown on error
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Format email for display
-  const formatEmailForDisplay = (emailToFormat: string) => {
-    if (!emailToFormat) return "";
-
-    const [localPart, domain] = emailToFormat.split("@");
-    if (localPart.length <= 3) return emailToFormat;
-
-    const maskedLocal =
-      localPart.substring(0, 3) + "*".repeat(localPart.length - 3);
-    return `${maskedLocal}@${domain}`;
-  };
-
   const handleUseDifferentEmail = () => {
-    localStorage.removeItem("verificationEmail");
+    // Clear verification data
     localStorage.removeItem("pendingVerificationEmail");
-    localStorage.removeItem("lastResendTime");
-    navigate("/auth/signup");
+    localStorage.removeItem("pendingRegistrationData");
+    clearEmailVerification();
+    
+    // Navigate back to signup
+    navigate("/auth/signup", { replace: true });
   };
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-50 dark:bg-[#121212]">
-      {/* Left Section remains same */}
+      {/* Left Section */}
       <div className="flex flex-col justify-center items-center bg-[#EBEBEB] w-full md:w-1/3 px-8 py-12 dark:bg-[#303030]">
         <div className="max-w-sm text-center md:text-left">
           <div className="flex justify-center md:justify-center mb-8">
@@ -304,10 +236,10 @@ export default function EmailOTPPage() {
           </div>
         </div>
       </div>
-      
+
       {/* Right Section */}
       <div className="flex justify-center items-center w-full p-6 md:p-12">
-        <Card className="w-full max-w-xl shadow-xs rounded-sm bg-[#F5F5F5] py-8 px-8">
+        <Card className="w-full max-w-xl shadow-xs rounded-sm bg-[#F5F5F5] py-8 px-8 dark:bg-[#1e1e1e]">
           <CardHeader className="flex flex-col items-center">
             <img
               src={images.VerifyIMG}
@@ -324,16 +256,30 @@ export default function EmailOTPPage() {
               </span>{" "}
               to verify your account. Thank you
             </p>
+            
+            {/* Attempts counter */}
+            {verificationAttempts > 0 && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                Attempts: {verificationAttempts}/3
+              </p>
+            )}
+            
+            {/* Cooldown indicator */}
+            {resendCooldown > 0 && (
+              <div className="w-full max-w-xs mt-2">
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center mb-1">
+                  You can resend in {resendCooldown}s
+                </p>
+                <Progress 
+                  value={((60 - resendCooldown) / 60) * 100} 
+                  className="h-1 bg-gray-200 dark:bg-gray-700"
+                />
+              </div>
+            )}
           </CardHeader>
 
           <CardContent>
-            {/* Debug info - remove in production */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mb-4 p-2 bg-yellow-50 text-yellow-800 text-sm rounded">
-                Debug: Email being verified: {email}
-              </div>
-            )}
-
+            {/* Error Messages */}
             {(authError || verificationError) && (
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
@@ -342,10 +288,20 @@ export default function EmailOTPPage() {
                 </AlertDescription>
               </Alert>
             )}
+            
+            {/* Success Message */}
+            {success && (
+              <Alert variant="default" className="mb-4 bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
+                <AlertCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-green-700 dark:text-green-300">
+                  {success}
+                </AlertDescription>
+              </Alert>
+            )}
 
             <form className="space-y-4" onSubmit={handleOTPVerification}>
               {/* OTP Input */}
-              <div className="flex flex-row justify-center items-center">
+              <div className="flex flex-col items-center space-y-4">
                 <InputOTP
                   maxLength={5}
                   value={otp}
@@ -358,16 +314,25 @@ export default function EmailOTPPage() {
                 >
                   <InputOTPGroup>
                     {[...Array(5)].map((_, index) => (
-                      <InputOTPSlot key={index} index={index} />
+                      <InputOTPSlot 
+                        key={index} 
+                        index={index}
+                        className="border-gray-300 dark:border-gray-600"
+                      />
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
+                
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                  Enter the 5-digit code sent to your email
+                </p>
               </div>
 
+              {/* Verify Button */}
               <Button
                 type="submit"
                 disabled={otp.length !== 5 || loading}
-                className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm mt-5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
@@ -375,7 +340,7 @@ export default function EmailOTPPage() {
                     Verifying...
                   </>
                 ) : (
-                  "Continue"
+                  "Verify Email"
                 )}
               </Button>
 
@@ -387,20 +352,23 @@ export default function EmailOTPPage() {
                 <Button
                   type="button"
                   onClick={handleResendOTP}
-                  disabled={!canResend || loading}
+                  disabled={!canResend || loading || verificationAttempts >= 3}
                   className="text-[#1B84FF] text-md bg-transparent border-none hover:bg-transparent p-0 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {canResend ? "Resend" : `Resend in ${countdown}s`}
+                  {loading ? "Sending..." : 
+                   resendCooldown > 0 ? `Resend (${resendCooldown}s)` : 
+                   verificationAttempts >= 3 ? "Too many attempts" : 
+                   "Resend"}
                 </Button>
               </div>
 
               {/* Back to Sign Up Option */}
-              <div className="flex flex-row justify-center mt-4">
+              <div className="text-center mt-4">
                 <Button
                   type="button"
-                  variant="link"
+                  variant="ghost"
                   onClick={handleUseDifferentEmail}
-                  className="text-[#4B5675] text-sm"
+                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                   disabled={loading}
                 >
                   Use a different email

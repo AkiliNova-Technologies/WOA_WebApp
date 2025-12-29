@@ -5,7 +5,7 @@ export default function OrdersPage() {
   return (
     <>
       <SiteHeader />
-      <div className="min-h-screen">
+      <div className="min-h-screen p-6">
         <Card className="space-y-1 p-10">
           <h1 className="text-3xl">Orders Page</h1>
           <p>Welcome to Vendor Dashboard, Page coming soon.</p>

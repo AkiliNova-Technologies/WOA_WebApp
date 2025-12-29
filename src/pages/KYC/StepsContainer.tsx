@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Steps } from "@/components/steps";
@@ -9,6 +9,8 @@ import Step4 from "./Step4";
 import Step5 from "./Step5";
 import { CheckCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import api from "@/utils/api";
 
 // Define the form data type
 export interface FormData {
@@ -19,7 +21,8 @@ export interface FormData {
   email: string;
   phoneNumber: string;
   countryCode: string;
-  identityDocuments: any[];
+  identityDocumentUrls: string[];
+  emailVerified: boolean;
   step1Completed: boolean;
 
   // Step2 data - Shop Setup
@@ -29,12 +32,13 @@ export interface FormData {
   district: string;
   streetName: string;
   additionalAddress: string;
-  emailVerified: boolean;
+  locationVerified: boolean;
+  gpsCoordinates?: { latitude: number; longitude: number };
   step2Completed: boolean;
 
   // Step3 data - Store Description & Seller Story
   storeDescription: string;
-  videoFile: File | null;
+  videoUrl: string | null; // Changed from File to URL
   step3Completed: boolean;
 
   // Step4 data - Bank Details
@@ -75,6 +79,15 @@ const steps = [
 export default function StepsContainer() {
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requestEmailVerification, setRequestEmailVerification] =
+    useState(false);
+  const [_kycSessionId, setKycSessionId] = useState<string | null>(null);
+  const [kycStatus, setKycStatus] = useState<
+    "draft" | "email_pending" | "email_verified" | "submitted"
+  >("draft");
+  const [isStartingKYC, setIsStartingKYC] = useState(false);
+
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
     middleName: "",
@@ -82,7 +95,7 @@ export default function StepsContainer() {
     email: "",
     phoneNumber: "",
     countryCode: "+256",
-    identityDocuments: [],
+    identityDocumentUrls: [],
     emailVerified: false,
     step1Completed: false,
     storeName: "",
@@ -91,9 +104,10 @@ export default function StepsContainer() {
     district: "",
     streetName: "",
     additionalAddress: "",
+    locationVerified: false,
     step2Completed: false,
     storeDescription: "",
-    videoFile: null,
+    videoUrl: null,
     step3Completed: false,
     accountHolderName: "",
     bankName: "",
@@ -107,22 +121,55 @@ export default function StepsContainer() {
   // Track completed steps
   const [completedSteps, setCompletedSteps] = useState<number[]>([0]);
 
+  // Check existing KYC status on component mount
+  useEffect(() => {
+    const checkExistingKYCStatus = async () => {
+      try {
+        const response = await api.get("/api/v1/vendor/kyc");
+        if (response.data) {
+          setKycStatus(response.data.kycStatus);
+          if (response.data.emailVerified) {
+            updateFormData({
+              emailVerified: true,
+              email: response.data.email || formData.email,
+            });
+          }
+          if (response.data.email) {
+            updateFormData({ email: response.data.email });
+          }
+          if (response.data.sessionId) {
+            setKycSessionId(response.data.sessionId);
+          }
+        }
+      } catch (error) {
+        console.log("No existing KYC session or error checking status:", error);
+        // This is normal for new users
+      }
+    };
+
+    checkExistingKYCStatus();
+  }, []);
+
   const updateFormData = (newData: Partial<FormData>) => {
     setFormData((prev) => {
       const updated = { ...prev, ...newData };
 
-      // Check which step is being updated and mark it as completed if all required fields are filled
       if (
         newData.firstName !== undefined ||
         newData.lastName !== undefined ||
         newData.email !== undefined ||
-        newData.phoneNumber !== undefined
+        newData.phoneNumber !== undefined ||
+        newData.emailVerified !== undefined ||
+        newData.identityDocumentUrls !== undefined
       ) {
         const step1Complete = Boolean(
           updated.firstName &&
             updated.lastName &&
             updated.email &&
-            updated.phoneNumber
+            updated.phoneNumber &&
+            updated.emailVerified &&
+            updated.identityDocumentUrls &&
+            updated.identityDocumentUrls.length >= 2
         );
         updated.step1Completed = step1Complete;
         if (step1Complete && !completedSteps.includes(1)) {
@@ -134,13 +181,15 @@ export default function StepsContainer() {
         newData.storeName !== undefined ||
         newData.country !== undefined ||
         newData.city !== undefined ||
-        newData.district !== undefined
+        newData.district !== undefined ||
+        newData.locationVerified !== undefined
       ) {
         const step2Complete = Boolean(
           updated.storeName &&
             updated.country &&
             updated.city &&
-            updated.district
+            updated.district &&
+            updated.locationVerified
         );
         updated.step2Completed = step2Complete;
         if (step2Complete && !completedSteps.includes(2)) {
@@ -148,7 +197,7 @@ export default function StepsContainer() {
         }
       }
 
-      if (newData.storeDescription !== undefined) {
+      if (newData.storeDescription !== undefined && newData.step3Completed === undefined) {
         const step3Complete = Boolean(
           updated.storeDescription.trim().length > 0
         );
@@ -159,9 +208,10 @@ export default function StepsContainer() {
       }
 
       if (
-        newData.accountHolderName !== undefined ||
+        (newData.accountHolderName !== undefined ||
         newData.accountNumber !== undefined ||
-        newData.confirmAccountNumber !== undefined
+        newData.confirmAccountNumber !== undefined) &&
+        newData.step4Completed === undefined
       ) {
         const step4Complete = Boolean(
           updated.accountHolderName &&
@@ -179,24 +229,67 @@ export default function StepsContainer() {
     });
   };
 
+  // Start KYC process with backend (Step 1 according to backend flow)
+  const startKYCProcess = async () => {
+    try {
+      setIsStartingKYC(true);
+
+      // Call the backend endpoint to start KYC
+      const response = await api.post("/api/v1/vendor/kyc/start", {
+        email: formData.email,
+        phone_number: formData.phoneNumber, // optional but we include it
+      });
+
+      if (response.data.otpSent) {
+        setKycSessionId(response.data.sessionId);
+        setKycStatus("email_pending");
+        setRequestEmailVerification(true);
+        toast.success("Verification code sent to your email");
+      } else {
+        toast.error("Failed to send verification code");
+      }
+    } catch (error: any) {
+      console.error("Error starting KYC:", error);
+      toast.error(
+        error?.response?.data?.message || "Failed to start KYC process"
+      );
+      throw error;
+    } finally {
+      setIsStartingKYC(false);
+    }
+  };
+
   const handleEmailVerified = () => {
-    // This callback is called after successful email verification
     console.log("Email verified successfully!");
-    // You can add any additional logic here, like showing a success message
+    updateFormData({ emailVerified: true });
+    setKycStatus("email_verified");
+    toast.success("Email verified successfully!");
+  };
+
+  const handleLocationVerified = (coordinates: {
+    latitude: number;
+    longitude: number;
+  }) => {
+    console.log("Location verified successfully!", coordinates);
+    updateFormData({
+      locationVerified: true,
+      gpsCoordinates: coordinates,
+    });
+    toast.success("Location verified successfully!");
   };
 
   const handleStepClick = (stepIndex: number) => {
-    // Allow navigation to:
-    // 1. Current step (always allowed)
-    // 2. Previously completed steps (always allowed)
-    // 3. Next step only if current step is completed
     if (stepIndex === current) return;
 
+    // Prevent navigating to steps that require email verification
+    if (stepIndex > 0 && !formData.emailVerified) {
+      toast.error("Please complete email verification first");
+      return;
+    }
+
     if (stepIndex < current) {
-      // Going back to previous steps is always allowed
       setCurrent(stepIndex);
     } else if (stepIndex === current + 1) {
-      // Going to next step is allowed if current step is completed
       if (isStepCompleted(current)) {
         setCurrent(stepIndex);
         if (!completedSteps.includes(stepIndex)) {
@@ -204,7 +297,6 @@ export default function StepsContainer() {
         }
       }
     } else if (completedSteps.includes(stepIndex)) {
-      // Jumping to any previously completed step is allowed
       setCurrent(stepIndex);
     }
   };
@@ -226,19 +318,42 @@ export default function StepsContainer() {
     }
   };
 
-  const saveAndContinue = () => {
+  const saveAndContinue = async () => {
+    // Special handling for Step 1 - trigger email verification
+    if (current === 0 && !formData.emailVerified) {
+      if (
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.email ||
+        !formData.phoneNumber
+      ) {
+        toast.error("Please fill in all required fields");
+        return;
+      }
+
+      if (
+        !formData.identityDocumentUrls ||
+        formData.identityDocumentUrls.length < 2
+      ) {
+        toast.error("Please upload both front and back of your ID");
+        return;
+      }
+
+      // 🔑 Start KYC process with backend (email verification only)
+      await startKYCProcess();
+      return;
+    }
+
+    // For other steps, proceed normally
     if (current < steps.length - 1) {
-      // Mark current step as completed
       const currentStepKey = `step${current + 1}Completed` as keyof FormData;
       const updateData = { [currentStepKey]: true } as Partial<FormData>;
       updateFormData(updateData);
 
-      // Add to completed steps if not already there
       if (!completedSteps.includes(current)) {
         setCompletedSteps((prev) => [...prev, current]);
       }
 
-      // Move to next step
       setCurrent(current + 1);
       if (!completedSteps.includes(current + 1)) {
         setCompletedSteps((prev) => [...prev, current + 1]);
@@ -246,13 +361,60 @@ export default function StepsContainer() {
     }
   };
 
-  const handleSubmit = () => {
-    // Handle form submission here
-    console.log("Submitting form data:", formData);
-    updateFormData({ step5Completed: true });
+  const handleSubmit = async () => {
+    try {
+      setIsSubmitting(true);
 
-    // Show success/verification step
-    setCurrent(steps.length); // Move to done step
+      // Create JSON object with all data according to backend requirements
+      const kycData = {
+        // Personal Information
+        first_name: formData.firstName,
+        middle_name: formData.middleName || undefined,
+        last_name: formData.lastName,
+        phone_number: `${formData.countryCode}${formData.phoneNumber}`,
+        id_docs: formData.identityDocumentUrls,
+
+        // Business Information
+        store_name: formData.storeName,
+        country: formData.country,
+        city: formData.city,
+        district: formData.district,
+        street: formData.streetName || undefined,
+        location: formData.gpsCoordinates
+          ? `${formData.gpsCoordinates.latitude},${formData.gpsCoordinates.longitude}`
+          : undefined,
+        description: formData.storeDescription,
+        video_story: formData.videoUrl || undefined,
+
+        // Bank Details
+        account_name: formData.accountHolderName,
+        bank_name: formData.bankName,
+        account_number: formData.accountNumber,
+        swift_code: formData.swiftCode || undefined,
+      };
+
+      // Submit full KYC to the new endpoint
+      await api.post("/api/v1/vendor/kyc/submit", {
+        ...kycData,
+        email: formData.email, // Include email to match with verified user
+      });
+
+      // Update local state
+      updateFormData({ step5Completed: true });
+      setKycStatus("submitted");
+      toast.success("KYC submitted successfully!");
+
+      // Show success/verification step
+      setCurrent(steps.length);
+    } catch (error: any) {
+      console.error("Failed to submit KYC:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          "Failed to submit KYC. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderStepContent = () => {
@@ -263,10 +425,19 @@ export default function StepsContainer() {
             formData={formData}
             updateFormData={updateFormData}
             onEmailVerified={handleEmailVerified}
+            requestVerification={requestEmailVerification}
+            onVerificationStarted={() => setRequestEmailVerification(false)}
+            kycStatus={kycStatus}
           />
         );
       case 1:
-        return <Step2 formData={formData} updateFormData={updateFormData} />;
+        return (
+          <Step2
+            formData={formData}
+            updateFormData={updateFormData}
+            onLocationVerified={handleLocationVerified}
+          />
+        );
       case 2:
         return <Step3 formData={formData} updateFormData={updateFormData} />;
       case 3:
@@ -277,7 +448,6 @@ export default function StepsContainer() {
         return (
           <Card className="shadow-none border-none p-0">
             <CardContent className="space-y-8 border-none">
-              {/* Header Section */}
               <div className="text-center space-y-4">
                 <div className="flex justify-center">
                   <div className="w-20 h-20 rounded-full border-4 border-gray-200 flex items-center justify-center">
@@ -294,7 +464,6 @@ export default function StepsContainer() {
               </div>
 
               <div className="gap-8 max-w-4xl mx-auto">
-                {/* What we're doing */}
                 <div className="space-y-4 mb-8">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     What we're doing
@@ -333,7 +502,6 @@ export default function StepsContainer() {
                   </div>
                 </div>
 
-                {/* What's next */}
                 <div className="space-y-4 mb-8">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     What's next
@@ -373,7 +541,6 @@ export default function StepsContainer() {
                 </div>
               </div>
 
-              {/* Back to Website Button */}
               <div className="text-center">
                 <Button
                   className="bg-black hover:bg-black/90 text-white h-11 px-8 rounded-md"
@@ -388,11 +555,6 @@ export default function StepsContainer() {
     }
   };
 
-  const getButtonText = () => {
-    if (current === steps.length - 1) return "Submit";
-    return "Save and continue";
-  };
-
   const handleButtonClick = () => {
     if (current === steps.length - 1) {
       handleSubmit();
@@ -404,15 +566,31 @@ export default function StepsContainer() {
   const isSaveButtonDisabled = () => {
     switch (current) {
       case 0:
-        return !formData.step1Completed;
+        // For step 1, check if basic fields are filled
+        if (!formData.emailVerified) {
+          // Before email verification
+          return (
+            !(
+              formData.firstName &&
+              formData.lastName &&
+              formData.email &&
+              formData.phoneNumber &&
+              formData.identityDocumentUrls &&
+              formData.identityDocumentUrls.length >= 2
+            ) || isStartingKYC
+          );
+        } else {
+          // After email verification
+          return false;
+        }
       case 1:
-        return !formData.step2Completed;
+        return !formData.step2Completed || !formData.emailVerified;
       case 2:
-        return !formData.step3Completed;
+        return !formData.step3Completed || !formData.emailVerified;
       case 3:
-        return !formData.step4Completed;
+        return !formData.step4Completed || !formData.emailVerified;
       case 4:
-        return false; // Preview step doesn't need validation
+        return !formData.emailVerified; // Can't submit without email verification
       default:
         return true;
     }
@@ -420,7 +598,6 @@ export default function StepsContainer() {
 
   return (
     <div className="px-4 md:px-16 pt-32 md:pt-40 pb-20 min-h-screen dark:bg-[#121212]">
-      {/* Custom Steps Component - Now clickable for navigation */}
       <Steps
         current={current}
         items={steps}
@@ -434,38 +611,37 @@ export default function StepsContainer() {
       <Card className="p-6 md:p-8 shadow-none border mx-auto my-8 max-w-7xl">
         <div>{renderStepContent()}</div>
 
-        {/* Save and Continue Button Only */}
-        {current < steps.length && (
-          <div className="flex flex-col items-center justify-center gap-4 mt-8 pt-6 border-t">
-            <div className="flex items-center gap-4 w-full justify-center">
-              {current < steps.length - 1 && (
-                <p className="text-sm text-gray-500 text-center max-w-2xl">
-                  By clicking Save and continue, you agree to World of Afrika's{" "}
-                  <span className="underline cursor-pointer">Terms of Use</span>
-                  , <span className="underline cursor-pointer">Cookies</span>{" "}
-                  and{" "}
-                  <span className="underline cursor-pointer">
-                    Privacy Policy
-                  </span>
-                </p>
-              )}
+        {/* Button section for steps 1-4 */}
+        {current < steps.length - 1 && (
+          <div className="flex flex-row items-center justify-end gap-12 mt-8 pt-6 border-t">
+            <div className="flex items-center gap-4 justify-center">
+              <p className="text-sm text-gray-500 text-center max-w-2xl">
+                By clicking Save and continue, you agree to World of Afrika's{" "}
+                <span className="underline cursor-pointer">Terms of Use</span>,{" "}
+                <span className="underline cursor-pointer">Cookies</span> and{" "}
+                <span className="underline cursor-pointer">Privacy Policy</span>
+              </p>
             </div>
 
             <Button
               variant="secondary"
               onClick={handleButtonClick}
-              disabled={isSaveButtonDisabled()}
+              disabled={isSaveButtonDisabled() || isSubmitting}
               className="bg-black hover:bg-black/90 text-white h-11 px-8 w-auto disabled:opacity-50 disabled:cursor-not-allowed rounded-md mt-4"
             >
-              {getButtonText()}
+              {isSubmitting
+                ? "Submitting..."
+                : isStartingKYC
+                ? "Starting KYC..."
+                : "Save and continue"}
             </Button>
           </div>
         )}
 
-        {/* Submit button for preview page */}
+        {/* Button section for step 5 only */}
         {current === steps.length - 1 && (
-          <div className="flex flex-col items-center justify-center gap-4 mt-8 pt-6 border-t">
-            <div className="flex items-center gap-4 w-full justify-center">
+          <div className="flex flex-row items-center justify-end gap-12 mt-8 pt-6 border-t">
+            <div className="flex items-center gap-4 justify-center">
               <p className="text-sm text-gray-500 text-center max-w-2xl">
                 By clicking submit, you agree to World of Afrika's{" "}
                 <span className="underline cursor-pointer">Terms of Use</span>,{" "}
@@ -476,9 +652,10 @@ export default function StepsContainer() {
 
             <Button
               onClick={handleSubmit}
-              className="bg-black hover:bg-black/90 text-white h-11 px-8 w-auto rounded-md mt-4"
+              disabled={isSubmitting || !formData.emailVerified}
+              className="bg-black hover:bg-black/90 text-white h-11 px-8 w-auto rounded-md mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Submit
+              {isSubmitting ? "Submitting..." : "Submit"}
             </Button>
           </div>
         )}

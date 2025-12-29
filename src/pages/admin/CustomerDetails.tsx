@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useReduxUsers } from "@/hooks/useReduxUsers";
+import { useReduxAddresses } from "@/hooks/useReduxAddresses";
+import type { Address } from "@/redux/slices/addressesSlice";
 import { type Customer, type CustomerStatus } from "./Customers";
 import images from "@/assets/images";
 import { DataTable } from "@/components/data-table";
@@ -20,16 +22,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Calendar,
   User,
-  ListIcon,
-  GridIcon,
   FilterIcon,
   EyeIcon,
   ShoppingBag,
   Mail,
   Phone,
   MapPin,
-  ExternalLink,
   Clock,
+  ArrowLeft,
+  RefreshCw,
 } from "lucide-react";
 import {
   Select,
@@ -38,6 +39,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  StatusUpdateModal,
+  type UserStatus,
+} from "@/components/status-update-modal";
+import api from "@/utils/api";
+import { toast } from "sonner";
 
 interface InfoProps {
   label: string;
@@ -150,13 +157,23 @@ export default function AdminCustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { usersList, getUsers } = useReduxUsers();
+  const { 
+    addresses: allAddresses, 
+    getAddresses,
+    getAddressById,
+  } = useReduxAddresses();
+  
   const [customerData, setCustomerData] = useState<Customer | null>(null);
+  const [userAddresses, setUserAddresses] = useState<Address[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [purchasePeriod, setPurchasePeriod] = useState("12-months");
   const [trendPeriod, setTrendPeriod] = useState("12-months");
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCustomerData = async () => {
@@ -170,7 +187,41 @@ export default function AdminCustomerDetailPage() {
     if (id) {
       fetchCustomerData();
     }
-  }, [id, getUsers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Fetch addresses for this specific user
+  useEffect(() => {
+    const fetchUserAddresses = async () => {
+      if (!id) return;
+
+      setLoadingAddresses(true);
+      setAddressError(null);
+      
+      try {
+        // First, get all addresses to filter by userId
+        await getAddresses();
+      } catch (error) {
+        console.error("Failed to fetch addresses:", error);
+        setAddressError("Failed to load addresses");
+      } finally {
+        setLoadingAddresses(false);
+      }
+    };
+
+    fetchUserAddresses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Filter addresses for the current user
+  useEffect(() => {
+    if (id && allAddresses && Array.isArray(allAddresses)) {
+      const filteredAddresses = allAddresses.filter(
+        (addr) => addr.userId === id
+      );
+      setUserAddresses(filteredAddresses);
+    }
+  }, [id, allAddresses]);
 
   useEffect(() => {
     if (Array.isArray(usersList) && id) {
@@ -241,6 +292,37 @@ export default function AdminCustomerDetailPage() {
       }
     }
   }, [usersList, id]);
+
+  // Refresh addresses
+  const handleRefreshAddresses = async () => {
+    if (!id) return;
+    
+    setLoadingAddresses(true);
+    setAddressError(null);
+    
+    try {
+      await getAddresses();
+      toast.success("Addresses refreshed successfully");
+    } catch (error) {
+      console.error("Failed to refresh addresses:", error);
+      setAddressError("Failed to refresh addresses");
+      toast.error("Failed to refresh addresses");
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+
+  // View specific address in detail (example usage)
+  const handleViewAddressDetails = async (addressId: string) => {
+    try {
+      await getAddressById(addressId);
+      // You can open a modal or navigate to details page here
+      toast.success("Address details loaded");
+    } catch (error) {
+      console.error("Failed to load address details:", error);
+      toast.error("Failed to load address details");
+    }
+  };
 
   // Filter orders based on search and status filters
   const filteredOrders = mockOrders.filter((order) => {
@@ -340,59 +422,6 @@ export default function AdminCustomerDetailPage() {
     },
   };
 
-  // Status configuration for customers
-  const customerStatusConfig = {
-    active: {
-      label: "Active",
-      dotColor: "bg-green-500",
-      textColor: "text-green-700",
-      bgColor: "bg-green-50",
-      borderColor: "border-green-200",
-    },
-    inactive: {
-      label: "Inactive",
-      dotColor: "bg-gray-500",
-      textColor: "text-gray-700",
-      bgColor: "bg-gray-50",
-      borderColor: "border-gray-200",
-    },
-    suspended: {
-      label: "Suspended",
-      dotColor: "bg-yellow-500",
-      textColor: "text-yellow-700",
-      bgColor: "bg-yellow-50",
-      borderColor: "border-yellow-200",
-    },
-    pending_deletion: {
-      label: "Pending Deletion",
-      dotColor: "bg-orange-500",
-      textColor: "text-orange-700",
-      bgColor: "bg-orange-50",
-      borderColor: "border-orange-200",
-    },
-    disabled: {
-      label: "Disabled",
-      dotColor: "bg-red-500",
-      textColor: "text-red-700",
-      bgColor: "bg-red-50",
-      borderColor: "border-red-200",
-    },
-    deleted: {
-      label: "Deleted",
-      dotColor: "bg-red-400",
-      textColor: "text-red-600",
-      bgColor: "bg-red-50",
-      borderColor: "border-red-200",
-    },
-    deactivated: {
-      label: "Deactivated",
-      dotColor: "bg-gray-500",
-      textColor: "text-gray-700",
-      bgColor: "bg-gray-50",
-      borderColor: "border-gray-200",
-    },
-  } as const;
-
   const statusOptions = [
     { value: "pending", label: "Pending" },
     { value: "processing", label: "Processing" },
@@ -471,6 +500,57 @@ export default function AdminCustomerDetailPage() {
     },
   ];
 
+  const handleStatusUpdate = async (newStatus: CustomerStatus) => {
+    if (!customerData || !id) return;
+
+    setStatusUpdateLoading(true);
+
+    try {
+      let endpoint = "";
+
+      if (newStatus === "active") {
+        if (
+          customerData.status === "deleted" ||
+          customerData.status === "pending_deletion" ||
+          customerData.status === "suspended"
+        ) {
+          endpoint = `/api/v1/clients/admin/reactivate/${id}`;
+        } else {
+          console.warn(
+            "Activation endpoint for non-deleted clients may not exist"
+          );
+        }
+      } else if (newStatus === "pending_deletion") {
+        console.warn("Admin delete endpoint for clients may not exist");
+      } else if (newStatus === "suspended") {
+        endpoint = `/api/v1/clients/admin/suspend/${id}`;
+        console.warn("Suspend endpoint for clients may not exist");
+      }
+
+      if (endpoint) {
+        await api.post(endpoint);
+
+        setCustomerData((prev) =>
+          prev ? { ...prev, status: newStatus } : null
+        );
+
+        toast.success("Customer status updated successfully");
+        console.log(`Status updated to ${newStatus}`);
+
+        await getUsers({ role: "client" });
+      } else {
+        console.warn(
+          `No API endpoint defined for status change to ${newStatus}`
+        );
+      }
+    } catch (error) {
+      console.error("Failed to update status:", error);
+    } finally {
+      setStatusUpdateLoading(false);
+      setIsStatusModalOpen(false);
+    }
+  };
+
   if (!customerData) {
     return (
       <>
@@ -491,7 +571,35 @@ export default function AdminCustomerDetailPage() {
     <>
       <SiteHeader label="Customer Management" />
       <div className="min-h-screen">
-        <div className="p-6 mx-auto">
+        <div className="p-6 mx-auto space-y-6">
+          <Card className="shadow-none border-none">
+            <div className="flex flex-row flex-1 gap-3 items-center justify-between px-6">
+              <div className="flex flex-row items-center gap-6">
+                <Button
+                  variant={"secondary"}
+                  className="dark:bg-[#12121240]"
+                  onClick={() => navigate("/admin/users/customers")}
+                >
+                  <ArrowLeft />
+                </Button>
+                <p className="text-md">Back to customers</p>
+              </div>
+
+              <div
+                className={`h-11 rounded-full flex flex-col w-xs justify-center items-center ${
+                  customerData.status === "active"
+                    ? "bg-green-600/10 text-green-600 border-green-600 border"
+                    : "bg-gray-300 text-gray-700"
+                } text-md`}
+              >
+                <p className="text-center">
+                  {customerData.status === "active"
+                    ? "Customer is Active"
+                    : "Customer is " + customerData.status}
+                </p>
+              </div>
+            </div>
+          </Card>
           {/* ================= COVER IMAGE ================= */}
           <div className="relative w-full h-[380px] overflow-hidden rounded-2xl">
             <img
@@ -500,25 +608,11 @@ export default function AdminCustomerDetailPage() {
               className="object-cover w-full h-full"
             />
 
-            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3">
-              <h2 className="text-white text-3xl font-semibold">
-                {customerData.name}
-              </h2>
-              <p className="text-white/80 text-sm">Customer Profile</p>
-
-              <div className="flex gap-4 mt-2">
-                <Button
-                  className="bg-white text-black h-9 rounded-full px-6"
-                  onClick={() => navigate("/admin/users/customers")}
-                >
-                  Back to Customers
-                </Button>
-              </div>
-            </div>
+            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3"></div>
           </div>
 
           {/* ================= CUSTOMER SUMMARY ================= */}
-          <div className="relative -mt-12 mx-6">
+          <div className="relative -mt-32 mx-6">
             <Card className="flex flex-col md:flex-row md:items-center gap-6 p-6 mx-6 shadow-none border-none rounded-b-none">
               <div
                 className={`w-30 h-30 rounded-full ${customerData.avatarColor} flex items-center justify-center text-4xl font-bold`}
@@ -529,52 +623,6 @@ export default function AdminCustomerDetailPage() {
               <div className="flex-1">
                 <h1 className="text-3xl font-semibold">{customerData.name}</h1>
                 <p className="text-[#6F6F6F]">{customerData.email}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge
-                    variant="outline"
-                    className={`flex flex-row items-center py-1 px-3 gap-2 rounded-md ${
-                      customerStatusConfig[customerData.status].bgColor
-                    } ${customerStatusConfig[customerData.status].textColor}`}
-                  >
-                    <div
-                      className={`size-2 rounded-full ${
-                        customerStatusConfig[customerData.status].dotColor
-                      }`}
-                    />
-                    {customerStatusConfig[customerData.status].label}
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="flex flex-col gap-6 text-md">
-                <div className="flex flex-row gap-8 text-md">
-                  <div>
-                    <p className="font-semibold">Total Orders</p>
-                    <p>{customerData.totalOrders}</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold">Last Active</p>
-                    <p>{formatLastActive(customerData.lastActive)}</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold">Total Spent</p>
-                    <p>${customerData.totalSpent.toFixed(2)}</p>
-                  </div>
-                </div>
-                <div
-                  className={`h-11 rounded-md flex flex-col justify-center items-center ${
-                    customerData.status === "active"
-                      ? "bg-green-600 text-white"
-                      : "bg-gray-300 text-gray-700"
-                  } text-md`}
-                >
-                  <p className="text-center">
-                    {customerData.status === "active"
-                      ? "Account Active"
-                      : "Account " + customerData.status}
-                  </p>
-                </div>
               </div>
             </Card>
 
@@ -633,7 +681,7 @@ export default function AdminCustomerDetailPage() {
                               Total Revenue from purchases
                             </p>
                             <p className="text-2xl font-bold text-teal-600">
-                              USD {customerData.totalSpent.toFixed(2)}
+                              USD 0
                             </p>
                           </div>
                         </div>
@@ -794,46 +842,120 @@ export default function AdminCustomerDetailPage() {
                       </Card>
 
                       <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
                           <h2 className="text-lg font-semibold">Addresses</h2>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRefreshAddresses}
+                            disabled={loadingAddresses}
+                            className="gap-2"
+                          >
+                            <RefreshCw className={`h-4 w-4 ${loadingAddresses ? 'animate-spin' : ''}`} />
+                            Refresh
+                          </Button>
                         </CardHeader>
                         <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm">
-                            <Info
-                              label="Full Name"
-                              value={customerData.name}
-                              icon={<User className="h-5 w-5" />}
-                              iconContainerClassName="w-8 h-8 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center"
-                            />
-                            <Info
-                              label="Email Address"
-                              value={customerData.email}
-                              icon={<Mail className="h-5 w-5" />}
-                              iconContainerClassName="w-8 h-8 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center"
-                            />
-                            <Info
-                              label="Phone Number"
-                              value={customerData.phoneNumber || "Not provided"}
-                              icon={<Phone className="h-5 w-5" />}
-                              iconContainerClassName="w-8 h-8 rounded-md bg-teal-100 text-teal-600 flex items-center justify-center"
-                            />
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-md bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
-                                <MapPin className="h-5 w-5" />
-                              </div>
-                              <div className="flex flex-col min-w-0 flex-1">
-                                <p className="text-[#666666] text-sm">
-                                  Address
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <p className="font-medium truncate">
-                                    {customerData.address}
-                                  </p>
-                                  <ExternalLink className="h-4 w-4 text-gray-400 flex-shrink-0 cursor-pointer hover:text-gray-600" />
-                                </div>
+                          {loadingAddresses ? (
+                            <div className="flex items-center justify-center py-8">
+                              <div className="flex flex-col items-center gap-3">
+                                <RefreshCw className="h-8 w-8 animate-spin text-[#CC5500]" />
+                                <p className="text-gray-500">Loading addresses...</p>
                               </div>
                             </div>
-                          </div>
+                          ) : addressError ? (
+                            <div className="flex flex-col items-center justify-center py-8">
+                              <p className="text-red-500 mb-4">{addressError}</p>
+                              <Button
+                                variant="outline"
+                                onClick={handleRefreshAddresses}
+                              >
+                                Try Again
+                              </Button>
+                            </div>
+                          ) : userAddresses.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-8">
+                              <img
+                                src={images.EmptyFallback}
+                                alt="No addresses"
+                                className="h-40 mb-4"
+                              />
+                              <p className="text-gray-500">No addresses found for this customer</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-6">
+                              {userAddresses.map((addr, index) => {
+                                const recipientName = addr.recipient || `${addr.firstName || ''} ${addr.lastName || ''}`.trim() || customerData.name;
+                                
+                                return (
+                                  <div key={addr.id || index} className="border-b pb-6 last:border-b-0">
+                                    <div className="flex items-center justify-between mb-3">
+                                      {addr.isDefault && (
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                          Default Address
+                                        </Badge>
+                                      )}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleViewAddressDetails(addr.id)}
+                                        className="ml-auto text-[#CC5500] hover:text-[#CC5500]/90"
+                                      >
+                                        <EyeIcon className="h-4 w-4 mr-2" />
+                                        View Details
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm">
+                                      <Info
+                                        label="Full Name"
+                                        value={recipientName}
+                                        icon={<User className="h-5 w-5" />}
+                                        iconContainerClassName="w-8 h-8 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center"
+                                      />
+                                      <Info
+                                        label="Email Address"
+                                        value={addr.email || customerData.email}
+                                        icon={<Mail className="h-5 w-5" />}
+                                        iconContainerClassName="w-8 h-8 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center"
+                                      />
+                                      <Info
+                                        label="Phone Number"
+                                        value={addr.phoneNumber || customerData.phoneNumber || "Not provided"}
+                                        icon={<Phone className="h-5 w-5" />}
+                                        iconContainerClassName="w-8 h-8 rounded-md bg-teal-100 text-teal-600 flex items-center justify-center"
+                                      />
+                                      <div className="flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-md bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                                          <MapPin className="h-5 w-5" />
+                                        </div>
+                                        <div className="flex flex-col min-w-0 flex-1">
+                                          <p className="text-[#666666] text-sm">Address</p>
+                                          <div className="flex flex-col gap-1">
+                                            {addr.addLine1 && (
+                                              <p className="font-medium">{addr.addLine1}</p>
+                                            )}
+                                            {addr.addLine2 && (
+                                              <p className="text-gray-600">{addr.addLine2}</p>
+                                            )}
+                                            {addr.addLine3 && (
+                                              <p className="text-gray-600">{addr.addLine3}</p>
+                                            )}
+                                            {addr.city && (
+                                              <p className="text-gray-600">{addr.city}</p>
+                                            )}
+                                            <p className="text-gray-600">
+                                              {addr.postCode && `${addr.postCode}, `}
+                                              {addr.country}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
 
@@ -849,16 +971,34 @@ export default function AdminCustomerDetailPage() {
                               <h3 className="text-md">
                                 Change customer status
                               </h3>
+                              <p className="text-sm text-gray-500">
+                                Current status:{" "}
+                                <span className="font-medium capitalize">
+                                  {customerData.status.replace("_", " ")}
+                                </span>
+                              </p>
                             </div>
                             <Button
                               variant={"outline"}
                               className="h-11 text-[#E51C00] hover:text-[#E51C00]/90 border-[#E51C00]"
+                              onClick={() => setIsStatusModalOpen(true)}
                             >
                               Change Status
                             </Button>
                           </div>
                         </CardContent>
                       </Card>
+
+                      <StatusUpdateModal
+                        isOpen={isStatusModalOpen}
+                        onClose={() => setIsStatusModalOpen(false)}
+                        onConfirm={handleStatusUpdate}
+                        currentStatus={customerData.status as UserStatus}
+                        userType="client"
+                        title="Update Customer Status"
+                        description="Select a new status for this customer"
+                        loading={statusUpdateLoading}
+                      />
                     </div>
                   </TabsContent>
 
@@ -931,43 +1071,27 @@ export default function AdminCustomerDetailPage() {
                                   </Button>
                                 )}
                               </div>
-
-                              <div className="flex items-center gap-3">
-                                {/* View Mode Toggle */}
-                                <div className="flex rounded-lg p-1 gap-4">
-                                  <Button
-                                    variant={"outline"}
-                                    onClick={() => setViewMode("grid")}
-                                    className={`h-11 ${
-                                      viewMode === "grid"
-                                        ? "bg-[#CC5500] hover:bg-[#CC5500]/90 hover:text-white text-white"
-                                        : ""
-                                    }`}
-                                  >
-                                    <GridIcon className="h-4 w-4" />
-                                    Grid
-                                  </Button>
-                                  <Button
-                                    variant={"outline"}
-                                    onClick={() => setViewMode("list")}
-                                    className={`h-11 ${
-                                      viewMode === "list"
-                                        ? "bg-[#CC5500] hover:bg-[#CC5500]/90 hover:text-white text-white"
-                                        : ""
-                                    }`}
-                                  >
-                                    <ListIcon className="h-4 w-4" />
-                                    List
-                                  </Button>
-                                </div>
-                              </div>
                             </div>
                           </div>
 
                           {/* Orders Display */}
                           <div className="">
-                            {viewMode === "list" ? (
-                              // List View (DataTable)
+                            {filteredOrders.length === 0 ? (
+                              <div className="flex flex-col items-center text-center py-12">
+                                <img
+                                  src={images.EmptyFallback}
+                                  alt=""
+                                  className="h-60 mb-6"
+                                />
+                                <p className="text-muted-foreground">
+                                  {searchQuery ||
+                                  selectedStatuses.length > 0 ||
+                                  activeTab !== "all"
+                                    ? "No orders found matching your criteria"
+                                    : "No orders found"}
+                                </p>
+                              </div>
+                            ) : (
                               <DataTable<Order>
                                 data={filteredOrders}
                                 fields={orderFields}
@@ -976,61 +1100,6 @@ export default function AdminCustomerDetailPage() {
                                 enablePagination={true}
                                 pageSize={10}
                               />
-                            ) : (
-                              // Grid View
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredOrders.map((order) => (
-                                  <Card key={order.id} className="border">
-                                    <CardContent className="p-4">
-                                      <div className="space-y-3">
-                                        <div className="flex justify-between items-start">
-                                          <span className="font-medium">
-                                            {order.orderNumber}
-                                          </span>
-                                          <Badge
-                                            className={`${
-                                              statusConfig[order.status].bgColor
-                                            } ${
-                                              statusConfig[order.status]
-                                                .textColor
-                                            }`}
-                                          >
-                                            {statusConfig[order.status].label}
-                                          </Badge>
-                                        </div>
-                                        <p className="text-sm text-muted-foreground">
-                                          {order.date}
-                                        </p>
-                                        <p className="font-medium">
-                                          {order.productName}
-                                        </p>
-                                        <div className="flex justify-between text-sm">
-                                          <span>Qty: {order.quantity}</span>
-                                          <span className="font-medium">
-                                            {formatAmount(order.totalAmount)}
-                                          </span>
-                                        </div>
-                                        <p className="text-sm">
-                                          Payment: {order.paymentMethod}
-                                        </p>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="w-full mt-2"
-                                          onClick={() =>
-                                            navigate(
-                                              `/admin/orders/${order.id}`
-                                            )
-                                          }
-                                        >
-                                          <EyeIcon className="h-4 w-4 mr-2" />
-                                          View Details
-                                        </Button>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                ))}
-                              </div>
                             )}
 
                             {filteredOrders.length === 0 && (
@@ -1061,11 +1130,19 @@ export default function AdminCustomerDetailPage() {
                     <TabsContent value={activeTab} className="mt-8">
                       <Card className="max-w-8xl mx-auto shadow-none border-none bg-white">
                         <CardContent className="px-6 py-12 text-center">
-                          <p className="text-gray-500">
-                            {activeTab.charAt(0).toUpperCase() +
-                              activeTab.slice(1)}{" "}
-                            content coming soon...
-                          </p>
+                          <div className="flex flex-col items-center text-center py-3">
+                            <img
+                              src={images.EmptyFallback}
+                              alt=""
+                              className="h-60 mb-6"
+                            />
+                            <p className="text-gray-500">
+                              No{" "}
+                              {activeTab.charAt(0).toUpperCase() +
+                                activeTab.slice(1)}{" "}
+                              content available
+                            </p>
+                          </div>
                         </CardContent>
                       </Card>
                     </TabsContent>

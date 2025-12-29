@@ -26,7 +26,9 @@ export default function CreatePasswordPage() {
     loading,
     error: authError,
     clearError,
+    user,
     isAuthenticated,
+    verificationPending,
   } = useReduxAuth();
 
   // Get form data from navigation state
@@ -42,20 +44,49 @@ export default function CreatePasswordPage() {
     terms: "",
   });
 
+  // Clear localStorage before signup to prevent false authentication
+  useEffect(() => {
+    // Clear user data to prevent false authentication
+    localStorage.removeItem("user");
+    localStorage.removeItem("pendingVerificationEmail");
+    localStorage.removeItem("pendingRegistrationData");
+
+    // Only keep authData if it exists (for tokens)
+    const authData = localStorage.getItem("authData");
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        // Remove user from authData too
+        delete parsed.user;
+        localStorage.setItem("authData", JSON.stringify(parsed));
+      } catch (e) {
+        localStorage.removeItem("authData");
+      }
+    }
+  }, []);
+
   // Debug: Check what data we're receiving
   useEffect(() => {
     console.log("CreatePasswordPage - Received signUpData:", signUpData);
-    console.log("CreatePasswordPage - Email from signUpData:", signUpData?.email);
-    
+    console.log(
+      "CreatePasswordPage - Email from signUpData:",
+      signUpData?.email
+    );
+
     if (!signUpData) {
       console.log("CreatePasswordPage - No signUpData, redirecting to signup");
       navigate("/auth/signup");
     }
-    
-    if (isAuthenticated) {
-      navigate("/profile", { replace: true });
-    }
-  }, [signUpData, isAuthenticated, navigate]);
+  }, [signUpData, navigate]);
+
+  // Debug: Add this useEffect to see auth state
+  useEffect(() => {
+    console.log("CreatePasswordPage - Auth state:", {
+      isAuthenticated,
+      user,
+      verificationPending,
+    });
+  }, [isAuthenticated, user, verificationPending]);
 
   const validatePassword = () => {
     const errors = { password: "", confirmPassword: "", terms: "" };
@@ -120,31 +151,43 @@ export default function CreatePasswordPage() {
 
     console.log("CreatePasswordPage - Sending registration data:", {
       ...registrationData,
-      password: "***HIDDEN***" // Don't log password
+      password: "***HIDDEN***",
     });
 
     try {
-      // Call the signup API
-      const result = await signup(registrationData);
-      console.log("CreatePasswordPage - Signup result:", result);
+      // Call signup API
+      await signup(registrationData);
 
       // Store email in localStorage as backup
       localStorage.setItem("pendingVerificationEmail", signUpData.email);
 
-      // Navigate to verification page
-      navigate("/auth/verify", {
-        state: { 
+      // Also store the registration data temporarily
+      localStorage.setItem(
+        "pendingRegistrationData",
+        JSON.stringify({
           email: signUpData.email,
-          message: "Registration successful! Please verify your email." 
+          firstName: signUpData.firstName,
+          lastName: signUpData.lastName,
+        })
+      );
+
+      // Navigate to verification page with success message
+      navigate("/auth/verify", {
+        state: {
+          email: signUpData.email,
+          message: "Registration successful! Please verify your email.",
         },
+        replace: true,
       });
     } catch (error: any) {
       console.error("CreatePasswordPage - Sign up failed:", error);
-      
+
       if (error.message?.includes("password")) {
         setPasswordError(error.message);
       } else {
-        setPasswordError(error.message || "Failed to create account. Please try again.");
+        setPasswordError(
+          error.message || "Failed to create account. Please try again."
+        );
       }
     }
   };
@@ -203,8 +246,12 @@ export default function CreatePasswordPage() {
             </p>
 
             <div className="flex flex-row justify-center gap-2">
-              <p className="text-[#4B5675] text-sm dark:text-gray-500">Already have an account?</p>
-              <Link to={"/auth/"} className="text-[#1B84FF] text-sm">Sign in</Link>
+              <p className="text-[#4B5675] text-sm dark:text-gray-500">
+                Already have an account?
+              </p>
+              <Link to={"/auth/"} className="text-[#1B84FF] text-sm">
+                Sign in
+              </Link>
             </div>
           </CardHeader>
 

@@ -410,9 +410,9 @@ export default function AdminWishlistDetailPage() {
   };
 
   // Helper to get vendor name
-  const getVendorName = () => {
-    return product?.vendor?.businessName || "Unknown Vendor";
-  };
+ const getVendorName = () => {
+  return product?.vendorName || product?.sellerName || "Unknown Vendor";
+};
 
   // Loading state
   if (isLoading || loading) {
@@ -755,16 +755,14 @@ export default function AdminWishlistDetailPage() {
                   <div className="mb-6">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl font-bold">${product.price}</span>
-                      {product.salePrice && (
-                        <>
-                          <span className="text-lg text-muted-foreground line-through">
-                            ${product.salePrice}
-                          </span>
-                          <Badge variant="secondary" className="ml-2">
-                            Sale
-                          </Badge>
-                        </>
-                      )}
+                      {product.compareAtPrice && product.compareAtPrice > product.price && (
+  <>
+    <span className="text-lg text-muted-foreground line-through">
+      ${product.compareAtPrice.toFixed(2)}
+    </span>
+    <Badge variant="secondary" className="ml-2">Sale</Badge>
+  </>
+)}
                     </div>
                   </div>
 
@@ -806,7 +804,7 @@ export default function AdminWishlistDetailPage() {
                           Available Stock
                         </Label>
                         <p className="text-muted-foreground">
-                          {product.stock} units
+                          {product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0} units
                         </p>
                       </div>
 
@@ -815,7 +813,7 @@ export default function AdminWishlistDetailPage() {
                           SKU
                         </Label>
                         <p className="text-muted-foreground">
-                          {product.sku}
+                          {product.variants?.[0]?.sku || "N/A"}
                         </p>
                       </div>
 

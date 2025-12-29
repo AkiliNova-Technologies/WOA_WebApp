@@ -20,6 +20,10 @@ import { ProfileImage } from "@/components/profile-image";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { useReduxAuth } from "@/hooks/useReduxAuth";
+import { useReduxUsers } from "@/hooks/useReduxUsers";
+import { toast } from "sonner";
+import { Loader2, AlertCircle } from "lucide-react";
 
 const reasons = [
   {
@@ -44,24 +48,24 @@ const reasons = [
 const subReasons: Record<string, string[]> = {
   "business reasons": [
     "I only had one (or a few) things to sell",
-    "I’m moving my business to my own site",
+    "I'm moving my business to my own site",
     "The income is not worth my time",
-    "I’m switching to a different World of Afrika account or shop",
-    "I’m focusing on craft fairs or other in-person sales",
+    "I'm switching to a different World of Afrika account or shop",
+    "I'm focusing on craft fairs or other in-person sales",
     "Other",
   ],
   "personal reasons": [
-    "I can’t keep up with my orders",
+    "I can't keep up with my orders",
     "I need to focus on family matters",
-    "I’m starting a new job or moving to a new town",
-    "It’s no longer fun",
+    "I'm starting a new job or moving to a new town",
+    "It's no longer fun",
     "Other",
   ],
   "world of afrika ain't right for me": [
     "World of Afrika is complicated or hard to use",
     "World of Afrika is not a good fit for my product",
-    "I’m not getting enough views or finding it hard to stand out",
-    "I’m unhappy with World of Afrika’s policies, recent changes or overall direction",
+    "I'm not getting enough views or finding it hard to stand out",
+    "I'm unhappy with World of Afrika's policies, recent changes or overall direction",
     "My business is too big for World of Afrika",
     "Other",
   ],
@@ -70,36 +74,84 @@ const subReasons: Record<string, string[]> = {
 
 export default function AccountSettingsPage() {
   const navigate = useNavigate();
+  const { 
+    user, 
+    updateCurrentUser, 
+    changePassword, 
+    signout,
+    getFullName,
+    getAvatar,
+    loading: authLoading 
+  } = useReduxAuth();
+  
+  const { 
+    profile, 
+    updateProfile, 
+    deleteAccount,
+    loading: usersLoading 
+  } = useReduxUsers();
+
+  // Form states
+  const [firstName, setFirstName] = React.useState("");
+  const [lastName, setLastName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [phoneNumber, setPhoneNumber] = React.useState("");
+  const [streetAddress, setStreetAddress] = React.useState("");
+  const [profileImage, setProfileImage] = React.useState<string | null>(null);
+  const [isUploading, setIsUploading] = React.useState(false);
+  
+  // Change password states
+  const [currentPassword, setCurrentPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = React.useState("");
+  const [changingPassword, setChangingPassword] = React.useState(false);
+  const [passwordError, setPasswordError] = React.useState("");
+
+  // Location states
   const [countries, setCountries] = React.useState<Country[]>([]);
   const [cities, setCities] = React.useState<City[]>([]);
   const [selectedCountry, setSelectedCountry] = React.useState<string>("");
   const [selectedCity, setSelectedCity] = React.useState<string>("");
-  const [loading, setLoading] = React.useState(true);
+  const [loadingCountries, setLoadingCountries] = React.useState(true);
   const [citiesLoading, setCitiesLoading] = React.useState(false);
 
+  // Delete account states
   const [selectedReason, setSelectedReason] = React.useState<string>("");
   const [selectedSubReason, setSelectedSubReason] = React.useState<string>("");
   const [additionalFeedback, setAdditionalFeedback] = React.useState("");
-  const [profileImage, setProfileImage] = React.useState<string | null>(null);
-  const [userName] = React.useState("John Doe");
-
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  // Delete dialog state
+  
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const loading = authLoading || usersLoading;
+
+  // Initialize form with user data
+  React.useEffect(() => {
+    if (user || profile) {
+      const userData = user || profile;
+      if (userData) {
+        setFirstName(userData.firstName || "");
+        setLastName(userData.lastName || "");
+        setEmail(userData.email || "");
+        setPhoneNumber(userData.phoneNumber || "");
+        setProfileImage(getAvatar() || null);
+      }
+    }
+  }, [user, profile, getAvatar]);
 
   // Fetch countries on component mount
   React.useEffect(() => {
     const fetchCountries = async () => {
       try {
-        setLoading(true);
+        setLoadingCountries(true);
         const countriesData = await countriesApi.getAfricanCountries();
         setCountries(countriesData);
       } catch (error) {
         console.error("Error fetching countries:", error);
+        toast.error("Failed to load countries");
       } finally {
-        setLoading(false);
+        setLoadingCountries(false);
       }
     };
 
@@ -124,6 +176,7 @@ export default function AccountSettingsPage() {
       } catch (error) {
         console.error("Error fetching cities:", error);
         setCities([]);
+        toast.error("Failed to load cities");
       } finally {
         setCitiesLoading(false);
       }
@@ -154,6 +207,10 @@ export default function AccountSettingsPage() {
     }
   };
 
+  // ========================
+  // PROFILE IMAGE UPLOAD
+  // ========================
+
   const handleChooseImageClick = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
@@ -164,72 +221,223 @@ export default function AccountSettingsPage() {
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith("image/")) {
-        alert("Please select an image file");
-        return;
-      }
+    if (!file) return;
 
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Please select an image smaller than 5MB");
-        return;
-      }
-
-      try {
-        // Simulate upload - replace with your actual upload logic
-        console.log("Uploading profile image:", file.name);
-
-        // Create preview URL (in production, use the URL from your server)
-        const imageUrl = URL.createObjectURL(file);
-        setProfileImage(imageUrl);
-
-        // TODO: Upload to your backend
-        // const formData = new FormData();
-        // formData.append('profileImage', file);
-        // await fetch('/api/upload-profile', { method: 'POST', body: formData });
-      } catch (error) {
-        console.error("Error uploading profile image:", error);
-        alert("Failed to upload image. Please try again.");
-      }
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file (JPEG, PNG, etc.)");
+      return;
     }
 
-    // Reset the input value to allow selecting the same file again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Please select an image smaller than 5MB");
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Create preview URL immediately for better UX
+      const imageUrl = URL.createObjectURL(file);
+      setProfileImage(imageUrl);
+
+      // Create FormData for upload
+      const formData = new FormData();
+      formData.append("profileImage", file);
+      formData.append("userId", user?.id || profile?.id || "");
+
+      // Upload to backend
+      const response = await fetch("/api/v1/user/upload-profile-image", {
+        method: "POST",
+        body: formData,
+        headers: {
+          // Note: Don't set Content-Type for FormData, browser does it automatically
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result?.avatarUrl) {
+        // Update local state with new avatar URL
+        const newAvatarUrl = result.avatarUrl;
+        setProfileImage(newAvatarUrl);
+        
+        // Update user in Redux state
+        updateCurrentUser({ avatar: newAvatarUrl });
+        
+        toast.success("Profile image updated successfully!");
+      } else {
+        throw new Error("No avatar URL in response");
+      }
+    } catch (error: any) {
+      console.error("Error uploading profile image:", error);
+      toast.error(error.message || "Failed to upload image");
+      // Revert to previous image
+      setProfileImage(getAvatar() || null);
+    } finally {
+      setIsUploading(false);
+      // Reset the input value
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
-  // Handle account deletion
+  // ========================
+  // UPDATE PROFILE FUNCTION
+  // ========================
+
+  const handleUpdateProfile = async () => {
+    try {
+      // Validate required fields
+      if (!firstName.trim()) {
+        toast.error("First name is required");
+        return;
+      }
+      if (!lastName.trim()) {
+        toast.error("Last name is required");
+        return;
+      }
+
+      const updateData = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phoneNumber: phoneNumber.trim() || undefined,
+      };
+
+      // Call update profile function
+      await updateProfile(updateData);
+      
+      // Also update auth state if needed
+      updateCurrentUser(updateData);
+      
+      toast.success("Profile updated successfully!");
+    } catch (error: any) {
+      console.error("Error updating profile:", error);
+      toast.error(error.message || "Failed to update profile");
+    }
+  };
+
+  // ========================
+  // CHANGE PASSWORD FUNCTION
+  // ========================
+
+  const handleChangePassword = async () => {
+    // Reset error
+    setPasswordError("");
+
+    // Validate passwords
+    if (!currentPassword) {
+      setPasswordError("Current password is required");
+      return;
+    }
+    if (!newPassword) {
+      setPasswordError("New password is required");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters long");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError("New passwords do not match");
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      await changePassword(currentPassword, newPassword);
+      
+      // Clear password fields on success
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setPasswordError("");
+      
+      toast.success("Password changed successfully!");
+    } catch (error: any) {
+      console.error("Error changing password:", error);
+      setPasswordError(error.message || "Failed to change password");
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  // ========================
+  // DELETE ACCOUNT FUNCTION
+  // ========================
+
   const handleDeleteAccount = async () => {
+    if (!selectedReason) {
+      toast.error("Please select a reason for deleting your account");
+      return;
+    }
+
     setDeleting(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // TODO: Replace with actual delete API call
-      // await fetch('/api/delete-account', { method: 'DELETE' });
-
-      console.log("Account deletion data:", {
+      // Prepare delete data
+      const deleteData = {
         reason: selectedReason,
-        subReason: selectedSubReason,
-        feedback: additionalFeedback,
-      });
+        subReason: selectedSubReason || undefined,
+        additionalFeedback: additionalFeedback || undefined,
+      };
 
-      // Show success message or redirect
-      alert("Account deletion process started successfully!");
-      setDeleteDialogOpen(false);
-
-      // Reset form
-      setSelectedReason("");
-      setSelectedSubReason("");
-      setAdditionalFeedback("");
-    } catch (error) {
+      console.log("Deleting account with data:", deleteData);
+      
+      // Delete account using users hook
+      await deleteAccount();
+      
+      toast.success("Account deleted successfully!");
+      
+      // Logout the user after account deletion
+      await signout();
+      
+      // Navigate to home page
+      navigate("/", { replace: true });
+    } catch (error: any) {
       console.error("Error deleting account:", error);
-      alert("Failed to delete account. Please try again.");
+      toast.error(error.message || "Failed to delete account");
     } finally {
       setDeleting(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  // ========================
+  // SAVE ADDRESS FUNCTION
+  // ========================
+
+  const handleSaveAddress = async () => {
+    try {
+      const addressData = {
+        streetAddress: streetAddress.trim(),
+        country: selectedCountry,
+        city: selectedCity,
+      };
+
+      // Save to backend
+      const response = await fetch("/api/v1/user/save-address", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(addressData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save address");
+      }
+
+      toast.success("Address saved successfully!");
+    } catch (error: any) {
+      console.error("Error saving address:", error);
+      toast.error(error.message || "Failed to save address");
     }
   };
 
@@ -238,8 +446,45 @@ export default function AccountSettingsPage() {
     setSelectedSubReason("");
   }, [selectedReason]);
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-[#CC5500]" />
+        <span className="ml-2">Loading account settings...</span>
+      </div>
+    );
+  }
+
+  // Show error state if no user data
+  if (!user && !profile) {
+    return (
+      <div className="min-h-screen p-6">
+        <Card className="shadow-xs">
+          <CardContent className="py-12">
+            <div className="text-center">
+              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Account Not Found
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Unable to load your account information. Please try logging in again.
+              </p>
+              <Button
+                onClick={() => navigate("/login")}
+                className="bg-[#CC5500] hover:bg-[#CC5500]/90"
+              >
+                Go to Login
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       {/* Account Settings */}
       <Card className="shadow-xs">
         <CardHeader className="border-b">
@@ -247,73 +492,115 @@ export default function AccountSettingsPage() {
             <h1 className="text-2xl font-medium">Account Settings</h1>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 flex-col-reverse">
-            <div className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="space-y-6">
               <div>
-                <Label htmlFor="firstName" className="mb-2 block">
+                <Label htmlFor="firstName" className="mb-2 block text-sm font-medium">
                   First name
                 </Label>
                 <Input
                   id="firstName"
                   className="h-11"
                   placeholder="Enter first name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  disabled={loading}
                 />
               </div>
               <div>
-                <Label htmlFor="lastName" className="mb-2 block">
+                <Label htmlFor="lastName" className="mb-2 block text-sm font-medium">
                   Last name
                 </Label>
                 <Input
                   id="lastName"
                   className="h-11"
                   placeholder="Enter last name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  disabled={loading}
                 />
               </div>
               <div>
-                <Label htmlFor="email" className="mb-2 block">
+                <Label htmlFor="email" className="mb-2 block text-sm font-medium">
                   Email
                 </Label>
                 <Input
                   id="email"
                   className="h-11"
                   placeholder="Enter email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Email cannot be changed
+                </p>
               </div>
               <div>
-                <Label htmlFor="phoneNumber" className="mb-2 block">
+                <Label htmlFor="phoneNumber" className="mb-2 block text-sm font-medium">
                   Phone Number
                 </Label>
                 <Input
                   id="phoneNumber"
                   className="h-11"
                   placeholder="(603) 555-0123"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  disabled={loading}
                 />
               </div>
-              <div>
+              <div className="pt-4">
                 <Button
-                  variant={"secondary"}
-                  className="h-11 rounded-full px-10 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white font-semibold"
+                  variant="default"
+                  className="h-11 rounded-full px-8 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white font-semibold"
+                  onClick={handleUpdateProfile}
+                  disabled={loading || !firstName.trim() || !lastName.trim()}
                 >
-                  Edit Profile
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Profile"
+                  )}
                 </Button>
               </div>
             </div>
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <ProfileImage
-                src={profileImage}
-                alt={userName}
-                size="2xl"
-                className="mb-4"
-              />
-              <div>
+            <div className="flex flex-col items-center justify-center space-y-6">
+              <div className="relative">
+                <ProfileImage
+                  src={profileImage}
+                  alt={getFullName() || "User"}
+                  size="2xl"
+                  className="mb-4 border-4 border-white shadow-lg"
+                />
+                {isUploading && (
+                  <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-white" />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3 text-center">
                 <Button
-                  variant={"outline"}
-                  className="h-11 rounded-full px-6 border-[#CC5500] text-[#CC5500] hover:bg-[#CC5500] hover:text-white font-semibold"
+                  variant="outline"
+                  className="h-11 rounded-full px-6 border-[#CC5500] text-[#CC5500] hover:bg-[#CC5500] hover:text-white font-semibold transition-colors"
                   onClick={handleChooseImageClick}
+                  disabled={isUploading || loading}
                 >
-                  Choose Image
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    "Choose Image"
+                  )}
                 </Button>
+                <p className="text-xs text-gray-500 max-w-xs">
+                  Supported formats: JPEG, PNG. Max size: 5MB
+                </p>
                 {/* Hidden file input */}
                 <input
                   ref={fileInputRef}
@@ -328,6 +615,89 @@ export default function AccountSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Change Password */}
+      <Card className="shadow-xs">
+        <CardHeader>
+          <CardTitle>
+            <h1 className="text-2xl font-medium">Change Password</h1>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-6">
+          {passwordError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-sm text-red-600 text-sm">
+              <AlertCircle className="inline-block w-4 h-4 mr-2" />
+              {passwordError}
+            </div>
+          )}
+          
+          <div className="space-y-4 max-w-md">
+            <div>
+              <Label htmlFor="currentPassword" className="mb-2 block text-sm font-medium">
+                Current Password
+              </Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                className="h-11"
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                disabled={changingPassword || loading}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="newPassword" className="mb-2 block text-sm font-medium">
+                New Password
+              </Label>
+              <Input
+                id="newPassword"
+                type="password"
+                className="h-11"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                disabled={changingPassword || loading}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Password must be at least 8 characters long
+              </p>
+            </div>
+            
+            <div>
+              <Label htmlFor="confirmNewPassword" className="mb-2 block text-sm font-medium">
+                Confirm New Password
+              </Label>
+              <Input
+                id="confirmNewPassword"
+                type="password"
+                className="h-11"
+                placeholder="Confirm new password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                disabled={changingPassword || loading}
+              />
+            </div>
+            
+            <Button
+              variant="default"
+              className="h-11 rounded-full px-8 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white font-semibold"
+              onClick={handleChangePassword}
+              disabled={changingPassword || loading || !currentPassword || !newPassword || !confirmNewPassword}
+            >
+              {changingPassword ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Changing Password...
+                </>
+              ) : (
+                "Change Password"
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Address Information */}
       <Card className="shadow-xs">
         <CardHeader>
@@ -335,33 +705,36 @@ export default function AccountSettingsPage() {
             <h1 className="text-2xl font-medium">Address Information</h1>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <div>
-            <Label htmlFor="streetAddress" className="mb-2 block">
+            <Label htmlFor="streetAddress" className="mb-2 block text-sm font-medium">
               Street Address
             </Label>
             <Input
               id="streetAddress"
               className="h-11"
               placeholder="Enter street address"
+              value={streetAddress}
+              onChange={(e) => setStreetAddress(e.target.value)}
+              disabled={loading}
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Country Select */}
             <div>
-              <Label htmlFor="country" className="mb-2 block">
+              <Label htmlFor="country" className="mb-2 block text-sm font-medium">
                 Country / Region
               </Label>
               <Select
                 value={selectedCountry}
                 onValueChange={handleCountryChange}
-                disabled={loading}
+                disabled={loadingCountries || loading}
               >
                 <SelectTrigger id="country" className="min-h-11 w-full">
                   <SelectValue
                     placeholder={
-                      loading ? "Loading countries..." : "Select country"
+                      loadingCountries ? "Loading countries..." : "Select country"
                     }
                   />
                 </SelectTrigger>
@@ -377,13 +750,13 @@ export default function AccountSettingsPage() {
 
             {/* City Select */}
             <div>
-              <Label htmlFor="city" className="mb-2 block">
+              <Label htmlFor="city" className="mb-2 block text-sm font-medium">
                 City
               </Label>
               <Select
                 value={selectedCity}
                 onValueChange={handleCityChange}
-                disabled={!selectedCountry || citiesLoading}
+                disabled={!selectedCountry || citiesLoading || loading}
               >
                 <SelectTrigger id="city" className="min-h-11 w-full">
                   <SelectValue
@@ -417,64 +790,81 @@ export default function AccountSettingsPage() {
               </Select>
             </div>
           </div>
+          
+          <Button
+            variant="default"
+            className="h-11 rounded-full px-8 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white font-semibold"
+            onClick={handleSaveAddress}
+            disabled={loading || !streetAddress.trim() || !selectedCountry || !selectedCity}
+          >
+            Save Address
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Store Status */}
-      <Card className="shadow-xs">
-        <CardHeader>
-          <CardTitle>
-            <h1 className="text-2xl font-medium">Store Status</h1>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Input className="h-11" placeholder="Pending Approval" />
-          </div>
-          <div>
-            <Button
-              variant={"secondary"}
-              className="h-11 rounded-full px-6 bg-[#CCCCCC] hover:bg-[#CCCCCC]/60 text-white font-semibold"
-              onClick={()=> navigate("/vendor")}
-            >
-              Go to Dashboard
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Store Status (For Vendors) */}
+      {(user?.userType === "vendor" || profile?.userType === "vendor") && (
+        <Card className="shadow-xs">
+          <CardHeader>
+            <CardTitle>
+              <h1 className="text-2xl font-medium">Store Status</h1>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-6">
+            <div>
+              <Input 
+                className="h-11" 
+                placeholder={profile?.vendorStatus === "pending" ? "Pending Approval" : "Approved"}
+                disabled 
+              />
+            </div>
+            <div>
+              <Button
+                variant="outline"
+                className="h-11 rounded-full px-8 border-[#CC5500] text-[#CC5500] hover:bg-[#CC5500] hover:text-white font-semibold transition-colors"
+                onClick={() => navigate("/vendor")}
+              >
+                Go to Dashboard
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Delete your account */}
-      <Card className="shadow-xs">
+      <Card className="shadow-xs border-red-100">
         <CardHeader>
           <CardTitle>
-            <h1 className="text-2xl font-medium">Delete your account</h1>
+            <h1 className="text-2xl font-medium text-red-700">Delete your account</h1>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-6 pt-6">
           <div>
-            <div className="mb-6 text-[#1A1A1A]">
-              <h2 className="text-xl font-medium mb-2">
-                What happens when you delete your account?
+            <div className="mb-6 text-[#1A1A1A] bg-red-50 p-4 rounded-lg">
+              <h2 className="text-lg font-semibold mb-3 text-red-800">
+                ⚠️ What happens when you delete your account?
               </h2>
-              <ul className="px-8 space-y-1 text-sm">
-                <li className="list-disc">
-                  Your account will be inactive until you reopen it.
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-start">
+                  <span className="text-red-600 mr-2">•</span>
+                  <span>Your account will be permanently deleted and cannot be recovered</span>
                 </li>
-                <li className="list-disc">
-                  Your profile, shop, and listings will no longer appear
-                  anywhere on World of Afrika.
+                <li className="flex items-start">
+                  <span className="text-red-600 mr-2">•</span>
+                  <span>Your profile, shop, and listings will be removed from World of Afrika</span>
                 </li>
-                <li className="list-disc">
-                  We'll close any non-delivery cases you opened.
+                <li className="flex items-start">
+                  <span className="text-red-600 mr-2">•</span>
+                  <span>All your data including orders, messages, and preferences will be deleted</span>
                 </li>
-                <li className="list-disc">
-                  Your account settings will remain intact, and you can reopen
-                  your account anytime.
+                <li className="flex items-start">
+                  <span className="text-red-600 mr-2">•</span>
+                  <span>Any active subscriptions or pending transactions will be cancelled</span>
                 </li>
               </ul>
             </div>
 
-            <p className="mb-2 font-medium">
+            <p className="mb-4 font-medium">
               Please help us improve by telling us why you're leaving.
             </p>
 
@@ -500,7 +890,7 @@ export default function AccountSettingsPage() {
 
             {/* Conditional Sub-reasons with Radio Buttons */}
             {selectedReason && (
-              <div className="mt-4 space-y-3 py-4">
+              <div className="mt-4 space-y-3 py-4 border-t">
                 <RadioGroup
                   value={selectedSubReason}
                   onValueChange={setSelectedSubReason}
@@ -526,14 +916,15 @@ export default function AccountSettingsPage() {
 
             {/* Additional Feedback */}
             {selectedReason && (
-              <div className="mt-4">
-                <Label htmlFor="feedback" className="text-md font-medium">
+              <div className="mt-6">
+                <Label htmlFor="feedback" className="text-sm font-medium block mb-2">
                   Do you have anything else to tell us?
-                  <span className="text-[#8A8A8A]">Optional</span>
+                  <span className="text-gray-500 font-normal ml-2">(Optional)</span>
                 </Label>
                 <Textarea
                   id="feedback"
-                  className="mt-2 h-28 resize-none"
+                  className="h-32 resize-none"
+                  placeholder="Your feedback helps us improve..."
                   value={additionalFeedback}
                   onChange={(e) => setAdditionalFeedback(e.target.value)}
                 />
@@ -542,17 +933,17 @@ export default function AccountSettingsPage() {
           </div>
 
           <Button
-            variant={"secondary"}
+            variant="destructive"
             className={cn(
-              "h-11 rounded-full px-6 text-white font-semibold transition-colors duration-200",
-              selectedReason && selectedSubReason
-                ? "bg-[#DC2626] hover:bg-[#DC2626]/90" // Destructive red when reason is selected
-                : "bg-[#CCCCCC] hover:bg-[#CCCCCC]/60 cursor-not-allowed" // Gray when no reason
+              "h-11 rounded-full px-8 text-white font-semibold transition-colors duration-200",
+              selectedReason
+                ? "bg-red-600 hover:bg-red-700" // Destructive red when reason is selected
+                : "bg-gray-400 hover:bg-gray-500 cursor-not-allowed" // Gray when no reason
             )}
             onClick={() => setDeleteDialogOpen(true)}
-            disabled={!selectedReason}
+            disabled={!selectedReason || loading}
           >
-            Delete account
+            Delete account permanently
           </Button>
         </CardContent>
       </Card>

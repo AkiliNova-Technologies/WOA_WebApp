@@ -57,7 +57,7 @@ export const Steps: React.FC<CustomStepsProps> = ({
     if (isStepCompleted(stepIndex)) {
       return <CheckIcon className="w-5 h-5" />;
     }
-    return <span className="text-sm font-medium">{stepIndex + 1}</span>;
+    return <span className="text-sm font-medium"></span>;
   };
 
   // Check if the LEFT connector should be completed (connector from previous step to current)
@@ -101,7 +101,7 @@ export const Steps: React.FC<CustomStepsProps> = ({
               }
               ${
                 onChange && (index <= current || completedSteps.includes(index))
-                  ? "cursor-pointer hover:opacity-80 transition-opacity"
+                  ? "cursor-pointer hover:opacity-100 transition-opacity"
                   : "cursor-default"
               }
               ${direction === "vertical" ? "min-h-20" : ""}
@@ -206,7 +206,7 @@ export const Steps: React.FC<CustomStepsProps> = ({
                       ${onChange && (index <= current || completedSteps.includes(index)) ? "hover:scale-105" : ""}
                     `}
                   >
-                    {item.icon || defaultIcon(index)}
+                    {/* {item.icon || defaultIcon(index)} */}
                   </div>
 
                   {/* Step Content - Title below the step number */}

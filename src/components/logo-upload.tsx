@@ -1,30 +1,40 @@
 "use client";
 
-import { X, Eye, FolderUp } from "lucide-react";
+import { X, Eye, FolderUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import React from "react";
+import { uploadToStorage, deleteFromStorage } from "@/config/superbase/storage";
 
 export interface LogoUploadProps {
-  onLogoChange: (file: File | null) => void;
+  onLogoChange: (url: string | null) => void; // Now returns URL instead of file
   className?: string;
   maxSize?: number;
   acceptedFormats?: string;
+  bucket?: string;
+  folder?: string;
+  initialUrl?: string;
 }
 
 export function LogoUpload({
   onLogoChange,
   className,
-  maxSize = 2, // 2MB for logos
+  maxSize = 2,
   acceptedFormats = "image/jpeg,image/jpg,image/png,image/svg+xml",
+  bucket = "vendor-assets",
+  folder = "logos",
+  initialUrl,
 }: LogoUploadProps) {
   const [logo, setLogo] = React.useState<{
-    file: File;
+    file?: File;
     previewUrl: string;
-  } | null>(null);
+    storageUrl?: string;
+    storagePath?: string;
+  } | null>(initialUrl ? { previewUrl: initialUrl, storageUrl: initialUrl } : null);
   const [isDragging, setIsDragging] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     // Validate file type
     if (!acceptedFormats.split(",").includes(file.type)) {
       alert(
@@ -43,10 +53,29 @@ export function LogoUpload({
     }
 
     const previewUrl = URL.createObjectURL(file);
-    const newLogo = { file, previewUrl };
+    setLogo({ file, previewUrl });
+    setUploading(true);
 
-    setLogo(newLogo);
-    onLogoChange(file);
+    // Upload to Supabase
+    const result = await uploadToStorage(file, bucket, folder, false);
+
+    setUploading(false);
+
+    if (result.error) {
+      alert(`Upload failed: ${result.error}`);
+      setLogo(null);
+      return;
+    }
+
+    // Update with storage URL
+    URL.revokeObjectURL(previewUrl);
+    setLogo({
+      file,
+      previewUrl: result.url!,
+      storageUrl: result.url!,
+      storagePath: result.path,
+    });
+    onLogoChange(result.url!);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -76,18 +105,22 @@ export function LogoUpload({
     }
   };
 
-  const removeLogo = () => {
-    if (logo?.previewUrl) {
+  const removeLogo = async () => {
+    // Delete from Supabase if it exists
+    if (logo?.storagePath) {
+      await deleteFromStorage(bucket, logo.storagePath);
+    }
+
+    if (logo?.previewUrl && !logo.storageUrl) {
       URL.revokeObjectURL(logo.previewUrl);
     }
     setLogo(null);
     onLogoChange(null);
   };
 
-  // Clean up object URL on unmount
   React.useEffect(() => {
     return () => {
-      if (logo?.previewUrl) {
+      if (logo?.previewUrl && !logo.storageUrl) {
         URL.revokeObjectURL(logo.previewUrl);
       }
     };
@@ -100,38 +133,46 @@ export function LogoUpload({
         {logo && (
           <div className="shrink-0">
             <div className="relative group">
-              <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
-                <img
-                  src={logo.previewUrl}
-                  alt="Store logo preview"
-                  className="w-full h-full object-contain p-2"
-                />
+              <div className="w-24 h-24 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-[#404040] flex items-center justify-center overflow-hidden">
+                {uploading ? (
+                  <Loader2 className="w-8 h-8 animate-spin text-[#CC5500]" />
+                ) : (
+                  <img
+                    src={logo.previewUrl}
+                    alt="Store logo preview"
+                    className="w-full h-full object-contain p-2"
+                  />
+                )}
               </div>
-              <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => window.open(logo.previewUrl, "_blank")}
-                  className="w-6 h-6 p-0 bg-white border"
-                >
-                  <Eye className="w-3 h-3" />
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={removeLogo}
-                  className="w-6 h-6 p-0"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
+              {!uploading && (
+                <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => window.open(logo.previewUrl, "_blank")}
+                    className="w-6 h-6 p-0 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600"
+                  >
+                    <Eye className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={removeLogo}
+                    className="w-6 h-6 p-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
             </div>
-            <p
-              className="text-xs text-gray-500 mt-2 text-center truncate"
-              title={logo.file.name}
-            >
-              {logo.file.name}
-            </p>
+            {logo.file && (
+              <p
+                className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center truncate"
+                title={logo.file.name}
+              >
+                {logo.file.name}
+              </p>
+            )}
           </div>
         )}
 
@@ -140,8 +181,8 @@ export function LogoUpload({
           className={cn(
             "border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer w-full flex-1",
             isDragging
-              ? "border-blue-500 bg-blue-50"
-              : "border-gray-300 bg-[#F5F5F5] hover:border-[#CC5500]",
+              ? "border-[#CC5500] bg-orange-50 dark:bg-orange-950/20"
+              : "border-gray-300 bg-gray-50 hover:border-[#CC5500] dark:border-gray-600 dark:bg-[#303030] dark:hover:border-[#CC5500]",
             logo && "max-w-full"
           )}
           onDrop={handleDrop}
@@ -149,19 +190,21 @@ export function LogoUpload({
           onDragLeave={handleDragLeave}
           onClick={() => document.getElementById("logo-upload-input")?.click()}
         >
-          <div className="space-y-3 flex-1 ">
+          <div className="space-y-3 flex-1">
             <div className="flex justify-center">
-              <div className="p-3 bg-white rounded-full">
-                <FolderUp className="w-6 h-6"/>
+              <div className="p-3 bg-white dark:bg-gray-700 rounded-full">
+                <FolderUp className="w-6 h-6 text-[#CC5500]" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <p className="text-lg font-medium text-gray-900">
+              <p className="text-lg font-medium text-gray-900 dark:text-white">
                 {logo ? "Change logo" : "Upload store logo"}
               </p>
-              <p className="text-sm text-gray-600">OR</p>
-              <p className="text-xs text-gray-500">Drag and drop logo</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">OR</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Drag and drop logo
+              </p>
             </div>
           </div>
 
@@ -174,10 +217,10 @@ export function LogoUpload({
           />
         </div>
       </div>
-      <div className="text-xs text-gray-400 space-y-1">
+      <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
         <p>
-          Recommended size: 1920×1080px · Format: JPEG or PNG thumbnail · Max
-          size: {maxSize}MB
+          Recommended size: 512×512px · Format: JPEG, PNG, or SVG · Max size:{" "}
+          {maxSize}MB
         </p>
       </div>
     </div>

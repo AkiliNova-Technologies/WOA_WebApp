@@ -32,6 +32,13 @@ import EmptyFallback from "@/assets/images/EmptyFallback.png"
 import Banner1 from "@/assets/images/Banner1.jpg"
 import Banner2 from "@/assets/images/Banner2.jpg"
 import VendorProfile1 from "@/assets/images/VednorProfile.png"
+import HeroImage from "@/assets/images/HeroImage.png"
+import AboutUsImage from "@/assets/images/AboutUs.png"
+import Seller1 from "@/assets/images/Seller1.jpg"
+import Seller2 from "@/assets/images/Seller2.jpg"
+import Seller3 from "@/assets/images/Seller3.jpg"
+import Seller4 from "@/assets/images/Seller4.jpg"
+import Seller5 from "@/assets/images/Seller5.jpg"
 
 
 const images = {
@@ -68,7 +75,14 @@ const images = {
   SubCategory3,
   SubCategory4,
   SubCategory5,
-  VendorProfile1
+  VendorProfile1,
+  HeroImage,
+  AboutUsImage,
+  Seller1,
+  Seller2,
+  Seller3,
+  Seller4,
+  Seller5,
 
 };
 

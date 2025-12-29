@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import images from "@/assets/images";
 import { DataTable } from "@/components/data-table";
 import { ImageUpload } from "@/components/image-upload";
@@ -26,7 +27,6 @@ import {
   Calendar,
   Building,
   User,
-  
   Banknote,
   ListIcon,
   GridIcon,
@@ -45,9 +45,11 @@ import {
   Flag,
   Clock,
   Star,
+  Loader2,
+  ArrowLeft,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useReduxVendors } from "@/hooks/useReduxVendors";
 
 interface InfoProps {
   label: string;
@@ -74,7 +76,7 @@ function Info({
         )}
         <div className="flex flex-col space-y-1">
           <p className="text-[#666666] text-sm">{label}</p>
-          <p className="font-medium dark:text-white">{value}</p>
+          <p className="font-medium dark:text-white">{value || "Not provided"}</p>
         </div>
       </div>
     </div>
@@ -115,36 +117,6 @@ const mockOrders: Order[] = [
     status: "shipped",
     paymentMethod: "PayPal",
   },
-  {
-    id: "3",
-    orderNumber: "ORD-2024-003",
-    date: "2024-03-12",
-    productName: "African Print Dress",
-    quantity: 1,
-    totalAmount: 120.0,
-    status: "processing",
-    paymentMethod: "Credit Card",
-  },
-  {
-    id: "4",
-    orderNumber: "ORD-2024-004",
-    date: "2024-03-10",
-    productName: "Wooden Carved Mask",
-    quantity: 3,
-    totalAmount: 210.0,
-    status: "pending",
-    paymentMethod: "Bank Transfer",
-  },
-  {
-    id: "5",
-    orderNumber: "ORD-2024-005",
-    date: "2024-03-08",
-    productName: "Beaded Necklace Set",
-    quantity: 1,
-    totalAmount: 65.0,
-    status: "cancelled",
-    paymentMethod: "Credit Card",
-  },
 ];
 
 // Mock reviews data
@@ -155,7 +127,7 @@ const mockReviews = [
     date: "Apr 11 2025",
     rating: 4.5,
     comment:
-      "I wore these every day on a trip. The leather is soft and durable, and the sole is sturdy. The stitching is also very clean.",
+      "Great store with quality products. Fast shipping and excellent customer service.",
     helpful: 12,
   },
   {
@@ -164,19 +136,56 @@ const mockReviews = [
     date: "Jul 22 2025",
     rating: 5.0,
     comment:
-      "Absolutely love these! Extremely comfortable right out of the box. Perfect for both casual and formal occasions.",
+      "Absolutely love shopping here! Authentic products and very professional seller.",
     helpful: 15,
   },
 ];
 
+// Helper function to generate avatar color
+const generateAvatarColor = (seed: string): string => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2',
+    '#EF476F', '#073B4C', '#7209B7', '#3A86FF', '#FB5607'
+  ];
+  
+  return colors[Math.abs(hash) % colors.length];
+};
+
 export default function AdminVendorDetailPage() {
+  const { id } = useParams<{ id: string }>();  // This is userId
   const navigate = useNavigate();
+  const { getVendor, loading, error } = useReduxVendors();
+  
+  const [vendor, setVendor] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [sellingPeriod, setSellingPeriod] = useState("12-months");
   const [revenuePeriod, setRevenuePeriod] = useState("12-months");
+
+  // Fetch vendor data
+  useEffect(() => {
+    const fetchVendorData = async () => {
+      if (!id) return;
+      
+      try {
+        console.log("🔍 Fetching vendor with userId:", id);
+        const vendorData = await getVendor(id, false);
+        console.log("📦 Received vendor data:", vendorData);
+        setVendor(vendorData);
+      } catch (err) {
+        console.error("❌ Failed to fetch vendor:", err);
+      }
+    };
+
+    fetchVendorData();
+  }, [id, getVendor]);
 
   // Filter orders based on search and status filters
   const filteredOrders = mockOrders.filter((order) => {
@@ -207,6 +216,37 @@ export default function AdminVendorDetailPage() {
 
   const formatAmount = (amount: number): string => {
     return `$${amount.toFixed(2)}`;
+  };
+
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Unknown";
+      return date.toLocaleDateString("en-US", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return "Unknown";
+    }
+  };
+
+  const getTimeAgo = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (diffHrs < 24) return `${diffHrs}hr ago`;
+      if (diffDays < 30) return `${diffDays} days ago`;
+      if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+      return `${Math.floor(diffDays / 365)} years ago`;
+    } catch {
+      return "Unknown";
+    }
   };
 
   // Status configuration
@@ -240,6 +280,29 @@ export default function AdminVendorDetailPage() {
       color: "bg-red-500",
       bgColor: "bg-red-50",
       textColor: "text-red-700",
+    },
+  };
+
+  const vendorStatusConfig = {
+    pending: {
+      label: "Pending Approval",
+      className: "bg-yellow-100 text-yellow-700",
+    },
+    active: {
+      label: "Store Active",
+      className: "bg-green-600 text-white",
+    },
+    suspended: {
+      label: "Store Suspended",
+      className: "bg-red-600 text-white",
+    },
+    deactivated: {
+      label: "Store Deactivated",
+      className: "bg-gray-600 text-white",
+    },
+    deleted: {
+      label: "Store Deleted",
+      className: "bg-red-800 text-white",
     },
   };
 
@@ -321,54 +384,119 @@ export default function AdminVendorDetailPage() {
     },
   ];
 
+  if (loading) {
+    return (
+      <>
+        <SiteHeader label="Seller Management" />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-gray-400">Loading vendor details...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (error || !vendor) {
+    return (
+      <>
+        <SiteHeader label="Seller Management" />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-600 mb-4">{error || "Vendor not found"}</p>
+            <Button onClick={() => navigate("/admin/users/vendors")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Vendors
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Extract data safely from the API response
+  const user = vendor.user || {};
+  const firstName = user.firstName || '';
+  const lastName = user.lastName || '';
+  const email = user.email || '';
+  const storeName = vendor.storeName || 'Unknown Store';
+  const city = vendor.city || 'Unknown';
+  const country = vendor.country || 'Unknown';
+  const avatarColor = generateAvatarColor(email || vendor.id);
+  const isVerified = vendor.kycStatus === 'approved';
+  const vendorStatus = (vendor.vendorStatus || 'pending') as keyof typeof vendorStatusConfig;
+  const vendorStatusDisplay = vendorStatusConfig[vendorStatus] || vendorStatusConfig.pending;
+  
+  // Safe initials generation
+  const getInitials = () => {
+    const firstInitial = firstName.charAt(0).toUpperCase() || '?';
+    const lastInitial = lastName.charAt(0).toUpperCase() || '?';
+    return `${firstInitial}${lastInitial}`;
+  };
+
   return (
     <>
       <SiteHeader label="Seller Management" />
       <div className="min-h-screen">
         <div className="p-6 mx-auto">
+          {/* Back Button */}
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/admin/users/vendors")}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Vendors
+          </Button>
+
           {/* ================= COVER IMAGE ================= */}
           <div className="relative w-full h-[380px] overflow-hidden rounded-2xl">
             <img
-              src={images.Placeholder}
+              src={vendor.businessBanner || images.Placeholder}
               alt="Cover"
               className="object-cover w-full h-full"
             />
 
             <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3">
-              <h2 className="text-white text-3xl font-semibold">
-                Replace cover image
-              </h2>
-              <p className="text-white/80 text-sm">
-                Optimal dimension 1100×400 px
-              </p>
-
-              <div className="flex gap-4 mt-2">
-                <Button className="bg-white text-black h-9 rounded-full px-6">
-                  Remove
-                </Button>
-                <Button className="bg-white text-black h-9 rounded-full px-6">
-                  Edit
-                </Button>
-              </div>
+              
             </div>
           </div>
 
           {/* ================= STORE SUMMARY ================= */}
           <div className="relative mx-6 -mt-12 shadow-none border-none">
             <Card className="flex flex-col md:flex-row md:items-center gap-6 border mx-6 p-6 shadow-none rounded-b-none border-none">
-              <div className="w-30 h-30 rounded-full bg-[#EFEFEF] flex items-center justify-center text-4xl font-bold text-[#5B5B5B]">
-                3
+              <div
+                className="w-30 h-30 rounded-full flex items-center justify-center text-4xl font-bold text-white"
+                style={{ backgroundColor: avatarColor }}
+              >
+                {getInitials()}
               </div>
 
               <div className="flex-1">
-                <h1 className="text-3xl font-semibold">Theatrix</h1>
-                <p className="text-[#6F6F6F]">Kenya • Nairobi</p>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-3xl font-semibold">{storeName}</h1>
+                  {isVerified && (
+                    <Badge
+                      variant="outline"
+                      className="bg-green-50 text-green-700 border-green-200"
+                    >
+                      Verified
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-[#6F6F6F]">
+                  {country} • {city}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Joined {formatDate(vendor.createdAt)}
+                </p>
               </div>
 
               {/* Stats */}
               <div className="flex flex-col gap-6 text-md">
-                <div className="h-11 rounded-md px-6 flex flex-col justify-center items-center bg-green-600 text-white text-md">
-                  <p className="text-center">Store Approved</p>
+                <div className={`h-11 rounded-md px-6 flex flex-col justify-center items-center ${vendorStatusDisplay.className} text-md`}>
+                  <p className="text-center">{vendorStatusDisplay.label}</p>
                 </div>
               </div>
             </Card>
@@ -440,18 +568,18 @@ export default function AdminVendorDetailPage() {
                                     }`}
                                   />
                                 ))}
-                                <span className="ml-2 font-bold">4.5</span>
+                                <span className="ml-2 font-bold">0.0</span>
                               </div>
                             </div>
 
                             <div className="space-y-3">
                               <p className="text-sm font-medium mb-2">Rating overview</p>
                               {[
-                                { stars: 5, percent: 92.6 },
-                                { stars: 4, percent: 5 },
+                                { stars: 5, percent: 0 },
+                                { stars: 4, percent: 0 },
                                 { stars: 3, percent: 0 },
-                                { stars: 2, percent: 1.1 },
-                                { stars: 1, percent: 1.3 },
+                                { stars: 2, percent: 0 },
+                                { stars: 1, percent: 0 },
                               ].map((item) => (
                                 <div key={item.stars} className="flex items-center gap-3">
                                   <div className="flex items-center gap-1 min-w-[80px]">
@@ -477,6 +605,11 @@ export default function AdminVendorDetailPage() {
                                   </span>
                                 </div>
                               ))}
+                            </div>
+                            <div className="mt-4 pt-4 border-t">
+                              <p className="text-sm text-gray-600">
+                                Total Reviews: <span className="font-semibold">0</span>
+                              </p>
                             </div>
                           </div>
 
@@ -533,7 +666,7 @@ export default function AdminVendorDetailPage() {
                                     </button>
                                     <button className="flex items-center gap-1 text-gray-600 hover:text-gray-900">
                                       <Flag className="w-4 h-4" />
-                                      Report and block
+                                      Report
                                     </button>
                                   </div>
                                 </div>
@@ -673,25 +806,25 @@ export default function AdminVendorDetailPage() {
                             {/* Row 1 */}
                             <Info
                               label="Full Name"
-                              value="John Doe"
+                              value={`${firstName} ${lastName}`}
                               icon={<User className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center"
                             />
                             <Info
                               label="Joined On"
-                              value="2024-01-15"
+                              value={formatDate(vendor.createdAt)}
                               icon={<Calendar className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-green-100 text-green-600 flex items-center justify-center"
                             />
                             <Info
                               label="Account Name"
-                              value="Theatrix Inc."
+                              value={storeName}
                               icon={<Building className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-teal-100 text-teal-600 flex items-center justify-center"
                             />
                             <Info
                               label="Bank Name"
-                              value="DTB Bank"
+                              value={vendor.bankName || "Not provided"}
                               icon={<Banknote className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center"
                             />
@@ -699,25 +832,25 @@ export default function AdminVendorDetailPage() {
                             {/* Row 2 */}
                             <Info
                               label="Store Name"
-                              value="Theatrix"
+                              value={storeName}
                               icon={<Store className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-purple-100 text-purple-600 flex items-center justify-center"
                             />
                             <Info
                               label="Last Active"
-                              value="21hr ago"
+                              value={getTimeAgo(vendor.createdAt)}
                               icon={<Clock className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-green-100 text-green-600 flex items-center justify-center"
                             />
                             <Info
                               label="Account Number"
-                              value="1268290000282629"
+                              value={vendor.accNumber || "Not provided"}
                               icon={<CreditCard className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-red-100 text-red-600 flex items-center justify-center"
                             />
                             <Info
                               label="Swift Code"
-                              value="0000"
+                              value={vendor.swiftCode || "Not provided"}
                               icon={<Code className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-amber-100 text-amber-600 flex items-center justify-center"
                             />
@@ -725,25 +858,25 @@ export default function AdminVendorDetailPage() {
                             {/* Row 3 */}
                             <Info
                               label="Email Address"
-                              value="john@theatrix.com"
+                              value={email}
                               icon={<Mail className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center"
                             />
                             <Info
                               label="Country"
-                              value="Kenya"
+                              value={country}
                               icon={<Globe className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-cyan-100 text-cyan-600 flex items-center justify-center"
                             />
                             <Info
                               label="Phone Number"
-                              value="+1 (555) 123-4567"
+                              value={vendor.phoneNumber || "Not provided"}
                               icon={<Phone className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-green-100 text-green-600 flex items-center justify-center"
                             />
                             <Info
                               label="City"
-                              value="Nairobi"
+                              value={city}
                               icon={<MapPin className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-rose-100 text-rose-600 flex items-center justify-center"
                             />
@@ -760,22 +893,7 @@ export default function AdminVendorDetailPage() {
 
                           <div className="border rounded-sm p-3">
                             <p className="text-sm text-[#3A3A3A] leading-relaxed dark:text-white">
-                              Namugenyii Sarah is a passionate entrepreneur based
-                              in Kampala, specializing in authentic Ugandan fashion
-                              and handmade accessories. With over 5 years of
-                              experience in local retail, she brings a vibrant mix
-                              of tradition and modern style to her storefront. Her
-                              products are ethically sourced, quality-checked, and
-                              crafted to celebrate East African culture.
-                            </p>
-
-                            <p className="text-sm text-[#3A3A3A] leading-relaxed dark:text-white mb-4">
-                              Sarah is known for her responsive customer service,
-                              fast order fulfillment, and commitment to sustainable
-                              packaging. Whether you're shopping for a bold kitenge
-                              outfit or a unique gift, her store offers a curated
-                              experience that blends creativity, reliability, and
-                              heart.
+                              {vendor.description || "No description provided"}
                             </p>
                           </div>
                         </CardContent>
@@ -785,12 +903,8 @@ export default function AdminVendorDetailPage() {
                       <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
                         <CardContent className="p-6">
                           <h2 className="text-lg font-semibold mb-4">Seller story</h2>
-                          <div className="w-full overflow-hidden rounded-xl">
-                            <video
-                              controls
-                              className="w-full h-[450px] rounded-xl"
-                              src="/sample-video.mp4"
-                            />
+                          <div className="w-full overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800 h-[450px] flex items-center justify-center">
+                            <p className="text-gray-400">No video available</p>
                           </div>
                         </CardContent>
                       </Card>
@@ -814,6 +928,7 @@ export default function AdminVendorDetailPage() {
                           <div className="flex flex-row flex-1 justify-between items-center">
                             <div className="space-y-2">
                               <h3 className="text-lg">Location of shop</h3>
+                              <p className="text-sm text-gray-600">{`${city}, ${country}`}</p>
                             </div>
                             <ExternalLink className="w-5 h-5 text-gray-600 cursor-pointer hover:text-gray-900" />
                           </div>
@@ -846,6 +961,9 @@ export default function AdminVendorDetailPage() {
                           <div className="flex flex-row flex-1 justify-between items-center">
                             <div className="space-y-2">
                               <p className="text-md">Change seller store status</p>
+                              <p className="text-sm text-gray-600">
+                                Current status: <span className="font-semibold">{vendorStatusDisplay.label}</span>
+                              </p>
                             </div>
                             <Button
                               variant={"secondary"}

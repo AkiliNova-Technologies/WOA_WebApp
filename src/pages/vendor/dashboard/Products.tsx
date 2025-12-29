@@ -535,8 +535,8 @@ export default function VendorProductsPage() {
               </div>
               <Button
                   variant="default"
-                  className="text-white"
-                  onClick={() => navigate("/vendor/products/add")}
+                  className="text-white dark:text-black"
+                  onClick={() => navigate("/vendor/products/add-product")}
                 >
                   <Plus className="h-4 w-4 mr-2" /> Upload a Product
                 </Button>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DataTable,
@@ -53,15 +53,22 @@ interface ProductStats {
 }
 
 // Helper function to map Redux status to your extended status
-const mapReduxStatusToExtendedStatus = (status: string): ExtendedProductStatus => {
+const mapReduxStatusToExtendedStatus = (status: ReduxProduct["status"]): ExtendedProductStatus => {
   switch (status) {
-    case "published": return "active";
-    case "draft": return "suspended";
-    case "pending_review": return "suspended";
-    case "approved": return "active";
-    case "rejected": return "deactivated";
-    case "archived": return "deactivated";
-    default: return "active";
+    case "published":
+    case "approved":
+      return "active";
+    case "draft":
+    case "pending_approval":
+      return "draft";
+    case "RE_EVALUATION":
+      return "draft";
+    case "rejected":
+      return "suspended";
+    case "archived":
+      return "deactivated";
+    default:
+      return "active";
   }
 };
 
@@ -90,20 +97,22 @@ const formatNumberShort = (num: number): string => {
   return num.toString();
 };
 
-// Define the transformed product type for the table
+// Define the transformed product type for the table - UPDATED
 type TableProduct = {
   id: string;
   name: string;
-  description: string;
+  description?: string; // ✅ Now optional
   price: number;
-  salePrice?: number;
+  compareAtPrice?: number; // ✅ Changed from salePrice
   vendor: string;
   image: string;
   categoryId: string;
-  status: "draft" | "pending_review" | "approved" | "rejected" | "published" | "archived";
+  status: ReduxProduct["status"]; // ✅ Use Redux product status type
   stockQuantity: number;
   sales: number;
   category: string;
+  averageRating: number; // ✅ Added
+  reviewCount: number; // ✅ Added
 };
 
 export default function AdminProductsPage() {
@@ -112,40 +121,69 @@ export default function AdminProductsPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<ExtendedProductStatus[]>([]);
   const [activeTab, setActiveTab] = useState<ProductTab>("all");
 
-  // Use the Redux products hook
+  // ✅ Use publicProducts instead of products
   const { 
-    products, 
+    publicProducts, 
     loading, 
     error,
-    getPublishedProducts,
-    getPendingReviewProducts 
+    getPublicProducts,
+    getProductsByStatus, // ✅ Use this instead of getPublishedProducts
   } = useReduxProducts();
 
-  // Transform Redux products to match your table format
-  const transformProductForTable = (reduxProduct: ReduxProduct): TableProduct => ({
-    id: reduxProduct.id,
-    name: reduxProduct.name,
-    description: reduxProduct.description,
-    price: reduxProduct.price,
-    salePrice: reduxProduct.salePrice,
-    vendor: reduxProduct.vendor?.businessName || "Unknown Vendor",
-    image: reduxProduct.images?.find(img => img.isPrimary)?.url || reduxProduct.images?.[0]?.url || "",
-    categoryId: reduxProduct.categoryId,
-    status: reduxProduct.status,
-    stockQuantity: reduxProduct.stock,
-    sales: 0, // You might need to add this field to your Redux product or fetch separately
-    category: reduxProduct.category?.name || "Uncategorized",
-  });
+  // ✅ Fetch products on mount
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        await getPublicProducts({
+          page: 1,
+          limit: 100,
+        });
+      } catch (error) {
+        console.error("Failed to load products:", error);
+      }
+    };
 
-  const tableProducts = products.map(transformProductForTable);
+    loadProducts();
+  }, [getPublicProducts]);
 
-  // Calculate product statistics based on extended statuses
+  // ✅ Transform Redux products to match your table format - FIXED
+  const transformProductForTable = (reduxProduct: ReduxProduct): TableProduct => {
+    // Calculate total stock from all variants
+    const totalStock = reduxProduct.variants?.reduce(
+      (sum, v) => sum + (v.stockQuantity || 0), 
+      0
+    ) || 0;
+
+    return {
+      id: reduxProduct.id,
+      name: reduxProduct.name,
+      description: reduxProduct.description, // ✅ Already optional
+      price: reduxProduct.price, // ✅ Display price from first variant
+      compareAtPrice: reduxProduct.compareAtPrice, // ✅ Changed from salePrice
+      vendor: reduxProduct.vendorName || "Unknown Vendor", // ✅ Use enriched vendorName
+      image: reduxProduct.image || "", // ✅ Use enriched image field
+      categoryId: reduxProduct.categoryId,
+      status: reduxProduct.status, // ✅ Correct type
+      stockQuantity: totalStock, // ✅ Calculate from variants
+      sales: 0, // TODO: Add from orders API
+      category: reduxProduct.category?.name || "Uncategorized",
+      averageRating: reduxProduct.averageRating || 0, // ✅ Added
+      reviewCount: reduxProduct.reviewCount || 0, // ✅ Added
+    };
+  };
+
+  const tableProducts = publicProducts.map(transformProductForTable);
+
+  // ✅ Calculate product statistics based on extended statuses - FIXED
   const calculateStats = (): ProductStats => {
-    const totalProducts = products.length;
-    const activeProducts = getPublishedProducts().length;
-    const suspendedProducts = getPendingReviewProducts().length;
-    const deactivatedProducts = products.filter(p => p.status === "archived" || p.status === "rejected").length;
-    const deletedProducts = 0; // You might need to track deleted products separately
+    const totalProducts = publicProducts.length;
+    const activeProducts = getProductsByStatus("approved").length + getProductsByStatus("published").length;
+    const suspendedProducts = getProductsByStatus("pending_approval").length + 
+                              getProductsByStatus("draft").length + 
+                              getProductsByStatus("RE_EVALUATION").length + 
+                              getProductsByStatus("rejected").length;
+    const deactivatedProducts = getProductsByStatus("archived").length;
+    const deletedProducts = 0; // Deleted products are not in the system
 
     return {
       totalProducts,
@@ -153,7 +191,7 @@ export default function AdminProductsPage() {
       suspendedProducts,
       deactivatedProducts,
       deletedProducts,
-      totalRevenue: products.reduce((sum, p) => sum + (p.price * 0), 0), // Replace 0 with actual sales data if available
+      totalRevenue: publicProducts.reduce((sum, p) => sum + (p.price * 0), 0), // TODO: Add real sales data
     };
   };
 
@@ -167,7 +205,7 @@ export default function AdminProductsPage() {
     const matchesTab = 
       activeTab === "all" ||
       (activeTab === "active" && extendedStatus === "active") ||
-      (activeTab === "suspended" && extendedStatus === "suspended") ||
+      (activeTab === "suspended" && (extendedStatus === "suspended" || extendedStatus === "draft")) ||
       (activeTab === "deactivated" && extendedStatus === "deactivated") ||
       (activeTab === "deleted" && extendedStatus === "deleted");
 
@@ -312,6 +350,11 @@ export default function AdminProductsPage() {
           <div className="flex flex-col">
             <span className="font-medium text-md">{row.name}</span>
             <span className="text-sm text-muted-foreground">{row.vendor}</span>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-yellow-500">★</span>
+              <span className="text-sm">{row.averageRating.toFixed(1)}</span>
+              <span className="text-sm text-muted-foreground">({row.reviewCount})</span>
+            </div>
           </div>
         </div>
       ),
@@ -327,26 +370,45 @@ export default function AdminProductsPage() {
     {
       key: "price",
       header: "Price",
-      cell: (value) => (
-        <span className="font-medium">{formatAmount(value as number)}</span>
+      cell: (_, row) => (
+        <div className="flex flex-col items-center">
+          {row.compareAtPrice ? (
+            <>
+              <span className="line-through text-gray-400 text-sm">
+                {formatAmount(row.compareAtPrice)}
+              </span>
+              <span className="font-medium text-green-600">
+                {formatAmount(row.price)}
+              </span>
+            </>
+          ) : (
+            <span className="font-medium">{formatAmount(row.price)}</span>
+          )}
+        </div>
       ),
       align: "center",
     },
     {
       key: "stockQuantity",
       header: "Stock Count",
-      cell: (value) => <span className="font-medium">{value as number}</span>,
+      cell: (value) => {
+        const stock = value as number;
+        return (
+          <span className={`font-medium ${stock === 0 ? 'text-red-600' : stock < 10 ? 'text-orange-600' : ''}`}>
+            {stock}
+          </span>
+        );
+      },
       align: "center",
     },
     {
-      key: "sales", // Changed from "revenue" to "sales" since that's what exists
+      key: "sales",
       header: "Revenue Generated",
       cell: (value) => {
-        // Calculate revenue based on sales and price (you might need to adjust this logic)
         const sales = value as number;
         return (
           <span className="font-medium">
-            {formatAmount(sales * 100)} {/* Adjust calculation as needed */}
+            {formatAmount(sales * 100)} 
           </span>
         );
       },
@@ -539,7 +601,7 @@ export default function AdminProductsPage() {
                 </div>
 
                 {/* Products Display - Only Table View */}
-                <div className="px-6">
+                <div className="px-6 mt-6">
                   <DataTable<TableProduct>
                     data={filteredProducts}
                     fields={productFields}

@@ -1,6 +1,7 @@
 import * as React from "react";
 import {
   BadgePercent,
+  Heart,
   Home,
   ScrollText,
   SettingsIcon,
@@ -35,19 +36,24 @@ const data = {
       icon: Tag,
     },
     {
-      title: "Revenue",
-      url: "/vendor/revenue",
-      icon: ScrollText,
-    },
-    {
       title: "Inventory",
       url: "/vendor/inventory",
       icon: BadgePercent,
     },
     {
+      title: "Wishlist",
+      url: "/vendor/wishlist",
+      icon: Heart,
+    },
+    {
       title: "Orders",
       url: "/vendor/orders",
       icon: Store,
+    },
+    {
+      title: "Revenue",
+      url: "/vendor/revenue",
+      icon: ScrollText,
     },
   ],
 

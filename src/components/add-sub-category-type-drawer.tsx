@@ -3,13 +3,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ImageUpload, type UploadDocument } from "@/components/image-upload";
-
-// interface SubCategoryType {
-//   id: string;
-//   name: string;
-//   image: string;
-// }
+import { ImageUpload } from "@/components/image-upload";
 
 interface AddSubCategoryTypeDrawerProps {
   isOpen: boolean;
@@ -25,21 +19,25 @@ export function AddSubCategoryTypeDrawer({
   const [subCategoryTypeName, setSubCategoryTypeName] = useState("");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
-  const [documents, setDocuments] = useState<UploadDocument[]>([]);
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
 
-  const handleImageChange = (files: UploadDocument[]) => {
-    if (files.length > 0 && files[0].file) {
-      // Use the first file if available
-      const file = files[0].file;
-      setSelectedImage(file);
-      setImagePreview(files[0].previewUrl);
+  // ✅ Changed to accept string[] (URLs) instead of UploadDocument[]
+  const handleImageChange = (urls: string[]) => {
+    if (urls.length > 0) {
+      // Store the URL
+      setUploadedUrls(urls);
+      setImagePreview(urls[0]);
       
-      // Also update the documents state for the ImageUpload component
-      setDocuments(files);
+      // Note: Since ImageUpload now returns URLs from Supabase,
+      // you'll need to handle file conversion differently or
+      // modify your onAddSubCategoryType to accept URL instead of File
+      
+      // For now, we'll keep the URL in state
+      // You may need to update the parent component to accept URL instead
     } else {
       setSelectedImage(null);
       setImagePreview("");
-      setDocuments([]);
+      setUploadedUrls([]);
     }
   };
 
@@ -49,15 +47,16 @@ export function AddSubCategoryTypeDrawer({
       return;
     }
 
-    if (!selectedImage) {
+    if (uploadedUrls.length === 0 && !selectedImage) {
       alert("Please select an image for the sub-category type");
       return;
     }
 
     // Call the parent function with the data
+    // Note: You may need to update this based on whether parent expects File or URL
     onAddSubCategoryType({
       name: subCategoryTypeName.trim(),
-      image: selectedImage
+      image: selectedImage // or pass uploadedUrls[0] if parent accepts URL
     });
     
     handleClose();
@@ -67,12 +66,7 @@ export function AddSubCategoryTypeDrawer({
     setSubCategoryTypeName("");
     setSelectedImage(null);
     setImagePreview("");
-    setDocuments([]);
-    
-    // Clean up object URLs
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-    }
+    setUploadedUrls([]);
     
     onClose();
   };
@@ -132,7 +126,7 @@ export function AddSubCategoryTypeDrawer({
               maxHeight="max-h-48"
               maxSize={10}
               className="w-full"
-              initialDocuments={documents}
+              initialUrls={uploadedUrls}
             />
             {imagePreview && (
               <div className="mt-2">
@@ -159,7 +153,7 @@ export function AddSubCategoryTypeDrawer({
           <Button
             onClick={handleAddSubCategoryType}
             className="flex-1 h-11 bg-[#CC5500] hover:bg-[#B34D00] text-white"
-            disabled={!subCategoryTypeName.trim() || !selectedImage}
+            disabled={!subCategoryTypeName.trim() || (uploadedUrls.length === 0 && !selectedImage)}
           >
             Add Sub Category Type
           </Button>

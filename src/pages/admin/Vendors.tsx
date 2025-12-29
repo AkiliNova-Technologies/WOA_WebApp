@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DataTable,
@@ -9,13 +9,7 @@ import { SectionCards, type CardData } from "@/components/section-cards";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Search } from "@/components/ui/search";
-import {
-  EyeIcon,
-  Plus,
-  Loader2,
-  Download,
-  FilterIcon,
-} from "lucide-react";
+import { EyeIcon, Plus, Loader2, Download, FilterIcon } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import {
   DropdownMenu,
@@ -23,68 +17,181 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useReduxUsers } from "@/hooks/useReduxUsers";
-import type { UserProfile } from "@/redux/slices/usersSlice";
+import { useReduxVendors, type CombinedVendor } from "@/hooks/useReduxVendors";
 import images from "@/assets/images";
 
-// Vendor/Seller type definition
+// Types
 type VendorStatus =
-  | "pending_approval"
-  | "onboarded"
+  | "pending"
   | "active"
-  | "deactivated"
   | "suspended"
+  | "deactivated"
   | "deleted";
-type VendorTier = "basic" | "premium" | "enterprise";
 type DateRange = "last-7-days" | "last-30-days" | "all-time";
 type VendorTab =
   | "all"
-  | "pending_approval"
-  | "onboarded"
+  | "pending"
   | "active"
-  | "deactivated"
   | "suspended"
+  | "deactivated"
   | "deleted";
 
-interface Vendor {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phoneNumber?: string;
-  storeName: string;
-  businessName: string;
-  managerEmail: string;
-  phone: string;
-  country: string;
-  city: string;
-  storeLocation: string;
-  joinDate: string;
-  signedUpOn: string;
-  lastActive: string;
-  status: VendorStatus;
-  totalProducts: number;
-  totalSales: number;
-  tier: VendorTier;
-  avatarColor: string;
-  avatar?: string;
-  isVerified: boolean;
-  vendorStatus?: VendorStatus;
-  accountStatus?: "active" | "suspended" | "pending_deletion";
-  createdAt: string;
-  updatedAt: string;
-  [key: string]: any;
-}
+// Status configuration
+const statusConfig = {
+  pending: {
+    label: "Pending Approval",
+    className:
+      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800",
+  },
+  active: {
+    label: "Active",
+    className:
+      "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-300 dark:border-teal-800",
+  },
+  suspended: {
+    label: "Suspended",
+    className:
+      "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800",
+  },
+  deactivated: {
+    label: "Deactivated",
+    className:
+      "bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700",
+  },
+  deleted: {
+    label: "Deleted",
+    className:
+      "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800",
+  },
+} as const;
 
-interface VendorStats {
-  totalVendors: number;
-  pendingApprovals: number;
-  activeVendors: number;
-  deletedVendors: number;
-  totalProducts: number;
-  totalRevenue: number;
-  averageRating: number;
-}
+// Helper function to generate avatar color
+const generateAvatarColor = (seed: string): string => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2',
+    '#EF476F', '#073B4C', '#7209B7', '#3A86FF', '#FB5607'
+  ];
+  
+  return colors[Math.abs(hash) % colors.length];
+};
+
+// Transform API vendor data to CombinedVendor format
+const transformVendorData = (apiVendor: any): CombinedVendor => {
+  const user = apiVendor.user || {};
+  const firstName = user.firstName || '';
+  const lastName = user.lastName || '';
+  const email = user.email || '';
+  const storeName = apiVendor.storeName || 'No Business Name';
+  const city = apiVendor.city || '';
+  const country = apiVendor.country || '';
+  
+  return {
+    // IDs - IMPORTANT: Keep both vendor id and userId
+    id: apiVendor.id,
+    userId: apiVendor.userId,  // This is what we need for the API
+    vendorId: apiVendor.id,
+    
+    // User data
+    firstName,
+    lastName,
+    email,
+    phoneNumber: apiVendor.phoneNumber || '',
+    accountStatus: user.accountStatus || 'active',
+    userRole: user.role || 'vendor',
+    
+    // Business/Vendor data
+    businessName: storeName,
+    storeName,
+    businessDescription: apiVendor.description || '',
+    description: apiVendor.description || '',
+    businessEmail: email,
+    managerEmail: email,
+    businessPhone: apiVendor.phoneNumber || '',
+    phone: apiVendor.phoneNumber || '',
+    businessAddress: `${city}${city && country ? ', ' : ''}${country}`.trim() || 'Not specified',
+    
+    // Location
+    city,
+    country,
+    location: `${city}${city && country ? ', ' : ''}${country}`.trim() || 'Not specified',
+    storeLocation: `${city}${city && country ? ', ' : ''}${country}`.trim() || 'Not specified',
+    
+    // Status
+    vendorStatus: apiVendor.vendorStatus as VendorStatus,
+    status: apiVendor.vendorStatus as VendorStatus,
+    isVerified: apiVendor.kycStatus === 'approved',
+    
+    // Dates
+    createdAt: apiVendor.createdAt,
+    signedUpOn: apiVendor.createdAt,
+    joinedAt: apiVendor.createdAt,
+    joinDate: apiVendor.createdAt,
+    updatedAt: apiVendor.createdAt,
+    lastActiveAt: apiVendor.createdAt,
+    lastActive: apiVendor.createdAt,
+    
+    // Stats (default values)
+    rating: 0,
+    reviewCount: 0,
+    followerCount: 0,
+    productCount: 0,
+    totalProducts: 0,
+    totalSales: 0,
+    
+    // UI/Display
+    avatarColor: generateAvatarColor(email || apiVendor.id),
+    tier: apiVendor.kycStatus === 'approved' ? 'premium' : 'basic',
+    isVendor: true,
+    hasVendorProfile: true,
+  };
+};
+
+// Filter vendors function
+const filterVendors = (
+  vendors: CombinedVendor[],
+  searchQuery: string,
+  selectedStatuses: VendorStatus[],
+  activeTab: VendorTab
+): CombinedVendor[] => {
+  if (!vendors || vendors.length === 0) return [];
+
+  let filtered = [...vendors];
+
+  // Apply search filter
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase().trim();
+    filtered = filtered.filter((vendor) => {
+      return (
+        vendor.firstName?.toLowerCase().includes(query) ||
+        vendor.lastName?.toLowerCase().includes(query) ||
+        vendor.businessName?.toLowerCase().includes(query) ||
+        vendor.email?.toLowerCase().includes(query) ||
+        vendor.location?.toLowerCase().includes(query) ||
+        `${vendor.firstName} ${vendor.lastName}`.toLowerCase().includes(query)
+      );
+    });
+  }
+
+  // Apply tab filter
+  if (activeTab !== "all") {
+    filtered = filtered.filter((vendor) => vendor.status === activeTab);
+  }
+
+  // Apply status filter (overrides tab filter if statuses are selected)
+  if (selectedStatuses.length > 0) {
+    filtered = filtered.filter((vendor) =>
+      selectedStatuses.includes(vendor.status)
+    );
+  }
+
+  return filtered;
+};
+
 
 export default function AdminVendorsPage() {
   const navigate = useNavigate();
@@ -92,238 +199,57 @@ export default function AdminVendorsPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<VendorStatus[]>([]);
   const [activeTab, setActiveTab] = useState<VendorTab>("all");
   const [dateRange, setDateRange] = useState<DateRange>("last-7-days");
+  const [combinedVendors, setCombinedVendors] = useState<CombinedVendor[]>([]);
 
-  // Use the users hook
-  const { usersList, loading, getUsers } = useReduxUsers();
+  const isFetchingRef = useRef(false);
+  
+  const {
+    getAllVendors,
+    calculateCombinedStats,
+    loading,
+    error,
+  } = useReduxVendors();
 
-  // Fetch vendors (users with vendor role) on component mount
+  // Fetch combined vendors on component mount
   useEffect(() => {
     const fetchData = async () => {
+      if (isFetchingRef.current) return;
+
       try {
-        console.log("Fetching vendors...");
-        await getUsers({
-          role: "vendor",
-          limit: 50,
-          page: 1,
-        });
+        isFetchingRef.current = true;
+        console.log("🚀 Starting to fetch vendors...");
+
+        const apiResponse = await getAllVendors();
+        console.log("📦 Raw API response:", apiResponse);
+
+        const vendorsData = apiResponse?.data || [];
+        console.log("📊 Number of vendors from API:", vendorsData.length);
+
+        const transformedVendors: CombinedVendor[] = vendorsData.map(transformVendorData);
+        console.log("✅ Transformed vendors:", transformedVendors);
+        
+        setCombinedVendors(transformedVendors);
+        console.log("✅ State updated with", transformedVendors.length, "vendors");
       } catch (error) {
-        console.error("Failed to fetch vendors:", error);
+        console.error("❌ Failed to fetch vendors:", error);
+      } finally {
+        isFetchingRef.current = false;
+        console.log("✅ Fetch attempt finished");
       }
     };
 
     fetchData();
-  }, [getUsers]);
+  }, [getAllVendors]);
 
-  // Helper function to safely get users array from usersList
-  const getUsersArray = (): any[] => {
-    if (Array.isArray(usersList)) {
-      return usersList;
-    }
+  // Calculate vendor statistics using transformed data
+  const vendorStats = useMemo(() => {
+    return calculateCombinedStats(combinedVendors);
+  }, [combinedVendors, calculateCombinedStats]);
 
-    const list = usersList as any;
-
-    if (!list || typeof list !== "object") {
-      return [];
-    }
-
-    if (list.data && Array.isArray(list.data)) {
-      return list.data;
-    }
-    if (list.results && Array.isArray(list.results)) {
-      return list.results;
-    }
-    if (list.items && Array.isArray(list.items)) {
-      return list.items;
-    }
-    if (list.users && Array.isArray(list.users)) {
-      return list.users;
-    }
-
-    const keys = Object.keys(list);
-    if (keys.length > 0 && !isNaN(parseInt(keys[0]))) {
-      return Object.values(list);
-    }
-
-    if (list.id || list.email || list.firstName) {
-      return [list];
-    }
-
-    return [];
-  };
-
-  // Map UserProfile to Vendor for compatibility
-  const mapUserToVendor = (user: UserProfile | any): Vendor | null => {
-    if (!user || typeof user !== "object") {
-      console.warn("Invalid user object:", user);
-      return null;
-    }
-
-    try {
-      const userId = user.id || user._id || user.userId || "0";
-
-      // Determine status based on vendorStatus or accountStatus
-      let status: VendorStatus = "active";
-      
-      // Map various statuses to match the design
-      if (user.vendorStatus === "pending" || user.accountStatus === "pending") {
-        status = "pending_approval";
-      } else if (user.vendorStatus === "approved" || user.accountStatus === "approved") {
-        status = "active";
-      } else if (user.vendorStatus === "rejected" || user.accountStatus === "rejected") {
-        status = "deleted";
-      } else if (user.accountStatus === "suspended") {
-        status = "suspended";
-      } else if (user.accountStatus === "deactivated") {
-        status = "deactivated";
-      } else if (user.accountStatus === "onboarded") {
-        status = "onboarded";
-      } else if (user.accountStatus === "active") {
-        status = "active";
-      } else if (user.accountStatus === "deleted" || user.accountStatus === "pending_deletion") {
-        status = "deleted";
-      }
-
-      // Determine tier based on user type or other metric
-      let tier: VendorTier = "basic";
-      if (user.userType === "premium" || user.tier === "premium") {
-        tier = "premium";
-      } else if (user.userType === "enterprise" || user.tier === "enterprise") {
-        tier = "enterprise";
-      }
-
-      // Generate store name
-      const storeName =
-        user.businessName ||
-        user.storeName ||
-        `${user.firstName || "Vendor"}'s Store`;
-
-      // Get user details with fallbacks
-      const firstName = user.firstName || user.name?.split(" ")[0] || "Unknown";
-      const lastName =
-        user.lastName || user.name?.split(" ").slice(1).join(" ") || "";
-      const email = user.email || "No email";
-      const phoneNumber =
-        user.phoneNumber || user.phone || "Not provided";
-      const country = user.country || "Unknown";
-      const city = user.city || "Unknown";
-      const createdAt = user.createdAt || new Date().toISOString();
-      const updatedAt = user.updatedAt || createdAt;
-
-      // For demo purposes - in production, fetch actual vendor stats
-      const totalProducts =
-        user.totalProducts ||
-        user.productsCount ||
-        user.productCount ||
-        Math.floor(Math.random() * 100);
-      const totalSales =
-        user.totalSales ||
-        user.salesCount ||
-        user.revenue ||
-        Math.floor(Math.random() * 10000);
-
-      return {
-        id: userId.toString(),
-        email,
-        firstName,
-        lastName,
-        phoneNumber,
-        storeName,
-        businessName: storeName,
-        managerEmail: email,
-        phone: phoneNumber,
-        country,
-        city,
-        storeLocation:
-          user.businessAddress || user.address || `${city}, ${country}`,
-        joinDate: createdAt,
-        signedUpOn: createdAt,
-        lastActive: updatedAt,
-        status,
-        totalProducts,
-        totalSales,
-        tier,
-        avatarColor: "",
-        avatar: user.avatar || user.profileImage,
-        isVerified: user.emailVerified || user.verified || false,
-        vendorStatus: status,
-        accountStatus: user.accountStatus,
-        createdAt,
-        updatedAt,
-      };
-    } catch (error) {
-      console.error("Error mapping user to seller:", error, user);
-      return null;
-    }
-  };
-
-  // Calculate vendor statistics from users list
-  const calculateStats = (vendors: Vendor[]): VendorStats => {
-    const totalVendors = vendors.length;
-    const pendingApprovals = vendors.filter(
-      (s) => s.status === "pending_approval"
-    ).length;
-    const activeVendors = vendors.filter(
-      (s) => s.status === "active"
-    ).length;
-    const deletedVendors = vendors.filter(
-      (s) => s.status === "deleted"
-    ).length;
-    const totalProducts = vendors.reduce(
-      (sum, s) => sum + (s.totalProducts || 0),
-      0
-    );
-    const totalRevenue = vendors.reduce(
-      (sum, s) => sum + (s.totalSales || 0),
-      0
-    );
-
-    return {
-      totalVendors,
-      pendingApprovals,
-      activeVendors,
-      deletedVendors,
-      totalProducts,
-      totalRevenue,
-      averageRating: 4.5,
-    };
-  };
-
-  // Safely get users array and map to vendors
-  const usersArray = getUsersArray();
-  const vendors = usersArray
-    .map(mapUserToVendor)
-    .filter((vendor): vendor is Vendor => vendor !== null);
-
-  const stats = calculateStats(vendors);
-
-  // Filter vendors based on tab, search and status filters
-  const filteredVendors = vendors.filter((vendor) => {
-    // Tab filtering
-    let matchesTab = true;
-    if (activeTab !== "all") {
-      matchesTab = activeTab === vendor.status;
-    }
-
-    // Search filtering
-    const matchesSearch =
-      searchQuery === "" ||
-      (vendor.storeName &&
-        vendor.storeName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      `${vendor.firstName} ${vendor.lastName}`
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      vendor.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (vendor.country &&
-        vendor.country.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (vendor.city &&
-        vendor.city.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    // Status filter
-    const matchesStatus =
-      selectedStatuses.length === 0 || selectedStatuses.includes(vendor.status);
-
-    return matchesTab && matchesSearch && matchesStatus;
-  });
+  // Filter vendors based on tab, search and status filters using useMemo for optimization
+  const filteredVendors = useMemo(() => {
+    return filterVendors(combinedVendors, searchQuery, selectedStatuses, activeTab);
+  }, [combinedVendors, searchQuery, selectedStatuses, activeTab]);
 
   const handleStatusFilterChange = (status: VendorStatus) => {
     setSelectedStatuses((prev) =>
@@ -387,7 +313,7 @@ export default function AdminVendorsPage() {
   const vendorCards: CardData[] = [
     {
       title: "Total Sellers",
-      value: formatNumberShort(stats.totalVendors),
+      value: formatNumberShort(vendorStats.totalVendors),
       change: {
         value: "10%",
         trend: "up",
@@ -396,7 +322,7 @@ export default function AdminVendorsPage() {
     },
     {
       title: "Pending Approvals",
-      value: formatNumberShort(stats.pendingApprovals),
+      value: formatNumberShort(vendorStats.pendingApprovals),
       change: {
         value: "10%",
         trend: "up",
@@ -405,7 +331,7 @@ export default function AdminVendorsPage() {
     },
     {
       title: "Active Sellers",
-      value: formatNumberShort(stats.activeVendors),
+      value: formatNumberShort(vendorStats.activeVendors),
       change: {
         value: "5%",
         trend: "down",
@@ -413,8 +339,8 @@ export default function AdminVendorsPage() {
       },
     },
     {
-      title: "Deleted Sellers",
-      value: formatNumberShort(stats.deletedVendors),
+      title: "Suspended Sellers",
+      value: formatNumberShort(vendorStats.suspendedVendors),
       change: {
         value: "10%",
         trend: "up",
@@ -423,53 +349,26 @@ export default function AdminVendorsPage() {
     },
   ];
 
-  // Status configuration matching the design
-  const statusConfig = {
-    pending_approval: {
-      label: "Pending approval",
-      className: "bg-blue-50 text-blue-700 border-blue-200",
-    },
-    onboarded: {
-      label: "Onboarded",
-      className: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    },
-    active: {
-      label: "Active",
-      className: "bg-teal-50 text-teal-700 border-teal-200",
-    },
-    deactivated: {
-      label: "Deactivated",
-      className: "bg-gray-100 text-gray-600 border-gray-200",
-    },
-    suspended: {
-      label: "Suspended",
-      className: "bg-gray-100 text-gray-700 border-gray-300",
-    },
-    deleted: {
-      label: "Deleted",
-      className: "bg-red-50 text-red-700 border-red-200",
-    },
-  } as const;
-
   // Available status options for filter
   const statusOptions: { value: VendorStatus; label: string }[] = [
-    { value: "pending_approval", label: "Pending Approval" },
-    { value: "onboarded", label: "Onboarded" },
+    { value: "pending", label: "Pending Approval" },
     { value: "active", label: "Active" },
-    { value: "deactivated", label: "Deactivated" },
     { value: "suspended", label: "Suspended" },
+    { value: "deactivated", label: "Deactivated" },
     { value: "deleted", label: "Deleted" },
   ];
 
   // Table fields matching the design - simplified columns
-  const vendorFields: TableField<Vendor>[] = [
+  const vendorFields: TableField<CombinedVendor>[] = [
     {
       key: "name",
       header: "Seller name",
       cell: (_, row) => (
-        <span className="font-medium">
-          {row.firstName} {row.lastName}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-medium">
+            {row.firstName} {row.lastName}
+          </span>
+        </div>
       ),
       align: "left",
     },
@@ -488,7 +387,17 @@ export default function AdminVendorsPage() {
       key: "businessName",
       header: "Business name",
       cell: (_, row) => (
-        <span className="font-medium">{row.businessName}</span>
+        <div>
+          <span className="font-medium">{row.businessName}</span>
+          {row.isVerified && (
+            <Badge
+              variant="outline"
+              className="ml-2 bg-green-50 text-green-700 border-green-200 text-xs"
+            >
+              Verified
+            </Badge>
+          )}
+        </div>
       ),
       align: "left",
     },
@@ -497,7 +406,7 @@ export default function AdminVendorsPage() {
       header: "Location",
       cell: (_, row) => (
         <span className="text-gray-600 dark:text-gray-400">
-          {row.city}, {row.country}
+          {row.location}
         </span>
       ),
       align: "left",
@@ -520,15 +429,30 @@ export default function AdminVendorsPage() {
       align: "left",
       enableSorting: true,
     },
+    {
+      key: "rating",
+      header: "Rating",
+      cell: (_, row) => (
+        <div className="flex items-center gap-1">
+          <span className="font-medium">{row.rating.toFixed(1)}</span>
+          <span className="text-gray-400">★</span>
+          <span className="text-gray-500 text-sm">({row.reviewCount})</span>
+        </div>
+      ),
+      align: "left",
+    },
   ];
 
-  const vendorActions: TableAction<Vendor>[] = [
+  const vendorActions: TableAction<CombinedVendor>[] = [
     {
       type: "view",
       label: "View Seller Details",
       icon: <EyeIcon className="size-5" />,
       onClick: (vendor) => {
-        navigate(`/admin/users/vendors/${vendor.id}/details`);
+        // CRITICAL FIX: Use userId instead of id
+        // The API endpoint /api/v1/vendor/{id} expects userId, not vendor id
+        console.log("🔍 Navigating to vendor:", { id: vendor.id, userId: vendor.userId });
+        navigate(`/admin/users/vendors/${vendor.userId}/details`);
       },
     },
   ];
@@ -563,7 +487,7 @@ export default function AdminVendorsPage() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="w-full sm:w-96">
                 <Search
-                  placeholder="Search"
+                  placeholder="Search by name, business, email, or location"
                   value={searchQuery}
                   onSearchChange={setSearchQuery}
                   className="h-10"
@@ -581,6 +505,7 @@ export default function AdminVendorsPage() {
                         : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
                     } rounded-l-lg`}
                     onClick={() => setDateRange("last-7-days")}
+                    disabled={loading}
                   >
                     Last 7 days
                   </button>
@@ -591,6 +516,7 @@ export default function AdminVendorsPage() {
                         : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
                     }`}
                     onClick={() => setDateRange("last-30-days")}
+                    disabled={loading}
                   >
                     Last 30 days
                   </button>
@@ -601,6 +527,7 @@ export default function AdminVendorsPage() {
                         : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
                     } rounded-r-lg`}
                     onClick={() => setDateRange("all-time")}
+                    disabled={loading}
                   >
                     All time
                   </button>
@@ -631,6 +558,7 @@ export default function AdminVendorsPage() {
                         onCheckedChange={() =>
                           handleStatusFilterChange(status.value)
                         }
+                        disabled={loading}
                       >
                         {status.label}
                       </DropdownMenuCheckboxItem>
@@ -639,7 +567,11 @@ export default function AdminVendorsPage() {
                 </DropdownMenu>
 
                 {/* Export Button */}
-                <Button variant="outline" className="gap-2 h-10">
+                <Button
+                  variant="outline"
+                  className="gap-2 h-10"
+                  disabled={loading}
+                >
                   <Download className="w-4 h-4" />
                   Export
                 </Button>
@@ -659,52 +591,60 @@ export default function AdminVendorsPage() {
                 )}
               </div>
             </div>
+
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-red-600 dark:text-red-400 text-sm">
+                  Error: {error}
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Tab Navigation - Updated to match design */}
+          {/* Tab Navigation */}
           <div className="border-b border-gray-200 dark:border-gray-700">
             <div className="flex gap-0 px-6 overflow-x-auto">
               <button
                 className={getTabButtonClass("all")}
                 onClick={() => handleTabClick("all")}
+                disabled={loading}
               >
-                All Sellers
+                All Sellers ({combinedVendors.length})
               </button>
               <button
-                className={getTabButtonClass("pending_approval")}
-                onClick={() => handleTabClick("pending_approval")}
+                className={getTabButtonClass("pending")}
+                onClick={() => handleTabClick("pending")}
+                disabled={loading}
               >
-                Pending Approval
-              </button>
-              <button
-                className={getTabButtonClass("onboarded")}
-                onClick={() => handleTabClick("onboarded")}
-              >
-                Onboarded
+                Pending Approval ({vendorStats.pendingApprovals})
               </button>
               <button
                 className={getTabButtonClass("active")}
                 onClick={() => handleTabClick("active")}
+                disabled={loading}
               >
-                Active
-              </button>
-              <button
-                className={getTabButtonClass("deactivated")}
-                onClick={() => handleTabClick("deactivated")}
-              >
-                Deactivated
+                Active ({vendorStats.activeVendors})
               </button>
               <button
                 className={getTabButtonClass("suspended")}
                 onClick={() => handleTabClick("suspended")}
+                disabled={loading}
               >
-                Suspended
+                Suspended ({vendorStats.suspendedVendors})
+              </button>
+              <button
+                className={getTabButtonClass("deactivated")}
+                onClick={() => handleTabClick("deactivated")}
+                disabled={loading}
+              >
+                Deactivated ({vendorStats.deactivatedVendors})
               </button>
               <button
                 className={getTabButtonClass("deleted")}
                 onClick={() => handleTabClick("deleted")}
+                disabled={loading}
               >
-                Deleted
+                Deleted ({vendorStats.deletedVendors})
               </button>
             </div>
           </div>
@@ -714,30 +654,45 @@ export default function AdminVendorsPage() {
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="ml-2 text-gray-600 dark:text-gray-400">
+                  Loading sellers...
+                </span>
               </div>
-            ) : vendors.length === 0 ? (
+            ) : combinedVendors.length === 0 ? (
               <div className="flex flex-col items-center text-center py-12">
                 <img src={images.EmptyFallback} alt="" className="h-60 mb-6" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                   No Sellers Found
                 </h3>
                 <p className="text-muted-foreground">
-                  No sellers have signed up yet.
+                  No sellers have signed up yet. When sellers register, they
+                  will appear here.
                 </p>
               </div>
             ) : filteredVendors.length === 0 ? (
               <div className="flex flex-col items-center text-center py-12">
                 <img src={images.EmptyFallback} alt="" className="h-60 mb-6" />
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground mb-4">
                   {searchQuery ||
                   selectedStatuses.length > 0 ||
                   activeTab !== "all"
                     ? "No sellers found matching your criteria"
                     : "No sellers found"}
                 </p>
+                {(searchQuery ||
+                  selectedStatuses.length > 0 ||
+                  activeTab !== "all") && (
+                  <Button
+                    variant="outline"
+                    onClick={clearAllFilters}
+                    className="mt-2"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
               </div>
             ) : (
-              <DataTable<Vendor>
+              <DataTable<CombinedVendor>
                 data={filteredVendors}
                 fields={vendorFields}
                 actions={vendorActions}

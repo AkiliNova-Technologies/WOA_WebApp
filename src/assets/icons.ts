@@ -10,6 +10,10 @@ import Twitter from "@/assets/icons/twitter.png";
 import Google from "@/assets/icons/google.png"
 import Apple from "@/assets/icons/apple.png"
 import PlayStore from "@/assets/icons/playstore.png"
+import Shipping from "@/assets/icons/shipping.png"
+import Secure from "@/assets/icons/secure.png"
+import Box from "@/assets/icons/box.png"
+import Available from "@/assets/icons/available.png"
 
 
 const icons = {
@@ -25,6 +29,10 @@ const icons = {
   Google,
   Apple,
   PlayStore,
+  Shipping,
+  Secure,
+  Box,
+  Available,
 };
 
 export default icons;

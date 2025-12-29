@@ -1,9 +1,12 @@
 import {
   createAsyncThunk,
+  createSelector,
   createSlice,
   type PayloadAction,
 } from "@reduxjs/toolkit";
 import api from "@/utils/api";
+
+// ====================== TYPES & INTERFACES ======================
 
 export interface ProductImage {
   id: string;
@@ -12,219 +15,311 @@ export interface ProductImage {
   order: number;
 }
 
+export interface ProductVariant {
+  id: string;
+  name: string;
+  sku: string;
+  price: number;
+  compareAtPrice?: number;
+  stockQuantity: number;
+  attributes: Record<string, string>;
+  isActive: boolean;
+}
+
+export interface Seller {
+  id: string;
+  firstName: string;
+  lastName: string;
+  businessName?: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+}
+
+export interface SubCategory {
+  id: string;
+  name: string;
+}
+
+export interface ProductType {
+  id: string;
+  name: string;
+}
+
 export interface Product {
   id: string;
   name: string;
-  description: string;
+  description?: string;
+  
+  // Base pricing (template for variants)
+  basePrice: number;
+  baseCompareAtPrice?: number;
+  
+  // Display pricing (from first active variant)
   price: number;
-  salePrice?: number;
-  sku: string;
-  stock: number;
-  categoryId: string;
-  subcategoryId: string;
-  productTypeId?: string;
-  vendorId: string;
+  compareAtPrice?: number;
+  
+  // Product status
   status:
     | "draft"
-    | "pending_review"
+    | "pending_approval"
     | "approved"
     | "rejected"
+    | "RE_EVALUATION"
     | "published"
     | "archived";
-  attributes: Record<string, any>;
+  
+  // Attributes and variants
+  attributes: Record<string, string>; // Vendor-provided attribute values
+  variants: ProductVariant[];
+  
+  // Relations
+  sellerId: string;
+  seller?: Seller;
+  categoryId: string;
+  category?: Category;
+  subcategoryId: string;
+  subcategory?: SubCategory;
+  productTypeId?: string;
+  productType?: ProductType;
+  
+  // Media
+  image?: string; // First gallery image
   images: ProductImage[];
+  gallery?: string[];
+  
+  // Ratings & Reviews (from verified purchasers)
+  averageRating: number;
+  reviewCount: number;
+  
+  // Wishlist status (when authenticated)
+  isInWishlist?: boolean;
+  
+  // Recently viewed tracking
+  viewCount?: number;
+  lastViewed?: string;
+  
+  // Vendor info shortcuts
+  vendorId?: string;
+  vendorName?: string;
+  sellerName?: string;
+  
+  // Timestamps
   createdAt: string;
   updatedAt: string;
-
-  // Keep the vendor object
-  vendor?: {
-    id: string;
-    businessName: string;
-  };
-
-  // ADD THIS: vendor name as string for easier access
-  vendorName?: string;
-
-  category?: {
-    id: string;
-    name: string;
-  };
-  subcategory?: {
-    id: string;
-    name: string;
-  };
 }
 
 export interface CreateProductData {
   name: string;
-  description: string;
-  price: number;
-  salePrice?: number;
-  sku: string;
-  stock: number;
+  description?: string;
+  basePrice: number;
+  baseCompareAtPrice?: number;
+  attributes: Record<string, string>; // e.g., { "size": "S,M,L", "color": "red,blue" }
   categoryId: string;
   subcategoryId: string;
+  productTypeId: string;
+}
+
+export interface UpdateProductData {
+  name?: string;
+  description?: string;
+  basePrice?: number;
+  baseCompareAtPrice?: number;
+  attributes?: Record<string, string>;
+  categoryId?: string;
+  subcategoryId?: string;
   productTypeId?: string;
-  attributes: Record<string, any>;
 }
 
-export interface PaginatedProducts {
-  products: Product[];
-  currentPage: number;
+export interface ProductSearchParams {
+  q?: string; // Keyword search
+  categoryId?: string;
+  subcategoryId?: string;
+  productTypeId?: string;
+  filters?: Record<string, string | string[]>; // Attribute filters
+  sort?: "price_asc" | "price_desc" | "created_asc" | "created_desc";
+  page?: number;
+  limit?: number;
+}
+
+export interface ProductListParams {
+  page?: number;
+  limit?: number;
+  categoryId?: string;
+  subcategoryId?: string;
+  sellerId?: string;
+}
+
+export interface RecentlyViewedParams {
+  page?: number;
+  limit?: number;
+  sortBy?: "date" | "price" | "rating";
+  order?: "asc" | "desc";
+  minPrice?: number;
+  maxPrice?: number;
+  minRating?: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
   totalPages: number;
-  totalProducts: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
+  hasNextPage?: boolean;
+  hasPreviousPage?: boolean;
 }
 
-export interface AdminProduct extends Product {
-  // Additional admin-specific fields
-  reviewNotes?: string;
-  adminNotes?: string;
-  approvalDate?: string;
-  approvedBy?: string;
-  rejectionReason?: string;
+export interface SearchSuggestion {
+  id: string;
+  type: "productType" | "product";
+  label: string;
 }
+
+export interface AvailableFilters {
+  filters: Record<string, string[]>;
+}
+
+// ====================== STATE ======================
 
 interface ProductsState {
+  // Product lists
   products: Product[];
-  adminProducts: Product[]; // Admin-only products list
+  publicProducts: Product[];
+  relatedProducts: Product[];
+  recentlyViewedProducts: Product[];
+  searchResults: Product[];
+  
+  // Single product
   product: Product | null;
+  
+  // Search helpers
+  searchSuggestions: SearchSuggestion[];
+  availableFilters: AvailableFilters | null;
+  
+  // Loading states
   loading: boolean;
-  error: string | null;
   createLoading: boolean;
+  recentlyViewedLoading: boolean;
+  searchLoading: boolean;
+  
+  // Error states
+  error: string | null;
   createError: string | null;
+  
+  // Pagination
   currentPage: number;
   totalPages: number;
   totalProducts: number;
-  publicProducts: Product[]; // Public products cache
-  relatedProducts: Product[]; // Related products cache
 }
 
 const initialState: ProductsState = {
   products: [],
-  adminProducts: [],
+  publicProducts: [],
+  relatedProducts: [],
+  recentlyViewedProducts: [],
+  searchResults: [],
   product: null,
+  searchSuggestions: [],
+  availableFilters: null,
   loading: false,
-  error: null,
   createLoading: false,
+  recentlyViewedLoading: false,
+  searchLoading: false,
+  error: null,
   createError: null,
   currentPage: 1,
   totalPages: 1,
   totalProducts: 0,
-  publicProducts: [],
-  relatedProducts: [],
 };
 
-// ====================== PUBLIC PRODUCTS ======================
+// ====================== HELPER FUNCTIONS ======================
 
-// Get public product details
-export const fetchPublicProduct = createAsyncThunk(
-  "products/fetchPublic",
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(`/api/v1/products/public/${id}`);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch product"
-      );
-    }
-  }
-);
+/**
+ * Enrich product data with calculated fields
+ */
+const enrichProduct = (product: any): Product => {
+  // Get first active variant for display pricing
+  const firstActiveVariant = product.variants?.find((v: any) => v.isActive !== false) || product.variants?.[0];
+  
+  return {
+    ...product,
+    // Ensure price fields exist (from first variant or base)
+    price: firstActiveVariant?.price || product.basePrice || 0,
+    compareAtPrice: firstActiveVariant?.compareAtPrice || product.baseCompareAtPrice,
+    
+    // Ensure rating fields exist
+    averageRating: product.averageRating || 0,
+    reviewCount: product.reviewCount || 0,
+    
+    // Ensure image field exists
+    image: product.image || 
+           product.images?.find((img: any) => img.isPrimary)?.url ||
+           product.images?.[0]?.url ||
+           "",
+    
+    // Ensure variants array exists
+    variants: product.variants || [],
+    
+    // Ensure images array exists
+    images: product.images || [],
+    
+    // Add vendor name shortcut
+    vendorName: product.seller?.businessName || 
+                `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() ||
+                "Unknown Vendor",
+    
+    // Add seller name shortcut
+    sellerName: `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() ||
+                product.seller?.businessName ||
+                "Unknown Seller",
+  };
+};
 
-// List approved products with optional filtering and pagination
+// ====================== ASYNC THUNKS ======================
+
+// ========== PUBLIC PRODUCT LISTING ==========
+
 export const fetchPublicProducts = createAsyncThunk(
   "products/fetchPublicProducts",
-  async (
-    params: {
-      page?: number;
-      limit?: number;
-      categoryId?: string;
-      vendorId?: string;
-      minPrice?: number;
-      maxPrice?: number;
-      search?: string;
-      sortBy?: string;
-      sortOrder?: "asc" | "desc";
-    } = {},
-    { rejectWithValue }
-  ) => {
+  async (params: ProductListParams = {}, { rejectWithValue }) => {
     try {
       const queryParams = new URLSearchParams();
-      if (params?.page) queryParams.append("page", params.page.toString());
-      if (params?.limit) queryParams.append("limit", params.limit.toString());
-      if (params?.categoryId)
-        queryParams.append("categoryId", params.categoryId);
-      if (params?.vendorId) queryParams.append("vendorId", params.vendorId);
-      if (params?.minPrice)
-        queryParams.append("minPrice", params.minPrice.toString());
-      if (params?.maxPrice)
-        queryParams.append("maxPrice", params.maxPrice.toString());
-      if (params?.search) queryParams.append("search", params.search);
-      if (params?.sortBy) queryParams.append("sortBy", params.sortBy);
-      if (params?.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+      if (params.page) queryParams.append("page", params.page.toString());
+      if (params.limit) queryParams.append("limit", params.limit.toString());
+      if (params.categoryId) queryParams.append("categoryId", params.categoryId);
+      if (params.subcategoryId) queryParams.append("subcategoryId", params.subcategoryId);
+      if (params.sellerId) queryParams.append("sellerId", params.sellerId);
 
-      const url = `/api/v1/products/public${
-        queryParams.toString() ? `?${queryParams.toString()}` : ""
-      }`;
+      const url = `/api/v1/products${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
       const response = await api.get(url);
-      // Transform the data
-      const transformedData = {
-        ...response.data,
-        products: response.data.products?.map((product: any) => ({
-          ...product,
-          // Add vendorName for easy access
-          vendorName: product.vendor?.businessName || "Unknown Vendor",
-        })),
+      
+      console.log("📦 fetchPublicProducts response:", response.data);
+      
+      // Handle the actual API response structure
+      const responseData = response.data;
+      
+      // The API returns: { data: [...], total: 5, page: 1, limit: 100, totalPages: 1 }
+      return {
+        data: responseData.data || [],
+        total: responseData.total || 0,
+        page: responseData.page || 1,
+        limit: responseData.limit || 20,
+        totalPages: responseData.totalPages || 1,
       };
-
-      return transformedData;
     } catch (error: any) {
+      console.error("❌ fetchPublicProducts error:", error);
       return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch public products"
+        error.response?.data?.message || "Failed to fetch products"
       );
     }
   }
 );
 
-// Get related products
-export const fetchRelatedProducts = createAsyncThunk(
-  "products/fetchRelated",
-  async (productId: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(
-        `/api/v1/products/public/${productId}/related`
-      );
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch related products"
-      );
-    }
-  }
-);
-
-// ====================== REGULAR PRODUCTS (VENDOR) ======================
-
-// Create product
-export const createProduct = createAsyncThunk(
-  "products/create",
-  async (productData: CreateProductData, { rejectWithValue }) => {
-    try {
-      const response = await api.post("/api/v1/products", productData);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to create product"
-      );
-    }
-  }
-);
-
-// Get product by ID
-export const fetchProduct = createAsyncThunk(
-  "products/fetch",
+export const fetchPublicProduct = createAsyncThunk(
+  "products/fetchPublicProduct",
   async (id: string, { rejectWithValue }) => {
     try {
       const response = await api.get(`/api/v1/products/${id}`);
@@ -237,11 +332,198 @@ export const fetchProduct = createAsyncThunk(
   }
 );
 
-// Update product
+export const fetchRelatedProducts = createAsyncThunk(
+  "products/fetchRelatedProducts",
+  async (productId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/products/${productId}/related`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch related products"
+      );
+    }
+  }
+);
+
+// ========== PRODUCT SEARCH & FILTERING ==========
+
+export const searchProducts = createAsyncThunk(
+  "products/search",
+  async (params: ProductSearchParams = {}, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (params.q) queryParams.append("q", params.q);
+      if (params.categoryId) queryParams.append("categoryId", params.categoryId);
+      if (params.subcategoryId) queryParams.append("subcategoryId", params.subcategoryId);
+      if (params.productTypeId) queryParams.append("productTypeId", params.productTypeId);
+      if (params.sort) queryParams.append("sort", params.sort);
+      if (params.page) queryParams.append("page", params.page.toString());
+      if (params.limit) queryParams.append("limit", params.limit.toString());
+      
+      // Add attribute filters
+      if (params.filters) {
+        Object.entries(params.filters).forEach(([key, value]) => {
+          if (Array.isArray(value)) {
+            value.forEach(v => queryParams.append(`filters[${key}]`, v));
+          } else {
+            queryParams.append(`filters[${key}]`, value);
+          }
+        });
+      }
+
+      const response = await api.get(`/api/v1/public/products/search?${queryParams.toString()}`);
+      
+      return {
+        data: response.data.data || response.data,
+        total: response.data.total || 0,
+        page: response.data.page || 1,
+        limit: response.data.limit || 20,
+        totalPages: response.data.totalPages || 1,
+      };
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to search products"
+      );
+    }
+  }
+);
+
+export const fetchSearchFilters = createAsyncThunk(
+  "products/fetchSearchFilters",
+  async (params: { q?: string; categoryId?: string } = {}, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.q) queryParams.append("q", params.q);
+      if (params.categoryId) queryParams.append("categoryId", params.categoryId);
+
+      const response = await api.get(`/api/v1/public/search/filters?${queryParams.toString()}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch filters"
+      );
+    }
+  }
+);
+
+export const fetchSearchSuggestions = createAsyncThunk(
+  "products/fetchSearchSuggestions",
+  async (params: { q: string; limit?: number }, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append("q", params.q);
+      if (params.limit) queryParams.append("limit", params.limit.toString());
+
+      const response = await api.get(`/api/v1/public/search/suggestions?${queryParams.toString()}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch suggestions"
+      );
+    }
+  }
+);
+
+// ========== RECENTLY VIEWED PRODUCTS ==========
+
+export const trackProductView = createAsyncThunk(
+  "products/trackView",
+  async (productId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.post(`/api/v1/products/recently-viewed/${productId}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to track product view"
+      );
+    }
+  }
+);
+
+export const fetchRecentlyViewedProducts = createAsyncThunk(
+  "products/fetchRecentlyViewed",
+  async (params: RecentlyViewedParams = {}, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.page) queryParams.append("page", params.page.toString());
+      if (params.limit) queryParams.append("limit", params.limit.toString());
+      if (params.sortBy) queryParams.append("sortBy", params.sortBy);
+      if (params.order) queryParams.append("order", params.order);
+      if (params.minPrice) queryParams.append("minPrice", params.minPrice.toString());
+      if (params.maxPrice) queryParams.append("maxPrice", params.maxPrice.toString());
+      if (params.minRating) queryParams.append("minRating", params.minRating.toString());
+
+      const url = `/api/v1/products/recently-viewed${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+      const response = await api.get(url);
+      
+      const data = response.data;
+      return {
+        data: Array.isArray(data) ? data :
+               Array.isArray(data?.products) ? data.products :
+               Array.isArray(data?.data) ? data.data : [],
+        total: data?.total || 0,
+        page: data?.page || 1,
+        limit: data?.limit || 10,
+        totalPages: data?.totalPages || 1,
+      };
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch recently viewed products"
+      );
+    }
+  }
+);
+
+export const removeFromRecentlyViewed = createAsyncThunk(
+  "products/removeFromRecentlyViewed",
+  async (productId: string, { rejectWithValue }) => {
+    try {
+      await api.delete(`/api/v1/products/recently-viewed/${productId}`);
+      return productId;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to remove from recently viewed"
+      );
+    }
+  }
+);
+
+// ========== VENDOR PRODUCT MANAGEMENT ==========
+
+export const createProduct = createAsyncThunk(
+  "products/create",
+  async (productData: CreateProductData, { rejectWithValue }) => {
+    try {
+      const response = await api.post("/api/v1/products/create", productData);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to create product"
+      );
+    }
+  }
+);
+
+export const fetchProduct = createAsyncThunk(
+  "products/fetchProduct",
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/products/${id}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch product"
+      );
+    }
+  }
+);
+
 export const updateProduct = createAsyncThunk(
   "products/update",
   async (
-    { id, data }: { id: string; data: Partial<CreateProductData> },
+    { id, data }: { id: string; data: UpdateProductData },
     { rejectWithValue }
   ) => {
     try {
@@ -255,7 +537,6 @@ export const updateProduct = createAsyncThunk(
   }
 );
 
-// Delete product
 export const deleteProduct = createAsyncThunk(
   "products/delete",
   async (id: string, { rejectWithValue }) => {
@@ -270,14 +551,11 @@ export const deleteProduct = createAsyncThunk(
   }
 );
 
-// Submit product for review
 export const submitForReview = createAsyncThunk(
   "products/submitForReview",
   async (id: string, { rejectWithValue }) => {
     try {
-      const response = await api.post(
-        `/api/v1/products/${id}/submit-for-review`
-      );
+      const response = await api.post(`/api/v1/products/${id}/submit-for-review`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -287,7 +565,6 @@ export const submitForReview = createAsyncThunk(
   }
 );
 
-// Upload product media
 export const uploadProductMedia = createAsyncThunk(
   "products/uploadMedia",
   async ({ id, file }: { id: string; file: File }, { rejectWithValue }) => {
@@ -313,84 +590,7 @@ export const uploadProductMedia = createAsyncThunk(
   }
 );
 
-// ====================== ADMIN PRODUCTS ======================
-
-// Get detailed product info for admin review
-export const fetchAdminProduct = createAsyncThunk(
-  "products/fetchAdmin",
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(`/api/v1/admin/products/${id}`);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch admin product"
-      );
-    }
-  }
-);
-
-// List all products for admin (with filtering)
-export const fetchAdminProducts = createAsyncThunk(
-  "products/fetchAdminProducts",
-  async (
-    params: {
-      page?: number;
-      limit?: number;
-      status?: string;
-      vendorId?: string;
-      categoryId?: string;
-      search?: string;
-      sortBy?: string;
-      sortOrder?: "asc" | "desc";
-    } = {},
-    { rejectWithValue }
-  ) => {
-    try {
-      const queryParams = new URLSearchParams();
-      if (params?.page) queryParams.append("page", params.page.toString());
-      if (params?.limit) queryParams.append("limit", params.limit.toString());
-      if (params?.status) queryParams.append("status", params.status);
-      if (params?.vendorId) queryParams.append("vendorId", params.vendorId);
-      if (params?.categoryId)
-        queryParams.append("categoryId", params.categoryId);
-      if (params?.search) queryParams.append("search", params.search);
-      if (params?.sortBy) queryParams.append("sortBy", params.sortBy);
-      if (params?.sortOrder) queryParams.append("sortOrder", params.sortOrder);
-
-      const url = `/api/v1/admin/inventory/${
-        queryParams.toString() ? `?${queryParams.toString()}` : ""
-      }`;
-      const response = await api.get(url);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch admin products"
-      );
-    }
-  }
-);
-
-// Update product low-stock alert threshold
-export const updateLowStockThreshold = createAsyncThunk(
-  "products/updateLowStockThreshold",
-  async (
-    { productId, threshold }: { productId: string; threshold: number },
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.put(
-        `/api/v1/orders/products/${productId}/low-stock-threshold`,
-        { threshold }
-      );
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to update low stock threshold"
-      );
-    }
-  }
-);
+// ====================== SLICE ======================
 
 const productsSlice = createSlice({
   name: "products",
@@ -408,9 +608,10 @@ const productsSlice = createSlice({
     },
     clearProducts: (state) => {
       state.products = [];
-      state.adminProducts = [];
       state.publicProducts = [];
       state.relatedProducts = [];
+      state.recentlyViewedProducts = [];
+      state.searchResults = [];
       state.currentPage = 1;
       state.totalPages = 1;
       state.totalProducts = 0;
@@ -418,95 +619,180 @@ const productsSlice = createSlice({
     clearPublicProducts: (state) => {
       state.publicProducts = [];
     },
+    clearSearchResults: (state) => {
+      state.searchResults = [];
+      state.availableFilters = null;
+      state.searchSuggestions = [];
+    },
     clearRelatedProducts: (state) => {
       state.relatedProducts = [];
     },
-    clearAdminProducts: (state) => {
-      state.adminProducts = [];
+    clearRecentlyViewedProducts: (state) => {
+      state.recentlyViewedProducts = [];
     },
   },
   extraReducers: (builder) => {
     builder
-      // Create product
-      .addCase(createProduct.pending, (state) => {
-        state.createLoading = true;
-        state.createError = null;
-      })
-      .addCase(createProduct.fulfilled, (state, action) => {
-        state.createLoading = false;
-        state.products.unshift(action.payload);
-      })
-      .addCase(createProduct.rejected, (state, action) => {
-        state.createLoading = false;
-        state.createError = action.payload as string;
-      })
-
-      // Fetch product
-      .addCase(fetchProduct.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchProduct.fulfilled, (state, action) => {
-        state.loading = false;
-        state.product = action.payload;
-      })
-      .addCase(fetchProduct.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Fetch public product
-      .addCase(fetchPublicProduct.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchPublicProduct.fulfilled, (state, action) => {
-        state.loading = false;
-        state.product = action.payload;
-      })
-      .addCase(fetchPublicProduct.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Fetch public products
+      // ========== PUBLIC PRODUCTS ==========
       .addCase(fetchPublicProducts.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(fetchPublicProducts.fulfilled, (state, action) => {
         state.loading = false;
-        state.publicProducts = action.payload.products || action.payload;
-        if (action.payload.currentPage) {
-          state.currentPage = action.payload.currentPage;
-          state.totalPages = action.payload.totalPages;
-          state.totalProducts = action.payload.totalProducts;
-        }
+        // Enrich each product with calculated fields
+        state.publicProducts = action.payload.data.map(enrichProduct);
+        state.currentPage = action.payload.page;
+        state.totalPages = action.payload.totalPages;
+        state.totalProducts = action.payload.total;
       })
       .addCase(fetchPublicProducts.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
 
-      // Update product
+      .addCase(fetchPublicProduct.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPublicProduct.fulfilled, (state, action) => {
+        state.loading = false;
+        state.product = enrichProduct(action.payload);
+      })
+      .addCase(fetchPublicProduct.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(fetchRelatedProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchRelatedProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.relatedProducts = Array.isArray(action.payload) 
+          ? action.payload.map(enrichProduct)
+          : [];
+      })
+      .addCase(fetchRelatedProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ========== PRODUCT SEARCH ==========
+      .addCase(searchProducts.pending, (state) => {
+        state.searchLoading = true;
+        state.error = null;
+      })
+      .addCase(searchProducts.fulfilled, (state, action) => {
+        state.searchLoading = false;
+        state.searchResults = action.payload.data.map(enrichProduct);
+        state.currentPage = action.payload.page;
+        state.totalPages = action.payload.totalPages;
+        state.totalProducts = action.payload.total;
+      })
+      .addCase(searchProducts.rejected, (state, action) => {
+        state.searchLoading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(fetchSearchFilters.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchSearchFilters.fulfilled, (state, action) => {
+        state.loading = false;
+        state.availableFilters = action.payload;
+      })
+      .addCase(fetchSearchFilters.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(fetchSearchSuggestions.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchSearchSuggestions.fulfilled, (state, action) => {
+        state.loading = false;
+        state.searchSuggestions = action.payload;
+      })
+      .addCase(fetchSearchSuggestions.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ========== RECENTLY VIEWED ==========
+      .addCase(trackProductView.fulfilled, () => {
+        // Silent success
+      })
+      .addCase(trackProductView.rejected, (_state, action) => {
+        console.error("Failed to track view:", action.payload);
+      })
+
+      .addCase(fetchRecentlyViewedProducts.pending, (state) => {
+        state.recentlyViewedLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchRecentlyViewedProducts.fulfilled, (state, action) => {
+        state.recentlyViewedLoading = false;
+        state.recentlyViewedProducts = action.payload.data.map(enrichProduct);
+      })
+      .addCase(fetchRecentlyViewedProducts.rejected, (state, action) => {
+        state.recentlyViewedLoading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(removeFromRecentlyViewed.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(removeFromRecentlyViewed.fulfilled, (state, action) => {
+        state.loading = false;
+        state.recentlyViewedProducts = state.recentlyViewedProducts.filter(
+          (product) => product.id !== action.payload
+        );
+      })
+      .addCase(removeFromRecentlyViewed.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // ========== VENDOR PRODUCT MANAGEMENT ==========
+      .addCase(createProduct.pending, (state) => {
+        state.createLoading = true;
+        state.createError = null;
+      })
+      .addCase(createProduct.fulfilled, (state, action) => {
+        state.createLoading = false;
+        const enrichedProduct = enrichProduct(action.payload);
+        state.products.unshift(enrichedProduct);
+      })
+      .addCase(createProduct.rejected, (state, action) => {
+        state.createLoading = false;
+        state.createError = action.payload as string;
+      })
+
+      .addCase(fetchProduct.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProduct.fulfilled, (state, action) => {
+        state.loading = false;
+        state.product = enrichProduct(action.payload);
+      })
+      .addCase(fetchProduct.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
       .addCase(updateProduct.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(updateProduct.fulfilled, (state, action) => {
         state.loading = false;
-        state.product = action.payload;
-        // Update in products list if exists
+        const enrichedProduct = enrichProduct(action.payload);
+        state.product = enrichedProduct;
         state.products = state.products.map((product) =>
-          product.id === action.payload.id ? action.payload : product
-        );
-        // Update in public products list if exists
-        state.publicProducts = state.publicProducts.map((product) =>
-          product.id === action.payload.id ? action.payload : product
-        );
-        // Update in admin products list if exists
-        state.adminProducts = state.adminProducts.map((product) =>
-          product.id === action.payload.id ? action.payload : product
+          product.id === enrichedProduct.id ? enrichedProduct : product
         );
       })
       .addCase(updateProduct.rejected, (state, action) => {
@@ -514,26 +800,14 @@ const productsSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // Delete product
       .addCase(deleteProduct.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
       .addCase(deleteProduct.fulfilled, (state, action) => {
         state.loading = false;
-        // Remove from products list
         state.products = state.products.filter(
           (product) => product.id !== action.payload
         );
-        // Remove from public products list
-        state.publicProducts = state.publicProducts.filter(
-          (product) => product.id !== action.payload
-        );
-        // Remove from admin products list
-        state.adminProducts = state.adminProducts.filter(
-          (product) => product.id !== action.payload
-        );
-        // Clear current product if it was deleted
         if (state.product?.id === action.payload) {
           state.product = null;
         }
@@ -543,17 +817,15 @@ const productsSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // Submit for review
       .addCase(submitForReview.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
       .addCase(submitForReview.fulfilled, (state, action) => {
         state.loading = false;
-        state.product = action.payload;
-        // Update in products list if exists
+        const enrichedProduct = enrichProduct(action.payload);
+        state.product = enrichedProduct;
         state.products = state.products.map((product) =>
-          product.id === action.payload.id ? action.payload : product
+          product.id === enrichedProduct.id ? enrichedProduct : product
         );
       })
       .addCase(submitForReview.rejected, (state, action) => {
@@ -561,10 +833,8 @@ const productsSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // Upload media
       .addCase(uploadProductMedia.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
       .addCase(uploadProductMedia.fulfilled, (state, action) => {
         state.loading = false;
@@ -573,69 +843,6 @@ const productsSlice = createSlice({
         }
       })
       .addCase(uploadProductMedia.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Fetch related products
-      .addCase(fetchRelatedProducts.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchRelatedProducts.fulfilled, (state, action) => {
-        state.loading = false;
-        state.relatedProducts = action.payload;
-      })
-      .addCase(fetchRelatedProducts.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Fetch admin product
-      .addCase(fetchAdminProduct.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchAdminProduct.fulfilled, (state, action) => {
-        state.loading = false;
-        state.product = action.payload;
-      })
-      .addCase(fetchAdminProduct.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Fetch admin products
-      .addCase(fetchAdminProducts.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchAdminProducts.fulfilled, (state, action) => {
-        state.loading = false;
-        state.adminProducts = action.payload.products || action.payload;
-        if (action.payload.currentPage) {
-          state.currentPage = action.payload.currentPage;
-          state.totalPages = action.payload.totalPages;
-          state.totalProducts = action.payload.totalProducts;
-        }
-      })
-      .addCase(fetchAdminProducts.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Update low stock threshold
-      .addCase(updateLowStockThreshold.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(updateLowStockThreshold.fulfilled, (state, action) => {
-        state.loading = false;
-        if (state.product) {
-          state.product = { ...state.product, ...action.payload };
-        }
-      })
-      .addCase(updateLowStockThreshold.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });
@@ -648,23 +855,37 @@ export const {
   clearError,
   clearProducts,
   clearPublicProducts,
+  clearSearchResults,
   clearRelatedProducts,
-  clearAdminProducts,
+  clearRecentlyViewedProducts,
 } = productsSlice.actions;
 
-// Selectors
+// ====================== SELECTORS ======================
+
 export const selectProducts = (state: { products: ProductsState }) =>
   state.products.products;
-export const selectAdminProducts = (state: { products: ProductsState }) =>
-  state.products.adminProducts;
 export const selectPublicProducts = (state: { products: ProductsState }) =>
   state.products.publicProducts;
+export const selectSearchResults = (state: { products: ProductsState }) =>
+  state.products.searchResults;
 export const selectRelatedProducts = (state: { products: ProductsState }) =>
   state.products.relatedProducts;
+export const selectRecentlyViewedProducts = (state: {
+  products: ProductsState;
+}) => state.products.recentlyViewedProducts;
 export const selectProduct = (state: { products: ProductsState }) =>
   state.products.product;
+export const selectSearchSuggestions = (state: { products: ProductsState }) =>
+  state.products.searchSuggestions;
+export const selectAvailableFilters = (state: { products: ProductsState }) =>
+  state.products.availableFilters;
 export const selectProductsLoading = (state: { products: ProductsState }) =>
   state.products.loading;
+export const selectSearchLoading = (state: { products: ProductsState }) =>
+  state.products.searchLoading;
+export const selectRecentlyViewedLoading = (state: {
+  products: ProductsState;
+}) => state.products.recentlyViewedLoading;
 export const selectProductsError = (state: { products: ProductsState }) =>
   state.products.error;
 export const selectCreateProductLoading = (state: {
@@ -672,12 +893,23 @@ export const selectCreateProductLoading = (state: {
 }) => state.products.createLoading;
 export const selectCreateProductError = (state: { products: ProductsState }) =>
   state.products.createError;
-export const selectProductsPagination = (state: {
-  products: ProductsState;
-}) => ({
-  currentPage: state.products.currentPage,
-  totalPages: state.products.totalPages,
-  totalProducts: state.products.totalProducts,
-});
+
+const selectCurrentPage = (state: { products: ProductsState }) =>
+  state.products.currentPage;
+const selectTotalPages = (state: { products: ProductsState }) =>
+  state.products.totalPages;
+const selectTotalProducts = (state: { products: ProductsState }) =>
+  state.products.totalProducts;
+
+export const selectProductsPagination = createSelector(
+  [selectCurrentPage, selectTotalPages, selectTotalProducts],
+  (currentPage, totalPages, totalProducts) => ({
+    currentPage,
+    totalPages,
+    totalProducts,
+    hasNextPage: currentPage < totalPages,
+    hasPreviousPage: currentPage > 1,
+  })
+);
 
 export default productsSlice.reducer;

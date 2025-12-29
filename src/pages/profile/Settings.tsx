@@ -1,7 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
-
-import { countriesApi, type City, type Country } from "@/lib/countries";
+import { countriesApi, type Country } from "@/lib/countries";
 import {
   Card,
   CardContent,
@@ -22,14 +21,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { cn } from "@/lib/utils";
-
 import { Input } from "@/components/ui/input";
 import images from "@/assets/images";
 import { Switch } from "@/components/ui/switch";
 import { AfricanPhoneInput } from "@/components/african-phone-input";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Edit, Trash2 } from "lucide-react";
 import { useReduxAuth } from "@/hooks/useReduxAuth";
 import { useReduxUsers } from "@/hooks/useReduxUsers";
+import { toast } from "sonner";
+import { useReduxAddresses } from "@/hooks/useReduxAddresses";
+import { useReduxNotifications } from "@/hooks/useReduxNotifications";
+import type { NotificationPreferences } from "@/redux/slices/notificationsSlice";
+import type { Address as BaseAddress } from "@/redux/slices/addressesSlice";
+
+// Extended Address type to handle both backend and frontend fields
+type Address = BaseAddress & {
+  recipient?: string;
+  addLine1?: string;
+  addLine2?: string | null;
+  addLine3?: string | null;
+  postCode?: string;
+};
 
 const reasons = [
   {
@@ -50,7 +62,6 @@ const reasons = [
   },
 ];
 
-// Sub-reasons for each main reason
 const subReasons: Record<string, string[]> = {
   "business reasons": [
     "I only had one (or a few) things to sell",
@@ -79,21 +90,31 @@ const subReasons: Record<string, string[]> = {
 };
 
 export default function ProfileSettingsPage() {
-  const { user, firebaseUser } = useReduxAuth();
-  const { profile, getUserProfile } = useReduxUsers();
-  
-  const [showAddAddress, setShowAddAddress] = useState(false);
+  const { user, updateCurrentUser, changePassword } = useReduxAuth();
+  const { profile, getUserProfile, updateProfile, deleteAccount } =
+    useReduxUsers();
+  const {
+    addresses,
+    getAddresses,
+    addAddress,
+    editAddress,
+    removeAddress,
+    setAddressAsDefault,
+  } = useReduxAddresses();
+  const { preferences, getPreferences, updatePreferences } =
+    useReduxNotifications();
 
-  // Initialize state with empty values, will be populated from API
+  const [showAddAddress, setShowAddAddress] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+
+  // Form states
   const [phoneNumber, setPhoneNumber] = useState("");
   const [countryCode, setCountryCode] = useState("+256");
-
-  // Add the missing state declarations
   const [selectedReason, setSelectedReason] = useState<string>("");
   const [selectedSubReason, setSelectedSubReason] = useState<string>("");
   const [additionalFeedback, setAdditionalFeedback] = useState<string>("");
-
-  // Address form state - initialize as empty
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -104,204 +125,349 @@ export default function ProfileSettingsPage() {
   const [additionalDetails, setAdditionalDetails] = useState("");
   const [isDefault, setIsDefault] = useState(false);
 
-  // Notification settings state
-  const [notificationSettings, setNotificationSettings] = useState({
-    promotions: true,
-    myActivity: true,
-    orderUpdates: true,
-    wishlistFavorites: false,
-    messages: true,
-    reviewsFeedback: false,
-  });
+  // Password states
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
+  // Notification settings
+  const [notificationSettings, setNotificationSettings] =
+    useState<NotificationPreferences>(() => ({
+      promotions: false,
+      myActivity: false,
+      orderUpdates: false,
+      wishlistFavorites: false,
+      messages: false,
+      reviewsFeedback: false,
+    }));
 
   const [countries, setCountries] = useState<Country[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string>("");
   const [selectedCity, setSelectedCity] = useState<string>("");
-  const [, setLoading] = useState(true);
-  const [, setCitiesLoading] = useState(false);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Fetch user profile on component mount
+  // Fetch user data on component mount
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        await getUserProfile();
+        await Promise.all([getUserProfile(), getAddresses(), getPreferences()]);
       } catch (error) {
-        console.error("Failed to load user profile:", error);
+        console.error("Failed to load user data:", error);
       }
     };
-    
+
     loadUserData();
-  }, [getUserProfile]);
+  }, []);
+
+  // Update notification settings when preferences are fetched
+  useEffect(() => {
+    if (preferences) {
+      setNotificationSettings(preferences);
+    }
+  }, [preferences]);
 
   // Update form fields when user data changes
   useEffect(() => {
-    console.log("Profile data received:", profile);
-    console.log("Auth user data:", user);
-    
-    // Use profile data first (from usersSlice), then fallback to auth user data
     if (profile) {
-      // Extract user data from the nested structure
       const userData = profile.user || profile;
-      
+
       setFirstName(userData.firstName || "");
       setLastName(userData.lastName || "");
       setEmail(userData.email || "");
-      
-      // Handle phone number
-      const phone = userData.phoneNumber || "";
-      setPhoneNumber(phone);
-      
-      // Handle address data - check addresses array
-      if (profile.addresses && Array.isArray(profile.addresses) && profile.addresses.length > 0) {
-        const defaultAddress = profile.addresses.find(addr => addr.isDefault);
-        const firstAddress = profile.addresses[0];
-        const addressToUse = defaultAddress || firstAddress;
-        
-        if (addressToUse) {
-          setAddress(addressToUse.street || addressToUse.address || "");
-          setStreet(addressToUse.street || "");
-          setDistrict(addressToUse.district || addressToUse.city || "");
-          setSelectedCountry(addressToUse.country || "");
-          setSelectedCity(addressToUse.city || "");
-        }
-      }
+      setPhoneNumber(userData.phoneNumber || "");
     } else if (user) {
-      // Fallback to auth user data
       setFirstName(user.firstName || "");
       setLastName(user.lastName || "");
       setEmail(user.email || "");
       setPhoneNumber(user.phoneNumber || "");
-    } else if (firebaseUser) {
-      // Fallback to Firebase user data
-      const firebaseFirstName = firebaseUser.displayName?.split(" ")[0] || "";
-      const firebaseLastName = firebaseUser.displayName?.split(" ").slice(1).join(" ") || "";
-      
-      setFirstName(firebaseFirstName);
-      setLastName(firebaseLastName);
-      setEmail(firebaseUser.email || "");
     }
-  }, [profile, user, firebaseUser]);
+  }, [profile, user]);
+
+  // Load address data when editing
+  useEffect(() => {
+    if (editingAddressId && addresses.length > 0) {
+      const addressToEdit = addresses.find(
+        (addr) => addr.id === editingAddressId
+      );
+      if (addressToEdit) {
+        // Use a timeout to ensure we don't cause rapid re-renders
+        const timer = setTimeout(() => {
+          // Parse recipient name if it exists
+          const recipientParts = addressToEdit.recipient?.split(' ') || [];
+          const recipientFirstName = recipientParts[0] || '';
+          const recipientLastName = recipientParts.slice(1).join(' ') || '';
+          
+          setFirstName(recipientFirstName || addressToEdit.firstName || "");
+          setLastName(recipientLastName || addressToEdit.lastName || "");
+          setEmail(user?.email || addressToEdit.email || "");
+          setPhoneNumber(user?.phoneNumber || addressToEdit.phoneNumber || "");
+          setSelectedCountry(addressToEdit.country || "");
+          setSelectedCity(addressToEdit.city || "");
+          setAddress(addressToEdit.address || addressToEdit.addLine1 || "");
+          setStreet(addressToEdit.addLine1 || addressToEdit.street || "");
+          setDistrict(addressToEdit.postCode || addressToEdit.district || "");
+          setAdditionalDetails(addressToEdit.addLine2 || addressToEdit.additionalDetails || "");
+          setIsDefault(addressToEdit.isDefault || false);
+        }, 0);
+
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [editingAddressId, addresses, user]);
 
   // Fetch countries on component mount
   useEffect(() => {
     const fetchCountries = async () => {
       try {
-        setLoading(true);
         const countriesData = await countriesApi.getAfricanCountries();
         setCountries(countriesData);
       } catch (error) {
         console.error("Error fetching countries:", error);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchCountries();
   }, []);
 
-  // Fetch cities when country changes
-  useEffect(() => {
-    const fetchCities = async () => {
-      if (!selectedCountry) {
-        setCities([]);
-        return;
-      }
+  // Handle edit profile
+  const handleEditProfile = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      toast.error("First name and last name are required");
+      return;
+    }
 
-      try {
-        setCitiesLoading(true);
-        setSelectedCity(""); // Reset city when country changes
-        const citiesData = await countriesApi.getCitiesByCountry(
-          selectedCountry
-        );
-        setCities(citiesData);
-      } catch (error) {
-        console.error("Error fetching cities:", error);
-        setCities([]);
-      } finally {
-        setCitiesLoading(false);
-      }
-    };
+    setIsEditingProfile(true);
+    try {
+      const updatedData = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        ...(middleName && { middleName: middleName.trim() }),
+        ...(phoneNumber && { phoneNumber }),
+      };
 
-    fetchCities();
-  }, [selectedCountry]);
+      // Update in Redux store
+      updateCurrentUser(updatedData);
 
-  const handleCountryChange = (value: string) => {
-    setSelectedCountry(value);
+      // Update in backend if you have an updateProfile function
+      await updateProfile(updatedData);
+
+      toast.success("Profile updated successfully!");
+    } catch (error: any) {
+      console.error("Failed to update profile:", error);
+      toast.error(error.message || "Failed to update profile");
+    } finally {
+      setIsEditingProfile(false);
+    }
   };
 
-  const handleCityChange = (value: string) => {
-    setSelectedCity(value);
+  // Handle update password
+  const handleUpdatePassword = async () => {
+    setPasswordError("");
+
+    // Validate passwords
+    if (!currentPassword) {
+      setPasswordError("Current password is required");
+      return;
+    }
+
+    if (!newPassword) {
+      setPasswordError("New password is required");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+
+      // Clear form
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+      toast.success("Password updated successfully!");
+    } catch (error: any) {
+      console.error("Failed to update password:", error);
+      setPasswordError(error.message || "Failed to update password");
+      toast.error(error.message || "Failed to update password");
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   // Handle account deletion
   const handleDeleteAccount = async () => {
     setDeleting(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Call the deleteAccount function from useReduxUsers
+      await deleteAccount();
 
-      console.log("Account deletion data:", {
-        reason: selectedReason,
-        subReason: selectedSubReason,
-        feedback: additionalFeedback,
-      });
-
-      // Show success message or redirect
-      alert("Account deletion process started successfully!");
+      toast.success("Account deletion process started successfully!");
       setDeleteDialogOpen(false);
 
       // Reset form
       setSelectedReason("");
       setSelectedSubReason("");
       setAdditionalFeedback("");
-    } catch (error) {
+
+      // Redirect to home or login page
+      window.location.href = "/";
+    } catch (error: any) {
       console.error("Error deleting account:", error);
-      alert("Failed to delete account. Please try again.");
+      toast.error(
+        error.message || "Failed to delete account. Please try again."
+      );
     } finally {
       setDeleting(false);
     }
   };
 
-  // Handler for phone number changes
+  // Handle save address (for both create and update)
+  const handleSaveAddress = async () => {
+    if (
+      !firstName ||
+      !lastName ||
+      !selectedCountry ||
+      !street ||
+      !district
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const addressData: any = {
+        recipient: `${firstName.trim()} ${lastName.trim()}`,
+        addLine1: street.trim(),
+        addLine2: additionalDetails.trim() || null,
+        addLine3: null,
+        postCode: district.trim(),
+        country: selectedCountry,
+        isDefault,
+      };
+
+      if (editingAddressId) {
+        // Update existing address
+        await editAddress({
+          id: editingAddressId,
+          ...addressData,
+        });
+        toast.success("Address updated successfully!");
+      } else {
+        // Create new address
+        await addAddress(addressData);
+        toast.success("Address saved successfully!");
+      }
+
+      // Reset form
+      setShowAddAddress(false);
+      setEditingAddressId(null);
+      resetAddressForm();
+    } catch (error: any) {
+      console.error("Failed to save address:", error);
+      toast.error(error.message || "Failed to save address");
+    }
+  };
+
+  // Handle delete address
+  const handleDeleteAddress = async (addressId: string) => {
+    if (addresses.length <= 1) {
+      toast.error("You must have at least one address");
+      return;
+    }
+
+    try {
+      await removeAddress(addressId);
+      toast.success("Address deleted successfully!");
+    } catch (error: any) {
+      console.error("Failed to delete address:", error);
+      toast.error(error.message || "Failed to delete address");
+    }
+  };
+
+  // Handle set default address
+  const handleSetDefaultAddress = async (addressId: string) => {
+    try {
+      await setAddressAsDefault(addressId);
+      toast.success("Default address updated successfully!");
+    } catch (error: any) {
+      console.error("Failed to set default address:", error);
+      toast.error(error.message || "Failed to set default address");
+    }
+  };
+
+  // Handle edit address button click
+  const handleEditAddressClick = (address: Address) => {
+    setEditingAddressId(address.id);
+    setShowAddAddress(true);
+  };
+
+  // Reset address form
+  const resetAddressForm = () => {
+    if (profile) {
+      const userData = profile.user || profile;
+      setFirstName(userData.firstName || "");
+      setLastName(userData.lastName || "");
+      setEmail(userData.email || "");
+      setPhoneNumber(userData.phoneNumber || "");
+    }
+    setSelectedCountry("");
+    setSelectedCity("");
+    setAddress("");
+    setStreet("");
+    setDistrict("");
+    setAdditionalDetails("");
+    setIsDefault(false);
+    setEditingAddressId(null);
+  };
+
+  // Handle notification settings
+  const handleSaveNotifications = async () => {
+    try {
+      await updatePreferences(notificationSettings);
+      toast.success("Notification settings saved successfully!");
+    } catch (error: any) {
+      console.error("Failed to save notification settings:", error);
+      toast.error(error.message || "Failed to save notification settings");
+    }
+  };
+
+  // Handle phone number changes
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(value);
   };
 
-  // Handler for country code changes
+  // Handle country code changes
   const handleCountryCodeChange = (value: string) => {
     setCountryCode(value);
   };
 
-  // Handle address form submission
-  const handleSaveAddress = () => {
-    // Handle address saving logic here
-    console.log("Saving address:", {
-      firstName,
-      lastName,
-      email,
-      phoneNumber,
-      country: selectedCountry,
-      city: selectedCity,
-      address,
-      district,
-      street,
-      additionalDetails,
-      isDefault,
-    });
-
-    // Show success message and go back to addresses tab
-    alert("Address saved successfully!");
-    setShowAddAddress(false);
+  const handleCountryChange = (value: string) => {
+    setSelectedCountry(value);
+    setSelectedCity("");
   };
 
-  // Handle notification settings change
+  // Reset sub-reason when main reason changes
+  useEffect(() => {
+    setSelectedSubReason("");
+  }, [selectedReason]);
+
+  // Handler for notification settings change
   const handleNotificationChange = (
-    key: keyof typeof notificationSettings,
+    key: keyof NotificationPreferences,
     value: boolean
   ) => {
     setNotificationSettings((prev) => ({
@@ -310,259 +476,226 @@ export default function ProfileSettingsPage() {
     }));
   };
 
-  // Handle save notification settings
-  const handleSaveNotifications = () => {
-    console.log("Saving notification settings:", notificationSettings);
-    alert("Notification settings saved successfully!");
-  };
-
-  // Handle edit profile
-  const handleEditProfile = () => {
-    console.log("Editing profile:", {
-      firstName,
-      middleName,
-      lastName,
-      email,
-      phoneNumber,
-    });
-    alert("Profile updated successfully!");
-  };
-
-  // Handle update password
-  const handleUpdatePassword = () => {
-    console.log("Updating password");
-    alert("Password updated successfully!");
-  };
-
-  // Handle edit address
-  const handleEditAddress = () => {
-    console.log("Editing address");
-    alert("Address updated successfully!");
-  };
-
-  // Reset sub-reason when main reason changes
-  useEffect(() => {
-    setSelectedSubReason("");
-  }, [selectedReason]);
-
-  // Add New Address Form Component
-  const AddAddressForm = () => (
-    <div className="min-h-screen">
-      <div className="bg-white p-6 px-8 rounded-md mb-6">
-        <h1 className="text-2xl font-medium">Account Settings</h1>
-      </div>
-      {/* Header with Back Button */}
-      <div className="bg-white p-6 rounded-md mb-6 flex items-center gap-3">
-        <Button
-          className="bg-white hover:bg-gray-100 text-[#303030] h-8 w-8 p-0"
-          onClick={() => setShowAddAddress(false)}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-medium">Add new address</h1>
-      </div>
-
-      {/* Address Form */}
-      <div className="bg-white p-6 px-8 rounded-md">
-        <Card className="shadow-none border-0">
-          <CardContent className="space-y-6 p-0">
-            {/* Country */}
-            <div className="space-y-3">
-              <Label className="font-medium">
-                Country <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={selectedCountry}
-                onValueChange={handleCountryChange}
-              >
-                <SelectTrigger className="min-h-11 w-full">
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {countries.map((country) => (
-                    <SelectItem
-                      key={country.code}
-                      value={country.name}
-                      className="h-11"
-                    >
-                      {country.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Name Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label className="font-medium">
-                  First name <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="h-11"
-                  placeholder="Enter first name"
-                />
-              </div>
-              <div className="space-y-3">
-                <Label className="font-medium">
-                  Last name <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="h-11"
-                  placeholder="Enter last name"
-                />
-              </div>
-            </div>
-
-            {/* Contact Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label className="font-medium">
-                  Email Address <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-11"
-                  placeholder="Enter email address"
-                  type="email"
-                />
-              </div>
-              <div className="space-y-3">
-                <Label className="font-medium">
-                  Contact <span className="text-red-500">*</span>
-                </Label>
-                <AfricanPhoneInput
-                  value={phoneNumber}
-                  onChange={handlePhoneNumberChange}
-                  countryCode={countryCode}
-                  onCountryCodeChange={handleCountryCodeChange}
-                  placeholder="Enter your phone number"
-                />
-              </div>
-            </div>
-
-            {/* Address */}
-            <div className="space-y-3">
-              <Label className="font-medium">
-                Address <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="h-11"
-                placeholder="Enter your address"
-              />
-            </div>
-
-            {/* City */}
-            <div className="space-y-3">
-              <Label className="font-medium">
-                City <span className="text-red-500">*</span>
-              </Label>
-              <Select value={selectedCity} onValueChange={handleCityChange}>
-                <SelectTrigger className="min-h-11 w-full">
-                  <SelectValue placeholder="Select city" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cities.map((city, index) => (
-                    <SelectItem key={index} value={city.name} className="h-11">
-                      {city.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* District (Optional) */}
-            <div className="space-y-3">
-              <Label className="font-medium">
-                District <span className="text-gray-500">(Optional)</span>
-              </Label>
-              <Input
-                value={district}
-                onChange={(e) => setDistrict(e.target.value)}
-                className="h-11"
-                placeholder="Enter district"
-              />
-            </div>
-
-            {/* Street/Landmark */}
-            <div className="space-y-3">
-              <Label className="font-medium">
-                Street name / Street number / Landmark{" "}
-                <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                value={street}
-                onChange={(e) => setStreet(e.target.value)}
-                className="h-11"
-                placeholder="Enter street, number or landmark"
-              />
-            </div>
-
-            {/* Additional Details (Optional) */}
-            <div className="space-y-3">
-              <Label className="font-medium">
-                Additional details / Detailed Address{" "}
-                <span className="text-gray-500">(Optional)</span>
-              </Label>
-              <Textarea
-                value={additionalDetails}
-                onChange={(e) => setAdditionalDetails(e.target.value)}
-                className="min-h-24 resize-none"
-                placeholder="Enter any additional address details"
-              />
-            </div>
-
-            {/* Set as Default */}
-            <div className="flex items-center justify-between space-x-3 py-4">
-              <Label
-                htmlFor="default-address"
-                className="text-lg cursor-pointer"
-              >
-                Set as default
-              </Label>
-              <Switch
-                checked={isDefault}
-                onCheckedChange={setIsDefault}
-                id="default-address"
-              />
-            </div>
-
-            {/* Save Button */}
-            <div className="flex justify-end pt-4">
-              <Button
-                className="bg-[#CC5500] hover:bg-[#CC5500]/90 h-11 w-xs text-white"
-                onClick={handleSaveAddress}
-              >
-                Save
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-
   // If showing add address form, return only that
   if (showAddAddress) {
-    return <AddAddressForm />;
-  }
-
-  // Show loading state while fetching user data
-  if (!profile && !user && !firebaseUser) {
     return (
       <div className="min-h-screen">
-        <div className="bg-white p-6 rounded-md mb-6">
+        <div className="bg-white p-6 px-8 rounded-md mb-6">
           <h1 className="text-2xl font-medium">Account Settings</h1>
         </div>
-        <div className="bg-white p-6 rounded-md flex justify-center items-center h-40">
-          <p className="text-gray-500">Loading user data...</p>
+        {/* Header with Back Button */}
+        <div className="bg-white p-6 rounded-md mb-6 flex items-center gap-3">
+          <Button
+            className="bg-white hover:bg-gray-100 text-[#303030] h-8 w-8 p-0"
+            onClick={() => {
+              setShowAddAddress(false);
+              setEditingAddressId(null);
+              resetAddressForm();
+            }}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-medium">
+            {editingAddressId ? "Edit Address" : "Add new address"}
+          </h1>
+        </div>
+
+        {/* Address Form */}
+        <div className="bg-white p-6 px-8 rounded-md">
+          <Card className="shadow-none border-0">
+            <CardContent className="space-y-6 p-0">
+              {/* Country */}
+              <div className="space-y-3">
+                <Label className="font-medium">
+                  Country <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={selectedCountry}
+                  onValueChange={handleCountryChange}
+                >
+                  <SelectTrigger className="min-h-11 w-full">
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {countries.map((country) => (
+                      <SelectItem
+                        key={country.code}
+                        value={country.name}
+                        className="h-11"
+                      >
+                        {country.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Name Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label className="font-medium">
+                    First name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="h-11"
+                    placeholder="Enter first name"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label className="font-medium">
+                    Last name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="h-11"
+                    placeholder="Enter last name"
+                  />
+                </div>
+              </div>
+
+              {/* Contact Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label className="font-medium">
+                    Email Address <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-11"
+                    placeholder="Enter email address"
+                    type="email"
+                    disabled
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label className="font-medium">
+                    Contact <span className="text-red-500">*</span>
+                  </Label>
+                  <AfricanPhoneInput
+                    value={phoneNumber}
+                    onChange={handlePhoneNumberChange}
+                    countryCode={countryCode}
+                    onCountryCodeChange={handleCountryCodeChange}
+                    placeholder="Enter your phone number"
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div className="space-y-3">
+                <Label className="font-medium">
+                  Address <span className="text-gray-500">(Optional)</span>
+                </Label>
+                <Input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="h-11"
+                  placeholder="Enter your address"
+                />
+              </div>
+
+              {/* City */}
+              <div className="space-y-3">
+                <Label className="font-medium">
+                  City <span className="text-gray-500">(Optional)</span>
+                </Label>
+                <Input
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  className="h-11"
+                  placeholder="Enter your City"
+                />
+              </div>
+
+              {/* Post Code */}
+              <div className="space-y-3">
+                <Label className="font-medium">
+                  Post Code <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  className="h-11"
+                  placeholder="Enter post code"
+                />
+              </div>
+
+              {/* Street/Landmark */}
+              <div className="space-y-3">
+                <Label className="font-medium">
+                  Street name / Street number / Landmark{" "}
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                  className="h-11"
+                  placeholder="Enter street, number or landmark"
+                />
+              </div>
+
+              {/* Additional Details (Optional) */}
+              <div className="space-y-3">
+                <Label className="font-medium">
+                  Additional details / Detailed Address{" "}
+                  <span className="text-gray-500">(Optional)</span>
+                </Label>
+                <Textarea
+                  value={additionalDetails}
+                  onChange={(e) => setAdditionalDetails(e.target.value)}
+                  className="min-h-24 resize-none"
+                  placeholder="Enter any additional address details"
+                />
+              </div>
+
+              {/* Set as Default */}
+              <div className="flex items-center justify-between space-x-3 py-4">
+                <Label
+                  htmlFor="default-address"
+                  className="text-lg cursor-pointer"
+                >
+                  Set as default
+                </Label>
+                <Switch
+                  checked={isDefault}
+                  onCheckedChange={setIsDefault}
+                  id="default-address"
+                />
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end pt-4 gap-4">
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={() => {
+                    setShowAddAddress(false);
+                    setEditingAddressId(null);
+                    resetAddressForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-[#CC5500] hover:bg-[#CC5500]/90 h-11 w-xs text-white"
+                  onClick={handleSaveAddress}
+                  disabled={
+                    !firstName ||
+                    !lastName ||
+                    !selectedCountry ||
+                    !street ||
+                    !district
+                  }
+                >
+                  {editingAddressId ? "Update Address" : "Save Address"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -654,6 +787,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => setEmail(e.target.value)}
                           className="h-11"
                           type="email"
+                          disabled
                         />
                       </div>
                       <div className="space-y-3">
@@ -673,8 +807,9 @@ export default function ProfileSettingsPage() {
                         variant={"secondary"}
                         className="h-11 bg-[#CC5500] hover:bg-[#CC5500]/80 text-white w-xs"
                         onClick={handleEditProfile}
+                        disabled={isEditingProfile}
                       >
-                        Edit Profile
+                        {isEditingProfile ? "Saving..." : "Edit Profile"}
                       </Button>
                     </div>
                   </div>
@@ -688,17 +823,26 @@ export default function ProfileSettingsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
+                    {passwordError && (
+                      <div className="p-3 bg-red-50 text-red-600 rounded-md">
+                        {passwordError}
+                      </div>
+                    )}
                     <div className="space-y-3">
                       <Label className="font-medium">Current Password</Label>
                       <Input
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
                         placeholder="Enter your current password"
                         className="h-11"
                         type="password"
                       />
                     </div>
                     <div className="space-y-3">
-                      <Label className="font-medium">Password</Label>
+                      <Label className="font-medium">New Password</Label>
                       <Input
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="Enter your new password"
                         className="h-11"
                         type="password"
@@ -707,6 +851,8 @@ export default function ProfileSettingsPage() {
                     <div className="space-y-3">
                       <Label className="font-medium">Confirm Password</Label>
                       <Input
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Confirm your new password"
                         className="h-11"
                         type="password"
@@ -718,8 +864,14 @@ export default function ProfileSettingsPage() {
                         variant={"secondary"}
                         className="h-11 bg-[#CC5500] hover:bg-[#CC5500]/80 text-white w-xs"
                         onClick={handleUpdatePassword}
+                        disabled={
+                          isUpdatingPassword ||
+                          !currentPassword ||
+                          !newPassword ||
+                          !confirmPassword
+                        }
                       >
-                        Update Password
+                        {isUpdatingPassword ? "Updating..." : "Update Password"}
                       </Button>
                     </div>
                   </div>
@@ -743,7 +895,7 @@ export default function ProfileSettingsPage() {
                       </h2>
                       <ul className="px-8 space-y-1 text-sm">
                         <li className="list-disc">
-                          Your account will be inactive until you reopen it.
+                          Your account will be permanently deleted.
                         </li>
                         <li className="list-disc">
                           Your profile, shop, and listings will no longer appear
@@ -753,8 +905,7 @@ export default function ProfileSettingsPage() {
                           We'll close any non-delivery cases you opened.
                         </li>
                         <li className="list-disc">
-                          Your account settings will remain intact, and you can
-                          reopen your account anytime.
+                          All your data will be removed from our systems.
                         </li>
                       </ul>
                     </div>
@@ -768,7 +919,7 @@ export default function ProfileSettingsPage() {
                       value={selectedReason}
                       onValueChange={(value) => {
                         setSelectedReason(value);
-                        setSelectedSubReason(""); // Reset sub-reason when main reason changes
+                        setSelectedSubReason("");
                       }}
                     >
                       <SelectTrigger className="min-h-11 w-full">
@@ -788,33 +939,34 @@ export default function ProfileSettingsPage() {
                     </Select>
 
                     {/* Conditional Sub-reasons with Radio Buttons */}
-                    {selectedReason && (
-                      <div className="mt-4 space-y-3 py-4">
-                        <RadioGroup
-                          value={selectedSubReason}
-                          onValueChange={setSelectedSubReason}
-                          className="space-y-4"
-                        >
-                          {subReasons[selectedReason].map((sub) => (
-                            <div
-                              key={sub}
-                              className="flex items-center space-x-3"
-                            >
-                              <RadioGroupItem
-                                value={sub}
-                                id={`${selectedReason}-${sub}`}
-                              />
-                              <Label
-                                htmlFor={`${selectedReason}-${sub}`}
-                                className="text-sm cursor-pointer"
+                    {selectedReason &&
+                      subReasons[selectedReason]?.length > 0 && (
+                        <div className="mt-4 space-y-3 py-4">
+                          <RadioGroup
+                            value={selectedSubReason}
+                            onValueChange={setSelectedSubReason}
+                            className="space-y-4"
+                          >
+                            {subReasons[selectedReason].map((sub) => (
+                              <div
+                                key={sub}
+                                className="flex items-center space-x-3"
                               >
-                                {sub}
-                              </Label>
-                            </div>
-                          ))}
-                        </RadioGroup>
-                      </div>
-                    )}
+                                <RadioGroupItem
+                                  value={sub}
+                                  id={`${selectedReason}-${sub}`}
+                                />
+                                <Label
+                                  htmlFor={`${selectedReason}-${sub}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {sub}
+                                </Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </div>
+                      )}
 
                     {/* Additional Feedback */}
                     {selectedReason && (
@@ -824,7 +976,7 @@ export default function ProfileSettingsPage() {
                           className="text-md font-medium"
                         >
                           Do you have anything else to tell us?
-                          <span className="text-[#8A8A8A]">Optional</span>
+                          <span className="text-[#8A8A8A] ml-2">Optional</span>
                         </Label>
                         <Textarea
                           id="feedback"
@@ -842,12 +994,18 @@ export default function ProfileSettingsPage() {
                     variant={"secondary"}
                     className={cn(
                       "h-11 rounded-full px-6 text-white font-semibold transition-colors duration-200",
-                      selectedReason && selectedSubReason
+                      selectedReason &&
+                        (selectedSubReason ||
+                          selectedReason === "something else")
                         ? "bg-[#DC2626] hover:bg-[#DC2626]/90"
                         : "bg-[#CCCCCC] hover:bg-[#CCCCCC]/60 cursor-not-allowed"
                     )}
                     onClick={() => setDeleteDialogOpen(true)}
-                    disabled={!selectedReason || !selectedSubReason}
+                    disabled={
+                      !selectedReason ||
+                      (!selectedSubReason &&
+                        selectedReason !== "something else")
+                    }
                   >
                     Delete account
                   </Button>
@@ -868,70 +1026,147 @@ export default function ProfileSettingsPage() {
           <TabsContent value="addresses" className="mt-8">
             <div className="space-y-8">
               <div className="bg-white rounded-xl border py-8 px-6 flex flex-1 flex-row items-center justify-between">
-                <p className="text-lg font-medium">Billing Address</p>
+                <p className="text-lg font-medium">Saved Addresses</p>
                 <Button
                   className="bg-[#CC5500] hover:bg-[#CC5500] h-11 w-xs text-white"
-                  onClick={() => setShowAddAddress(true)}
+                  onClick={() => {
+                    resetAddressForm();
+                    setShowAddAddress(true);
+                  }}
                 >
                   Add new Address
                 </Button>
               </div>
 
-              <Card className="shadow-none px-6">
-                <CardTitle className="text-xl font-medium">
-                  Current Address
-                </CardTitle>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      <Label>Full Name</Label>
-                      <Input
-                        value={`${firstName} ${lastName}`.trim()}
-                        className="h-11"
-                        readOnly
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      <Label>Email</Label>
-                      <Input value={email} className="h-11" readOnly />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <Label>Phone Number</Label>
-                    <AfricanPhoneInput
-                      value={phoneNumber}
-                      onChange={handlePhoneNumberChange}
-                      countryCode={countryCode}
-                      onCountryCodeChange={handleCountryCodeChange}
-                      placeholder="Enter your phone number"
+              {addresses.length === 0 ? (
+                <Card className="shadow-none">
+                  <div className="flex flex-col items-center justify-center p-6">
+                    <img
+                      src={images.EmptyWallet}
+                      alt="No addresses"
+                      className="h-3xs w-3xs mb-6"
                     />
+                    <h2 className="text-md text-center mb-4">
+                      You don't have any saved addresses yet.
+                    </h2>
                   </div>
-                </div>
-
+                </Card>
+              ) : (
                 <div className="space-y-6">
-                  <div className="space-y-3">
-                    <Label>Address</Label>
-                    <Input 
-                      value={address || "No address saved yet"} 
-                      className="h-11" 
-                      readOnly 
-                    />
-                  </div>
+                  {addresses.map((addr) => {
+                    return (
+                      <Card key={addr.id} className="shadow-none px-6 py-4">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <CardTitle className="text-xl font-medium flex items-center gap-2">
+                              {addr.isDefault && (
+                                <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+                                  Default
+                                </span>
+                              )}
+                              {addr.recipient || `${addr.firstName || ''} ${addr.lastName || ''}`.trim()}
+                            </CardTitle>
+                            <p className="text-gray-600 mt-1">
+                              {addr.country}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {!addr.isDefault && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSetDefaultAddress(addr.id)}
+                                className="h-9"
+                              >
+                                Set as Default
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditAddressClick(addr)}
+                              className="h-9"
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </Button>
+                            {addresses.length > 1 && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDeleteAddress(addr.id)}
+                                className="h-9"
+                                disabled={
+                                  addr.isDefault && addresses.length === 1
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label className="font-medium">
+                                Contact Information
+                              </Label>
+                              <div className="space-y-1">
+                                <p className="text-gray-700">{user?.email || addr.email}</p>
+                                <p className="text-gray-700">
+                                  {user?.phoneNumber || addr.phoneNumber}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label className="font-medium">
+                                Address Details
+                              </Label>
+                              <div className="space-y-1">
+                                {/* Display addLine1 (main address line) */}
+                                {addr.addLine1 && (
+                                  <p className="text-gray-700">{addr.addLine1}</p>
+                                )}
+                                {/* Display addLine2 if exists */}
+                                {addr.addLine2 && (
+                                  <p className="text-gray-700">{addr.addLine2}</p>
+                                )}
+                                {/* Display addLine3 if exists */}
+                                {addr.addLine3 && (
+                                  <p className="text-gray-700">{addr.addLine3}</p>
+                                )}
+                                {/* Display country */}
+                                <p className="text-gray-700">{addr.country}</p>
+                                {/* Display post code */}
+                                {addr.postCode && (
+                                  <p className="text-gray-700">
+                                    Post Code: {addr.postCode}
+                                  </p>
+                                )}
+                                
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {addr.additionalDetails && (
+                          <div className="mt-4 space-y-2">
+                            <Label className="font-medium">
+                              Additional Details
+                            </Label>
+                            <p className="text-gray-700">
+                              {addr.additionalDetails}
+                            </p>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
                 </div>
-                <div className="px-6 mt-6 flex flex-1 flex-row gap-5 justify-end">
-                  <Button
-                    className="bg-[#CC5500] hover:bg-[#CC5500] h-11 w-xs text-white"
-                    onClick={handleEditAddress}
-                  >
-                    Edit Address
-                  </Button>
-                </div>
-              </Card>
+              )}
             </div>
           </TabsContent>
 

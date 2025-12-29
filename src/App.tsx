@@ -2,7 +2,7 @@ import "./App.css";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import WebsiteLayout from "@/layout/WebsiteLayout.tsx";
 import PageNotFound from "@/pages/PageNotFound.tsx";
-import ConsumerHomePage from "@/pages/consumer/ConsumerHome.tsx";
+// import ConsumerHomePage from "@/pages/consumer/ConsumerHome.tsx";
 import AuthLayout from "@/layout/AuthLayout.tsx";
 import SigninPage from "@/pages/auth/Signin.tsx";
 import SignupPage from "@/pages/auth/Signup.tsx";
@@ -38,7 +38,6 @@ import HistoryPage from "@/pages/profile/History.tsx";
 import ProfileSettingsPage from "@/pages/profile/Settings.tsx";
 import { BreadcrumbProvider } from "@/context/BreadcrumbContext.tsx";
 import TypePage from "@/pages/consumer/Type.tsx";
-import AddProductPage from "@/pages/vendor/dashboard/AddProduct.tsx";
 import VendorDashboardLayout from "@/layout/VendorDashboardLayout.tsx";
 
 // Import admin-specific pages
@@ -50,7 +49,6 @@ import AdminCategoriesPage from "@/pages/admin/Categories.tsx";
 import AdminProductApprovalsPage from "@/pages/admin/ProductApprovals.tsx";
 import AdminWishlistPage from "@/pages/admin/Wishlist.tsx";
 import AdminOrdersPage from "@/pages/admin/Orders";
-import AdminLogisticsPage from "@/pages/admin/DropOffZones.tsx";
 import AdminRevenuePage from "@/pages/admin/Revenue.tsx";
 import AdminSettingsPage from "@/pages/admin/Settings.tsx";
 import AdminSimpleLayout from "@/layout/AdminSimpleLayout.tsx";
@@ -83,6 +81,13 @@ import AdminCreateWarehousePage from "./pages/admin/CreateWarehouse.tsx";
 import AdminWarehousesPage from "./pages/admin/Warehouses.tsx";
 import AdminWarehouseDetailsPage from "./pages/admin/WarehouseDetails.tsx";
 import AdminDropOffZonesPage from "@/pages/admin/DropOffZones.tsx";
+import AdminSupportPage from "./pages/admin/Support.tsx";
+import AdminDropOffZoneDetailsPage from "./pages/admin/DropOffDetails.tsx";
+import ProductAddPage from "./pages/vendor/dashboard/CreateProduct.tsx";
+import VendorProductDetailsPage from "./pages/vendor/dashboard/ProductDetails.tsx";
+import VendorWishlistPage from "./pages/vendor/dashboard/Wishlist.tsx";
+import AdminStaffDetailPage from "./pages/admin/StaffDetails.tsx";
+import HomePage from "./pages/consumer/Home.tsx";
 
 function App() {
   return (
@@ -92,7 +97,7 @@ function App() {
           <Router>
             <Routes>
               <Route path="" element={<WebsiteLayout />}>
-                <Route index element={<ConsumerHomePage />} />
+                <Route index element={<HomePage />} />
 
                 <Route path="/profile" element={<ProfileLayout />}>
                   <Route index element={<MyAccountPage />} />
@@ -185,10 +190,12 @@ function App() {
                 <Route index element={<DashboardPage />} />
                 <Route path="products" element={<SimpleLayout />}>
                   <Route index element={<ProductsPage />} />
-                  <Route path="add-product" element={<AddProductPage />} />
+                  <Route path="add-product" element={<ProductAddPage />} />
+                  <Route path="detail" element={<VendorProductDetailsPage />} />
                 </Route>
                 <Route path="revenue" element={<RevenuePage />} />
                 <Route path="inventory" element={<InventoryPage />} />
+                <Route path="wishlist" element={<VendorWishlistPage />} />
                 <Route path="orders" element={<OrdersPage />} />
 
                 <Route
@@ -225,6 +232,10 @@ function App() {
                   <Route path="staff" element={<AdminSimpleLayout />}>
                     <Route index element={<AdminStaffPage />} />
                     <Route path="create" element={<AdminCreateStaffPage />} />
+                    <Route
+                      path=":id/details"
+                      element={<AdminStaffDetailPage />}
+                    />
                     <Route path=":id/edit" element={<AdminEditStaffPage />} />
                   </Route>
                 </Route>
@@ -273,12 +284,12 @@ function App() {
 
                 <Route path="logistics" element={<AdminSimpleLayout />}>
                   <Route index element={<AdminDropOffZonesPage />} />
-                  <Route path="drop-off-zones" element={<AdminDropOffZonesPage />} />
-                   <Route
-                    path="warehouses"
-                    element={<AdminWarehousesPage />}
+                  <Route
+                    path="drop-off-zones"
+                    element={<AdminDropOffZonesPage />}
                   />
-                   <Route
+                  <Route path="warehouses" element={<AdminWarehousesPage />} />
+                  <Route
                     path=":id/warehouse-details"
                     element={<AdminWarehouseDetailsPage />}
                   />
@@ -292,14 +303,18 @@ function App() {
                   />
                   <Route path="details" element={<AdminViewDropoffPage />} />
                   <Route
-                    path=":dropoffId/details"
-                    element={<AdminLogisticsPage />}
+                    path=":id/dropoff-details"
+                    element={<AdminDropOffZoneDetailsPage />}
                   />
                 </Route>
 
                 <Route path="revenue" element={<AdminRevenuePage />} />
 
                 <Route path="settings" element={<AdminSettingsPage />} />
+
+                <Route path="supoort" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminSupportPage />} />
+                </Route>
               </Route>
             </Routes>
             <Toaster
@@ -310,6 +325,7 @@ function App() {
               duration={4000}
               visibleToasts={3}
               offset={16}
+              
             />
           </Router>
         </BreadcrumbProvider>

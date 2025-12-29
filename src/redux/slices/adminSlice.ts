@@ -195,7 +195,7 @@ export const createAdmin = createAsyncThunk(
       email: string;
       firstName: string;
       lastName: string;
-      roleIds: string[];
+      role: string;
     },
     { rejectWithValue }
   ) => {

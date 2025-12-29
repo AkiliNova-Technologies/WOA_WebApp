@@ -1,27 +1,32 @@
 "use client";
 
 import * as React from "react";
-import { X, Eye, FolderUp } from "lucide-react";
+import { X, Eye, FolderUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { uploadToStorage, deleteFromStorage } from "@/config/superbase/storage";
 
 export interface IdentityDocument {
   id: string;
-  file: File;
+  file?: File;
   previewUrl: string;
+  storageUrl?: string;
+  storagePath?: string;
   type: "front" | "back";
   documentType: "national_id" | "passport" | "driving_permit";
-  uploadProgress?: number;
+  uploading?: boolean;
   status?: "uploading" | "success" | "error";
 }
 
 export interface IdentityUploadProps {
-  onDocumentsChange: (documents: IdentityDocument[]) => void;
+  onDocumentsChange: (urls: { front?: string; back?: string }) => void; // Now returns URLs
   className?: string;
   maxSize?: number;
   acceptedFormats?: string;
   documentType?: "national_id" | "passport" | "driving_permit";
+  bucket?: string;
+  folder?: string;
+  initialUrls?: { front?: string; back?: string };
 }
 
 export function IdentityUpload({
@@ -30,17 +35,40 @@ export function IdentityUpload({
   maxSize = 1,
   acceptedFormats = "image/jpeg,image/jpg,image/png",
   documentType = "national_id",
+  bucket = "vendor-assets",
+  folder = "identity",
+  initialUrls,
 }: IdentityUploadProps) {
   const [documents, setDocuments] = React.useState<IdentityDocument[]>([]);
   const [isDragging, setIsDragging] = React.useState(false);
 
-
-  // Check if document type requires both sides
-//   const requiresBothSides = (
-//     docType: "national_id" | "passport" | "driving_permit"
-//   ) => {
-//     return docType !== "passport";
-//   };
+  // Initialize with URLs if provided
+  React.useEffect(() => {
+    if (initialUrls) {
+      const initialDocs: IdentityDocument[] = [];
+      if (initialUrls.front) {
+        initialDocs.push({
+          id: "initial_front",
+          previewUrl: initialUrls.front,
+          storageUrl: initialUrls.front,
+          type: "front",
+          documentType,
+          status: "success",
+        });
+      }
+      if (initialUrls.back) {
+        initialDocs.push({
+          id: "initial_back",
+          previewUrl: initialUrls.back,
+          storageUrl: initialUrls.back,
+          type: "back",
+          documentType,
+          status: "success",
+        });
+      }
+      setDocuments(initialDocs);
+    }
+  }, [initialUrls, documentType]);
 
   const getNextRequiredSide = () => {
     const hasFront = documents.some((doc) => doc.type === "front");
@@ -55,77 +83,96 @@ export function IdentityUpload({
     return "Change ID document";
   };
 
-  const handleFiles = (files: FileList) => {
-    // const newDocuments: IdentityDocument[] = [];
+  const handleFiles = async (files: FileList) => {
     const existingTypes = documents.map((doc) => doc.type);
-    // const requiresBack = requiresBothSides(documentType);
 
-    Array.from(files).forEach((file, index) => {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
       // Validate file type
       if (!acceptedFormats.split(",").includes(file.type)) {
         alert(`Please upload image files only. Supported formats: JPEG, PNG`);
-        return;
+        continue;
       }
 
       // Validate file size
       if (file.size > maxSize * 1024 * 1024) {
         alert(`File size must be less than ${maxSize}MB`);
-        return;
+        continue;
       }
 
-      // For passport, only allow front side
-      if (documentType === "passport") {
-        const previewUrl = URL.createObjectURL(file);
-        const newDoc: IdentityDocument = {
-          id: Math.random().toString(36).substr(2, 9),
-          file,
-          previewUrl,
-          type: "front",
-          documentType,
-          status: "success",
-        };
-
-        // Replace any existing passport document
-        const updatedDocuments = documents.filter(
-          (doc) => doc.type !== "front"
-        );
-        const finalDocuments = [...updatedDocuments, newDoc];
-        setDocuments(finalDocuments);
-        onDocumentsChange(finalDocuments);
-        return;
-      }
-
-      // For other documents, be flexible about front/back assignment
+      // Determine type
       let type: "front" | "back";
-      const hasFront = existingTypes.includes("front");
-      const hasBack = existingTypes.includes("back");
-
-      if (!hasFront) {
+      if (documentType === "passport") {
         type = "front";
-      } else if (!hasBack) {
-        type = "back";
       } else {
-        // If both sides exist, replace the one that was uploaded first (or use index)
-        type = index === 0 ? "front" : "back";
-      }
+        const hasFront = existingTypes.includes("front");
+        const hasBack = existingTypes.includes("back");
 
-      // Remove existing document of the same type if it exists
-      const updatedDocuments = documents.filter((doc) => doc.type !== type);
+        if (!hasFront) {
+          type = "front";
+        } else if (!hasBack) {
+          type = "back";
+        } else {
+          type = i === 0 ? "front" : "back";
+        }
+      }
 
       const previewUrl = URL.createObjectURL(file);
-      const newDoc: IdentityDocument = {
-        id: Math.random().toString(36).substr(2, 9),
+      const tempDoc: IdentityDocument = {
+        id: `temp_${Date.now()}_${type}`,
         file,
         previewUrl,
         type,
         documentType,
+        uploading: true,
+        status: "uploading",
+      };
+
+      // Remove existing document of same type
+      setDocuments((prev) => {
+        const filtered = prev.filter((doc) => doc.type !== type);
+        return [...filtered, tempDoc];
+      });
+
+      // Upload to Supabase
+      const result = await uploadToStorage(file, bucket, folder, false);
+
+      if (result.error) {
+        alert(`Upload failed: ${result.error}`);
+        setDocuments((prev) => prev.filter((doc) => doc.id !== tempDoc.id));
+        continue;
+      }
+
+      // Update with storage URL
+      URL.revokeObjectURL(previewUrl);
+      const uploadedDoc: IdentityDocument = {
+        ...tempDoc,
+        id: `doc_${Date.now()}_${type}`,
+        previewUrl: result.url!,
+        storageUrl: result.url!,
+        storagePath: result.path,
+        uploading: false,
         status: "success",
       };
 
-      const finalDocuments = [...updatedDocuments, newDoc];
-      setDocuments(finalDocuments);
-      onDocumentsChange(finalDocuments);
-    });
+      setDocuments((prev) => {
+        const newDocs = prev.map((doc) =>
+          doc.id === tempDoc.id ? uploadedDoc : doc
+        );
+
+        // Notify parent with URLs
+        const urls: { front?: string; back?: string } = {};
+        newDocs.forEach((doc) => {
+          if (doc.storageUrl) {
+            urls[doc.type] = doc.storageUrl;
+          }
+        });
+        onDocumentsChange(urls);
+
+        return newDocs;
+      });
+    }
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -156,37 +203,50 @@ export function IdentityUpload({
     e.target.value = "";
   };
 
-  const removeDocument = (id: string) => {
+  const removeDocument = async (id: string) => {
     const docToRemove = documents.find((doc) => doc.id === id);
-    const updatedDocuments = documents.filter((doc) => doc.id !== id);
 
-    setDocuments(updatedDocuments);
-    onDocumentsChange(updatedDocuments);
+    // Delete from Supabase if it exists
+    if (docToRemove?.storagePath) {
+      await deleteFromStorage(bucket, docToRemove.storagePath);
+    }
 
-    if (docToRemove?.previewUrl) {
+    // Clean up preview URL
+    if (docToRemove?.previewUrl && !docToRemove.storageUrl) {
       URL.revokeObjectURL(docToRemove.previewUrl);
     }
+
+    setDocuments((prev) => {
+      const newDocs = prev.filter((doc) => doc.id !== id);
+
+      // Notify parent with updated URLs
+      const urls: { front?: string; back?: string } = {};
+      newDocs.forEach((doc) => {
+        if (doc.storageUrl) {
+          urls[doc.type] = doc.storageUrl;
+        }
+      });
+      onDocumentsChange(urls);
+
+      return newDocs;
+    });
   };
 
   const getFrontDocument = () => documents.find((doc) => doc.type === "front");
   const getBackDocument = () => documents.find((doc) => doc.type === "back");
-
   const hasFront = () => !!getFrontDocument();
   const hasBack = () => !!getBackDocument();
 
-
-  // Clean up object URLs on unmount
   React.useEffect(() => {
     return () => {
       documents.forEach((doc) => {
-        if (doc.previewUrl) {
+        if (doc.previewUrl && !doc.storageUrl) {
           URL.revokeObjectURL(doc.previewUrl);
         }
       });
     };
   }, [documents]);
 
-  // Compact preview component matching logo upload style
   const CompactDocumentPreview = ({
     document,
   }: {
@@ -194,41 +254,50 @@ export function IdentityUpload({
   }) => (
     <div className="shrink-0">
       <div className="relative group">
-        <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
-          <img
-            src={document.previewUrl}
-            alt="Store logo preview"
-            className="w-full h-full object-contain p-2"
-          />
+        <div className="w-24 h-24 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-[#404040] flex items-center justify-center overflow-hidden">
+          {document.uploading ? (
+            <Loader2 className="w-8 h-8 animate-spin text-[#CC5500]" />
+          ) : (
+            <img
+              src={document.previewUrl}
+              alt={`${document.type} side`}
+              className="w-full h-full object-contain p-2"
+            />
+          )}
         </div>
-        <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => window.open(document.previewUrl, "_blank")}
-            className="w-6 h-6 p-0 bg-white border"
-          >
-            <Eye className="w-3 h-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => removeDocument(document.id)}
-            className="w-6 h-6 p-0 text-gray-400 hover:text-red-600"
-          >
-            <X className="w-3 h-3" />
-          </Button>
-        </div>
+        {!document.uploading && (
+          <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => window.open(document.previewUrl, "_blank")}
+              className="w-6 h-6 p-0 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600"
+            >
+              <Eye className="w-3 h-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => removeDocument(document.id)}
+              className="w-6 h-6 p-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500"
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
       </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center capitalize">
+        {document.type} side
+      </p>
     </div>
   );
 
   return (
     <div className={cn("space-y-6", className)}>
       <div className="flex flex-col sm:flex-row gap-6 items-start">
-        {/* Document Previews - Only show when documents are uploaded */}
+        {/* Document Previews */}
         {documents.length > 0 && (
-          <div className="shrink-0 space-y-3 min-w-[200px]">
+          <div className="shrink-0 flex gap-3">
             {documents.map((document) => (
               <CompactDocumentPreview key={document.id} document={document} />
             ))}
@@ -240,8 +309,8 @@ export function IdentityUpload({
           className={cn(
             "border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer w-full flex-1",
             isDragging
-              ? "border-blue-500 bg-blue-50"
-              : "border-gray-300 bg-[#F5F5F5] hover:border-[#CC5500]",
+              ? "border-[#CC5500] bg-orange-50 dark:bg-orange-950/20"
+              : "border-gray-300 bg-gray-50 hover:border-[#CC5500] dark:border-gray-600 dark:bg-[#303030] dark:hover:border-[#CC5500]",
             documents.length > 0 && "max-w-full"
           )}
           onDrop={handleDrop}
@@ -253,17 +322,17 @@ export function IdentityUpload({
         >
           <div className="space-y-3 flex-1">
             <div className="flex justify-center">
-              <div className="p-3 bg-white rounded-full">
-                <FolderUp className="w-6 h-6" />
+              <div className="p-3 bg-white dark:bg-gray-700 rounded-full">
+                <FolderUp className="w-6 h-6 text-[#CC5500]" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <p className="text-lg font-medium text-gray-900">
+              <p className="text-lg font-medium text-gray-900 dark:text-white">
                 {getNextRequiredSide()}
               </p>
-              <p className="text-sm text-gray-600">OR</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">OR</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 {documentType === "passport"
                   ? "Drag and drop passport"
                   : `Drag and drop ${getNextRequiredSide().toLowerCase()}`}
@@ -282,52 +351,30 @@ export function IdentityUpload({
         </div>
       </div>
 
-      <div className="text-xs text-gray-400 space-y-1">
+      <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
         <p>
           Recommended size: 1920×1080px · Format: JPEG or PNG · Max size:{" "}
           {maxSize}MB
         </p>
         {documentType !== "passport" && (
-          <p className="text-amber-600">
-            {hasFront() &&
-              !hasBack() &&
-              "✓ Front side uploaded. Please upload back side."}
-            {!hasFront() &&
-              hasBack() &&
-              "✓ Back side uploaded. Please upload front side."}
-          </p>
-        )}
-      </div>
-
-      {/* Progress & Status */}
-      <div className="space-y-4">
-        {/* Upload Progress */}
-        {documents.some(
-          (doc) => doc.uploadProgress && doc.uploadProgress < 100
-        ) && (
-          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm font-medium text-blue-900 mb-2">
-              Uploading documents...
-            </p>
-            {documents.map((doc) =>
-              doc.uploadProgress !== undefined && doc.uploadProgress < 100 ? (
-                <div
-                  key={doc.id}
-                  className="flex items-center gap-3 mb-2 last:mb-0"
-                >
-                  <span className="text-sm text-blue-700 capitalize min-w-[60px]">
-                    {doc.type}
-                  </span>
-                  <Progress value={doc.uploadProgress} className="flex-1 h-2" />
-                  <span className="text-sm text-blue-700 min-w-10">
-                    {Math.round(doc.uploadProgress)}%
-                  </span>
-                </div>
-              ) : null
+          <>
+            {hasFront() && !hasBack() && (
+              <p className="text-[#CC5500] font-medium">
+                ✓ Front side uploaded. Please upload back side.
+              </p>
             )}
-          </div>
+            {!hasFront() && hasBack() && (
+              <p className="text-[#CC5500] font-medium">
+                ✓ Back side uploaded. Please upload front side.
+              </p>
+            )}
+            {hasFront() && hasBack() && (
+              <p className="text-green-600 dark:text-green-500 font-medium">
+                ✓ Both sides uploaded successfully.
+              </p>
+            )}
+          </>
         )}
-
       </div>
     </div>
   );

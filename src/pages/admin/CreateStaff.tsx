@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useReduxAdmin } from "@/hooks/useReduxAdmin";
+import { toast } from "sonner";
 
 // Department and Role types
 type Department =
@@ -75,7 +76,7 @@ export default function AdminCreateStaffPage() {
   });
 
   // Selected role
-  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string>();
 
   // Collapsible states
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -346,30 +347,32 @@ export default function AdminCreateStaffPage() {
 
   // Handle role selection
   const handleRoleChange = (roleId: string) => {
-    setSelectedRoleIds((prev) => {
-      if (prev.includes(roleId)) {
-        return prev.filter((id) => id !== roleId);
-      } else {
-        return [...prev, roleId];
-      }
-    });
+    setSelectedRoleIds(roleId);
   };
 
   // Handle form submission
   const handleSubmit = async () => {
     try {
-      // Create admin user
+      if (!selectedRoleIds) {
+        console.error("No role selected");
+        return;
+      }
+
+      const selectedRole = roles.find((r) => r.id === selectedRoleIds);
+      const roleName = selectedRole?.name.toLowerCase() || "";
+
       const adminData = {
         email: formData.email,
         firstName: formData.firstName,
         lastName: formData.lastName,
-        roleIds: selectedRoleIds,
+        role: roleName,
       };
 
       await createNewAdmin(adminData);
 
-      // Show success message and redirect
-      navigate("/admin/staff");
+      toast.success("Staff Member created successfully");
+
+      navigate("/admin/users/staff");
     } catch (error) {
       console.error("Failed to create admin:", error);
       // Error is already handled by the hook and displayed
@@ -389,7 +392,8 @@ export default function AdminCreateStaffPage() {
     formData.firstName.trim() !== "" &&
     formData.lastName.trim() !== "" &&
     formData.email.trim() !== "" &&
-    selectedRoleIds.length > 0;
+    selectedRoleIds !== undefined &&
+    selectedRoleIds.trim() !== "";
 
   // Fetch roles on component mount
   useEffect(() => {
@@ -529,7 +533,7 @@ export default function AdminCreateStaffPage() {
                   <Label>Role Assignment</Label>
 
                   <Select
-                    value={selectedRoleIds[0] || ""}
+                    value={selectedRoleIds || ""} 
                     onValueChange={handleRoleChange}
                     disabled={createLoading}
                   >

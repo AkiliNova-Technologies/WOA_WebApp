@@ -28,7 +28,10 @@ export type CustomerStatus =
   | "pending_deletion"
   | "disabled"
   | "deleted"
-  | "deactivated";
+  | "deactivated"
+  | "pending_approval";
+
+  
 type CustomerTier = "bronze" | "silver" | "gold" | "platinum";
 type DateRange = "last-7-days" | "last-30-days" | "all-time";
 type CustomerTab = "all" | "active" | "suspended" | "deactivated" | "deleted";
@@ -95,7 +98,12 @@ export const mapUserToCustomer = (user: any): Customer => {
     status = "suspended";
   } else if (accountStatus === "pending_deletion") {
     status = "pending_deletion";
-  } else if (accountStatus === "disabled") {
+  } else if (accountStatus === "pending_approval") {
+    status = "pending_approval";
+  } else if (
+    accountStatus === "disabled" ||
+    accountStatus === "pending_deletion"
+  ) {
     status = "disabled";
   } else if (accountStatus === "deleted") {
     status = "deleted";
@@ -240,7 +248,8 @@ export default function AdminCustomersPage() {
           (activeTab === "suspended" && customer.status === "suspended") ||
           (activeTab === "deactivated" &&
             (customer.status === "deactivated" ||
-              customer.status === "disabled")) ||
+              customer.status === "disabled" ||
+              customer.status === "pending_deletion")) ||
           (activeTab === "deleted" && customer.status === "deleted");
 
         return matchesSearch && matchesStatusFilter && matchesTab;
@@ -338,6 +347,10 @@ export default function AdminCustomersPage() {
       label: "Pending Deletion",
       className: "bg-orange-50 text-orange-700 border-orange-200",
     },
+    pending_approval: {
+      label: "Pending Approval",
+      className: "bg-mint-50 text-mint-700 border-mint-200",
+    },
     disabled: {
       label: "Disabled",
       className: "bg-red-50 text-red-700 border-red-200",
@@ -410,9 +423,7 @@ export default function AdminCustomersPage() {
     {
       key: "email",
       header: "Email Address",
-      cell: (_, row) => (
-        <span className="font-medium">{row.email}</span>
-      ),
+      cell: (_, row) => <span className="font-medium">{row.email}</span>,
       align: "left",
     },
     {
