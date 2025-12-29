@@ -25,7 +25,7 @@ export function VideoUpload({
   description,
   acceptedFormats = "video/mp4,video/avi,video/mov,video/wmv,video/flv,video/webm",
   footer = true,
-  bucket = "vendor-assets",
+  bucket = undefined,
   folder = "videos",
   initialUrl,
 }: VideoUploadProps) {

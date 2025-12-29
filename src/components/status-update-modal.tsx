@@ -29,11 +29,11 @@ export type UserStatus =
   | "deactivated"
   | "pending_approval";
 
-interface StatusUpdateModalProps {
+interface StatusUpdateModalProps<S extends string = UserStatus> {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (newStatus: UserStatus) => Promise<void>;
-  currentStatus: UserStatus;
+  onConfirm: (newStatus: S) => Promise<void> | void;
+  currentStatus: S;
   userType: UserType;
   title?: string;
   description?: string;
@@ -80,7 +80,7 @@ const statusConfig = {
         description: "Vendor shop is closed",
       },
       {
-        value: "pending_approval",
+        value: "pending",
         label: "Approve",
         description: "Approve vendor KYC and issue invite",
       },
@@ -147,7 +147,7 @@ const statusConfig = {
   },
 } as const;
 
-export function StatusUpdateModal({
+export const StatusUpdateModal = <S extends string = UserStatus>({
   isOpen,
   onClose,
   onConfirm,
@@ -156,12 +156,11 @@ export function StatusUpdateModal({
   title,
   description,
   loading = false,
-}: StatusUpdateModalProps) {
-  const [selectedStatus, setSelectedStatus] =
-    useState<UserStatus>(currentStatus);
+}: StatusUpdateModalProps<S>) => {
+  const [selectedStatus, setSelectedStatus] = useState<S>(currentStatus);
   const [statusOptions, setStatusOptions] = useState<
     Array<{
-      value: UserStatus;
+      value: S;
       label: string;
       description?: string;
     }>
@@ -175,10 +174,14 @@ export function StatusUpdateModal({
       // Get available options based on user type
       const config = statusConfig[userType];
       if (config) {
-        // Filter out current status from options
-        const availableOptions = config.options.filter(
-          (option) => option.value !== currentStatus
-        );
+        // Filter out current status from options and cast values to S
+        const availableOptions = config.options
+          .filter((option) => option.value !== currentStatus)
+          .map((option) => ({
+            value: option.value as S,
+            label: option.label,
+            description: option.description,
+          }));
         setStatusOptions(availableOptions);
       }
     }
@@ -220,15 +223,6 @@ export function StatusUpdateModal({
     }
   };
 
-  // Format status for display
-  // const formatStatus = (status: UserStatus) => {
-  //   return status
-  //     .replace('_', ' ')
-  //     .split(' ')
-  //     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-  //     .join(' ');
-  // };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px] md:max-w-xl">
@@ -241,8 +235,10 @@ export function StatusUpdateModal({
           <div className="space-y-2">
             <Label htmlFor="status-select">New Status</Label>
             <Select
-              value={selectedStatus}
-              onValueChange={(value: UserStatus) => setSelectedStatus(value)}
+              value={selectedStatus as unknown as string}
+              onValueChange={(value: string) =>
+                setSelectedStatus(value as unknown as S)
+              }
               disabled={loading}
             >
               <SelectTrigger id="status-select" className="min-h-11">
@@ -251,14 +247,14 @@ export function StatusUpdateModal({
               <SelectContent>
                 {statusOptions.length > 0 ? (
                   statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem key={option.value} value={option.value as unknown as string}>
                       <div className="flex flex-col">
                         <span className="font-medium">{option.label}</span>
                       </div>
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value={currentStatus} disabled>
+                  <SelectItem value={currentStatus as unknown as string} disabled>
                     <div className="flex flex-col">
                       <span className="font-medium">
                         No other options available
@@ -272,19 +268,6 @@ export function StatusUpdateModal({
               </SelectContent>
             </Select>
           </div>
-
-          {/* <div className="rounded-md bg-gray-50 dark:bg-gray-900 p-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">User Type:</span>
-                <span className="font-medium ml-2 capitalize">{userType}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Current Status:</span>
-                <span className="font-medium ml-2">{formatStatus(currentStatus)}</span>
-              </div>
-            </div>
-          </div> */}
         </div>
 
         <DialogFooter>
@@ -313,4 +296,4 @@ export function StatusUpdateModal({
       </DialogContent>
     </Dialog>
   );
-}
+};

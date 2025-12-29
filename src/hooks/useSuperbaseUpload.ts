@@ -25,7 +25,7 @@ export function useSupabaseUpload(options: UseSupabaseUploadOptions = {}) {
         const asset = await uploadService.uploadFile(
           file,
           options.folder || "",
-          options.bucket || "vendor-assets",
+          options.bucket || "world_of_afrika",
           options.isPublic || false
         );
 
@@ -61,7 +61,7 @@ export function useSupabaseUpload(options: UseSupabaseUploadOptions = {}) {
         const assets = await uploadService.uploadMultipleFiles(
           files,
           options.folder || "",
-          options.bucket || "vendor-assets",
+          options.bucket || "world_of_afrika",
           options.isPublic || false
         );
 
@@ -88,7 +88,7 @@ export function useSupabaseUpload(options: UseSupabaseUploadOptions = {}) {
       try {
         const success = await uploadService.deleteAsset(
           path,
-          options.bucket || "vendor-assets"
+          options.bucket || "world_of_afrika"
         );
         if (success) {
           setUploadedAssets((prev) =>

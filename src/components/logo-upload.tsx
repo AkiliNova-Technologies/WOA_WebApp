@@ -21,7 +21,7 @@ export function LogoUpload({
   className,
   maxSize = 2,
   acceptedFormats = "image/jpeg,image/jpg,image/png,image/svg+xml",
-  bucket = "vendor-assets",
+  bucket = "world_of_afrika",
   folder = "logos",
   initialUrl,
 }: LogoUploadProps) {

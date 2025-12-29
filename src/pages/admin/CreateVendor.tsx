@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowLeft, CheckCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
 import Steps from "@/components/steps";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import api from "@/utils/api";
 import { toast } from "sonner";
 import images from "@/assets/images";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import { Progress } from "@/components/ui/progress";
+
+// Helper function to format email for display
+const formatEmailForDisplay = (email: string): string => {
+  if (!email) return "";
+  if (email.length <= 25) return email;
+  const [localPart, domain] = email.split("@");
+  if (localPart.length > 15) {
+    return `${localPart.substring(0, 12)}...@${domain}`;
+  }
+  return email;
+};
 
 // Form Data Interface
 interface FormDataState {
@@ -36,6 +53,7 @@ interface FormDataState {
   email: string;
   phoneNumber: string;
   countryCode: string;
+  emailVerified: boolean;
 
   // Identity Verification
   identityDocuments: IdentityDocument[];
@@ -49,7 +67,7 @@ interface FormDataState {
   district: string;
   streetName: string;
   additionalAddress: string;
-  videoUrl: string | null; // Changed from File to URL
+  videoUrl: string | null;
   gpsCoordinates?: { latitude: number; longitude: number };
 
   // Bank Details
@@ -60,10 +78,7 @@ interface FormDataState {
   swiftCode: string;
 }
 
-// ============================================================================
-// OPTIONAL: Required Field Indicator Component
-// Add this helper component near the top of your file, after imports
-// ============================================================================
+// Required Field Indicator Component
 const RequiredFieldIndicator = ({ completed }: { completed: boolean }) => (
   <span className={`ml-1 ${completed ? "text-green-600" : "text-red-500"}`}>
     {completed ? "✓" : "*"}
@@ -73,77 +88,24 @@ const RequiredFieldIndicator = ({ completed }: { completed: boolean }) => (
 export default function AdminCreateVendorPage() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Email verification states
   const [showVerification, setShowVerification] = useState(false);
-  const [verificationCode, setVerificationCode] = useState([
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-  ]);
-
-  const [timeLeft, setTimeLeft] = useState(375); // 6 minutes 15 seconds
+  const [verificationCode, setVerificationCode] = useState("");
+  const [timeLeft, setTimeLeft] = useState(60);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState("");
   const [isSendingCode, setIsSendingCode] = useState(false);
+  const [verificationAttempts, setVerificationAttempts] = useState(0);
+  const [isAutoVerifying, setIsAutoVerifying] = useState(false);
 
+  // Location verification states
   const [showLocationVerification, setShowLocationVerification] =
     useState(false);
   const [showAddressConfirmation, setShowAddressConfirmation] = useState(false);
   const [isVerifyingLocation, setIsVerifyingLocation] = useState(false);
   const [detectedAddress, setDetectedAddress] = useState("");
-
-  const steps = [
-    { title: "Business owner Identity" },
-    { title: "Identity Verification" },
-    { title: "Store details" },
-    { title: "Bank details" },
-    { title: "Preview" },
-  ];
-
-  // Initialize form data state
-  const [formData, setFormData] = useState<FormDataState>({
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    email: "",
-    phoneNumber: "",
-    countryCode: "+256", // Default country code
-    identityDocuments: [],
-    identityDocumentUrls: [],
-    storeName: "",
-    storeDescription: "",
-    country: "",
-    city: "",
-    district: "",
-    streetName: "",
-    additionalAddress: "",
-    videoUrl: null, // Changed to null for URL
-    gpsCoordinates: undefined,
-    accountHolderName: "",
-    bankName: "",
-    accountNumber: "",
-    confirmAccountNumber: "",
-    swiftCode: "",
-  });
-
-  const [countries, setCountries] = useState<Country[]>([]);
-  // ============================================================================
-  // STEP 1: REMOVE UNUSED VARIABLES (Lines 123-124)
-  // ============================================================================
-  // REMOVE these lines:
-  // const [cities, setCities] = useState<City[]>([]);
-  // const [citiesLoading, setCitiesLoading] = useState(false);
-  // ============================================================================
-
-  const [loading, setLoading] = useState(true);
-  const [errors, setErrors] = useState({
-    accountNumber: "",
-    confirmAccountNumber: "",
-  });
-
   const [locationProgress, setLocationProgress] = useState(0);
   const [currentAccuracy, setCurrentAccuracy] = useState<number | null>(null);
   const [bestLocation, setBestLocation] = useState<{
@@ -153,10 +115,87 @@ export default function AdminCreateVendorPage() {
     timestamp: number;
   } | null>(null);
 
+  const steps = [
+    { title: "Personal Information" },
+    { title: "Store Setup" },
+    { title: "Store Description" },
+    { title: "Bank Details" },
+    { title: "Preview & Submit" },
+  ];
+
+  // Initialize form data state
+  const [formData, setFormData] = useState<FormDataState>({
+    firstName: "",
+    middleName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    countryCode: "+256",
+    emailVerified: false,
+    identityDocuments: [],
+    identityDocumentUrls: [],
+    storeName: "",
+    storeDescription: "",
+    country: "",
+    city: "",
+    district: "",
+    streetName: "",
+    additionalAddress: "",
+    videoUrl: null,
+    gpsCoordinates: undefined,
+    accountHolderName: "",
+    bankName: "",
+    accountNumber: "",
+    confirmAccountNumber: "",
+    swiftCode: "",
+  });
+
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState({
+    accountNumber: "",
+    confirmAccountNumber: "",
+  });
+
   const [touched, setTouched] = useState({
     accountNumber: false,
     confirmAccountNumber: false,
   });
+
+  // Countdown timer for resend
+  useEffect(() => {
+    if (showVerification && timeLeft > 0) {
+      const timer = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [showVerification, timeLeft]);
+
+  // Reset verification attempts when showing verification
+  useEffect(() => {
+    if (showVerification) {
+      setVerificationAttempts(0);
+      setVerificationError("");
+      setVerificationCode("");
+    }
+  }, [showVerification]);
+
+  // Auto-verify when all 5 digits are entered
+  useEffect(() => {
+    if (
+      showVerification &&
+      verificationCode.length === 5 &&
+      !isVerifying &&
+      !isAutoVerifying
+    ) {
+      const timer = setTimeout(() => {
+        handleAutoVerify();
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [verificationCode, showVerification, isVerifying, isAutoVerifying]);
 
   // Fetch countries on component mount
   useEffect(() => {
@@ -174,37 +213,6 @@ export default function AdminCreateVendorPage() {
 
     fetchCountries();
   }, []);
-
-  // ============================================================================
-  // STEP 1: REMOVE THE useEffect THAT FETCHES CITIES
-  // Remove this entire block:
-  // ============================================================================
-  /*
-  useEffect(() => {
-    const fetchCities = async () => {
-      if (!formData.country) {
-        setCities([]);
-        return;
-      }
-
-      try {
-        setCitiesLoading(true);
-        const citiesData = await countriesApi.getCitiesByCountry(
-          formData.country
-        );
-        setCities(citiesData);
-      } catch (error) {
-        console.error("Error fetching cities:", error);
-        setCities([]);
-      } finally {
-        setCitiesLoading(false);
-      }
-    };
-
-    fetchCities();
-  }, [formData.country]);
-  */
-  // ============================================================================
 
   // Update form data helper function
   const updateFormData = (updates: Partial<FormDataState>) => {
@@ -257,7 +265,7 @@ export default function AdminCreateVendorPage() {
       confirmAccountNumber: "",
     };
 
-    // Basic account number validation (numbers only, typical length)
+    // Basic account number validation
     if (accountNumber && !/^\d+$/.test(accountNumber)) {
       newErrors.accountNumber = "Account number should contain only numbers";
     } else if (
@@ -325,7 +333,7 @@ export default function AdminCreateVendorPage() {
   const handleCountryChange = (value: string) => {
     updateFormData({
       country: value,
-      city: "", // Reset city when country changes
+      city: "",
     });
   };
 
@@ -337,13 +345,11 @@ export default function AdminCreateVendorPage() {
     updateFormData({ [field]: value });
   };
 
-  // Changed to handle video URL instead of File
   const handleVideoChange = (url: string | null) => {
     updateFormData({ videoUrl: url });
   };
 
   const handleDocumentsChange = (urls: { front?: string; back?: string }) => {
-    // Convert URLs to identity documents array
     const documents: string[] = [];
     if (urls.front) documents.push(urls.front);
     if (urls.back) documents.push(urls.back);
@@ -357,50 +363,136 @@ export default function AdminCreateVendorPage() {
     return country ? country.name : countryCode;
   };
 
-  const handleKeyDown = (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (e.key === "Backspace" && !verificationCode[index] && index > 0) {
-      const prevInput = document.getElementById(`code-${index - 1}`);
-      prevInput?.focus();
+  // Send verification code
+  const sendVerificationCode = async () => {
+    if (isSendingCode) return;
+
+    console.log("🔵 [EMAIL VERIFICATION] Starting process");
+    console.log("🔵 [EMAIL VERIFICATION] Email:", formData.email);
+
+    try {
+      setIsSendingCode(true);
+      setVerificationError("");
+      setVerificationCode("");
+      setVerificationAttempts(0);
+
+      console.log("🔵 [EMAIL VERIFICATION] Sending OTP request to API...");
+
+      await api.post("/api/v1/vendor/kyc/email/otp", {
+        email: formData.email,
+      });
+
+      console.log("✅ [EMAIL VERIFICATION] OTP sent successfully");
+      console.log("✅ [EMAIL VERIFICATION] Setting showVerification to true");
+
+      setShowVerification(true);
+      setTimeLeft(60);
+      toast.success("Verification code sent to email");
+
+      console.log("✅ [EMAIL VERIFICATION] State updated, screen should show");
+    } catch (error: any) {
+      console.error("❌ [EMAIL VERIFICATION] Error sending OTP:", error);
+      console.error(
+        "❌ [EMAIL VERIFICATION] Error response:",
+        error?.response?.data
+      );
+      toast.error(
+        error?.response?.data?.message || "Failed to send verification code"
+      );
+      throw error;
+    } finally {
+      setIsSendingCode(false);
+      console.log("🔵 [EMAIL VERIFICATION] Cleanup complete");
     }
   };
 
-  const handleCodeChange = (index: number, value: string) => {
-    // Only allow numbers
-    if (value && !/^\d+$/.test(value)) return;
+  // Auto-verify when code is complete
+  const handleAutoVerify = async () => {
+    if (verificationCode.length !== 5) {
+      return;
+    }
 
-    const newCode = [...verificationCode];
-    newCode[index] = value;
-    setVerificationCode(newCode);
+    if (verificationAttempts >= 3) {
+      setVerificationError("Too many attempts. Please try again later.");
+      toast.error("Too many attempts. Please try again later.");
+      return;
+    }
 
-    // Auto-focus next input
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`code-${index + 1}`);
-      nextInput?.focus();
+    setIsVerifying(true);
+    setIsAutoVerifying(true);
+    setVerificationError("");
+
+    try {
+      const response = await api.post("/api/v1/vendor/kyc/email/verify", {
+        email: formData.email,
+        code: verificationCode,
+      });
+
+      if (response.data.emailVerified) {
+        updateFormData({ emailVerified: true });
+        toast.success("Email verified successfully!");
+        setShowVerification(false);
+      } else {
+        throw new Error("Email verification failed");
+      }
+    } catch (error: any) {
+      console.error("Error verifying code:", error);
+      setVerificationAttempts((prev) => prev + 1);
+      const errorMessage =
+        error?.response?.data?.message ||
+        "Invalid verification code. Please try again.";
+      setVerificationError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsVerifying(false);
+      setIsAutoVerifying(false);
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData("text").trim();
+  // Manual verify fallback
+  const handleManualVerify = async () => {
+    await handleAutoVerify();
+  };
 
-    // Check if pasted data is 6 digits
-    if (/^\d{6}$/.test(pastedData)) {
-      const newCode = pastedData.split("");
-      setVerificationCode(newCode);
+  // Resend verification code
+  const handleResend = async () => {
+    if (timeLeft > 0) {
+      const errorMessage = `Please wait ${timeLeft} seconds before resending`;
+      setVerificationError(errorMessage);
+      toast.error(errorMessage);
+      return;
+    }
 
-      // Focus the last input
-      const lastInput = document.getElementById(`code-5`);
-      lastInput?.focus();
+    if (verificationAttempts >= 3) {
+      const errorMessage = "Too many attempts. Please try again later.";
+      setVerificationError(errorMessage);
+      toast.error(errorMessage);
+      return;
+    }
+
+    try {
+      setIsSendingCode(true);
+
+      await api.post("/api/v1/vendor/kyc/email/otp", {
+        email: formData.email,
+      });
+
+      setTimeLeft(60);
+      setVerificationCode("");
+      setVerificationError("");
+      toast.success("Verification code resent to email");
+    } catch (error: any) {
+      console.error("Error resending code:", error);
+      const errorMessage =
+        error?.response?.data?.message || "Failed to resend verification code";
+      setVerificationError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSendingCode(false);
     }
   };
 
-  // ============================================================================
-  // STEP 6: ADD isCurrentStepValid HELPER FUNCTION
-  // Add this helper function for button disabled states
-  // ============================================================================
+  // Validation helper
   const isCurrentStepValid = (): boolean => {
     switch (currentStep) {
       case 0:
@@ -411,7 +503,8 @@ export default function AdminCreateVendorPage() {
           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) &&
           formData.phoneNumber?.trim() &&
           formData.identityDocumentUrls &&
-          formData.identityDocumentUrls.length >= 2
+          formData.identityDocumentUrls.length >= 2 &&
+          formData.emailVerified
         );
 
       case 1:
@@ -445,72 +538,71 @@ export default function AdminCreateVendorPage() {
     }
   };
 
-  // ============================================================================
-  // STEP 2: ADD VALIDATION FUNCTION (already present in your code)
-  // ============================================================================
   const validateCurrentStep = (): boolean => {
     switch (currentStep) {
-      case 0: // Step 1: Personal Information & Identity
+      case 0:
         if (!formData.firstName?.trim()) {
-          toast.error("Please enter your first name");
+          toast.error("Please enter first name");
           return false;
         }
         if (!formData.lastName?.trim()) {
-          toast.error("Please enter your last name");
+          toast.error("Please enter last name");
           return false;
         }
         if (!formData.email?.trim()) {
-          toast.error("Please enter your email address");
+          toast.error("Please enter email address");
           return false;
         }
-        // Basic email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(formData.email)) {
           toast.error("Please enter a valid email address");
           return false;
         }
         if (!formData.phoneNumber?.trim()) {
-          toast.error("Please enter your phone number");
+          toast.error("Please enter phone number");
           return false;
         }
         if (
           !formData.identityDocumentUrls ||
           formData.identityDocumentUrls.length < 2
         ) {
-          toast.error("Please upload both front and back of your ID");
+          toast.error("Please upload both front and back of ID");
+          return false;
+        }
+        if (!formData.emailVerified) {
+          toast.error("Please verify email before continuing");
           return false;
         }
         return true;
 
-      case 1: // Step 2: Store Details & Location
+      case 1:
         if (!formData.storeName?.trim()) {
-          toast.error("Please enter your store name");
+          toast.error("Please enter store name");
           return false;
         }
         if (!formData.country) {
-          toast.error("Please select your country of operation");
+          toast.error("Please select country of operation");
           return false;
         }
         if (!formData.city?.trim()) {
-          toast.error("Please enter your city of operation");
+          toast.error("Please enter city of operation");
           return false;
         }
         if (!formData.district?.trim()) {
-          toast.error("Please enter your district");
+          toast.error("Please enter district");
           return false;
         }
         if (!formData.gpsCoordinates) {
-          toast.error("Please verify your shop location before continuing");
+          toast.error("Please verify shop location before continuing");
           return false;
         }
         return true;
 
-      case 2: // Step 3: Store Description & Video
+      case 2:
         if (!formData.storeDescription?.trim()) {
           toast.error("Please add a store description");
           return false;
         }
-        // Check if description has actual content (not just HTML tags)
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = formData.storeDescription;
         const textContent = tempDiv.textContent || tempDiv.innerText || "";
@@ -520,10 +612,9 @@ export default function AdminCreateVendorPage() {
           );
           return false;
         }
-        // Video is optional, so we don't validate it
         return true;
 
-      case 3: // Step 4: Bank Details
+      case 3:
         if (!formData.accountHolderName?.trim()) {
           toast.error("Please enter account holder name");
           return false;
@@ -537,7 +628,7 @@ export default function AdminCreateVendorPage() {
           return false;
         }
         if (!formData.confirmAccountNumber?.trim()) {
-          toast.error("Please confirm your account number");
+          toast.error("Please confirm account number");
           return false;
         }
         if (formData.accountNumber !== formData.confirmAccountNumber) {
@@ -550,7 +641,7 @@ export default function AdminCreateVendorPage() {
         }
         return true;
 
-      case 4: // Step 5: Preview - always valid since it's just review
+      case 4:
         return true;
 
       default:
@@ -558,10 +649,32 @@ export default function AdminCreateVendorPage() {
     }
   };
 
-  // ============================================================================
-  // STEP 3: UPDATE handleNext FUNCTION (already present in your code)
-  // ============================================================================
-  const handleNext = () => {
+  const handleNext = async () => {
+    // Special handling for Step 0 - trigger email verification if not verified
+    if (currentStep === 0 && !formData.emailVerified) {
+      if (
+        !formData.firstName?.trim() ||
+        !formData.lastName?.trim() ||
+        !formData.email?.trim() ||
+        !formData.phoneNumber?.trim()
+      ) {
+        toast.error("Please fill in all required fields");
+        return;
+      }
+
+      if (
+        !formData.identityDocumentUrls ||
+        formData.identityDocumentUrls.length < 2
+      ) {
+        toast.error("Please upload both front and back of ID");
+        return;
+      }
+
+      // Start email verification
+      await sendVerificationCode();
+      return;
+    }
+
     if (!validateCurrentStep()) {
       return;
     }
@@ -571,32 +684,67 @@ export default function AdminCreateVendorPage() {
     }
   };
 
-  // ============================================================================
-  // STEP 4: ADD STEP NAVIGATION VALIDATION
-  // Add this function to prevent clicking ahead to incomplete steps
-  // ============================================================================
   const handleStepClick = (stepIndex: number) => {
-    // Can't skip ahead to future steps
+    // Can't skip ahead without email verification
+    if (stepIndex > 0 && !formData.emailVerified) {
+      toast.error("Please complete email verification first");
+      return;
+    }
+
     if (stepIndex > currentStep) {
       toast.error("Please complete the current step before proceeding");
       return;
     }
-
-    // Can go back to previous steps
     setCurrentStep(stepIndex);
   };
 
-  const handleSubmit = () => {
-    console.log("Submitting form data:", formData);
-    // TODO: Implement API call to submit form data
-    alert("Form submitted successfully!");
-    navigate("/vendors");
-  };
+  const handleSubmit = async () => {
+    if (!validateCurrentStep()) {
+      return;
+    }
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}m ${secs}s`;
+    try {
+      setIsSubmitting(true);
+
+      const payload = {
+        first_name: formData.firstName,
+        middle_name: formData.middleName || undefined,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone_number: `${formData.countryCode}${formData.phoneNumber}`,
+        id_docs: formData.identityDocumentUrls,
+        store_name: formData.storeName,
+        country: formData.country,
+        city: formData.city,
+        district: formData.district,
+        street: formData.streetName || undefined,
+        location: formData.gpsCoordinates
+          ? `${formData.gpsCoordinates.latitude},${formData.gpsCoordinates.longitude}`
+          : undefined,
+        description: formData.storeDescription,
+        video_story: formData.videoUrl || undefined,
+        account_name: formData.accountHolderName,
+        bank_name: formData.bankName,
+        account_number: formData.accountNumber,
+        swift_code: formData.swiftCode || undefined,
+      };
+
+      // TODO: Replace with actual admin endpoint when available
+      // await api.post("/api/v1/admin/vendors/create", payload);
+
+      console.log("Vendor creation payload:", payload);
+
+      toast.success("Vendor created successfully!");
+      navigate("/vendors");
+    } catch (error: any) {
+      console.error("Failed to create vendor:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          "Failed to create vendor. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const reverseGeocode = async (
@@ -604,7 +752,6 @@ export default function AdminCreateVendorPage() {
     longitude: number
   ): Promise<string> => {
     try {
-      // BigDataCloud free API - no API key required, generous rate limits
       const response = await fetch(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
       );
@@ -615,7 +762,6 @@ export default function AdminCreateVendorPage() {
 
       const data = await response.json();
 
-      // Build a comprehensive address from the response
       const addressParts = [
         data.locality || data.city,
         data.principalSubdivision,
@@ -628,13 +774,12 @@ export default function AdminCreateVendorPage() {
     } catch (error) {
       console.error("Error with BigDataCloud geocoding:", error);
 
-      // Fallback to Nominatim if BigDataCloud fails
       try {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
           {
             headers: {
-              "User-Agent": "ShopRegistration/1.0", // Nominatim requires a user agent
+              "User-Agent": "ShopRegistration/1.0",
             },
           }
         );
@@ -649,65 +794,7 @@ export default function AdminCreateVendorPage() {
     }
   };
 
-  const handleVerify = async () => {
-    const code = verificationCode.join("");
-    if (code.length !== 6) {
-      setVerificationError("Please enter the complete verification code");
-      return;
-    }
-
-    setIsVerifying(true);
-    setVerificationError("");
-
-    try {
-      // Verify code with API
-      await api.post("/api/v1/auth/verify-email-code", {
-        email: formData.email,
-        code: code,
-      });
-
-      setShowVerification(false);
-      toast.success("Email verified successfully!");
-    } catch (error: any) {
-      console.error("Error verifying code:", error);
-      setVerificationError(
-        error?.response?.data?.message ||
-          "Invalid verification code. Please try again."
-      );
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleResend = async () => {
-    try {
-      setIsSendingCode(true);
-      await api.post("/api/v1/auth/send-verification-code", {
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-      });
-
-      setTimeLeft(375);
-      setVerificationCode(["", "", "", "", "", ""]);
-      setVerificationError("");
-      toast.success("Verification code resent to your email");
-
-      // Focus first input
-      const firstInput = document.getElementById("code-0");
-      firstInput?.focus();
-    } catch (error: any) {
-      console.error("Error resending code:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to resend verification code"
-      );
-    } finally {
-      setIsSendingCode(false);
-    }
-  };
-
   const handleContinueToLocationVerification = () => {
-    // Validate required fields before showing location verification
     if (
       !formData.storeName ||
       !formData.country ||
@@ -732,13 +819,12 @@ export default function AdminCreateVendorPage() {
     setCurrentAccuracy(null);
     setBestLocation(null);
 
-    const COLLECTION_DURATION = 8000; // 8 seconds to collect readings
-    const PROGRESS_INTERVAL = 100; // Update progress every 100ms
+    const COLLECTION_DURATION = 8000;
+    const PROGRESS_INTERVAL = 100;
     const startTime = Date.now();
     let watchId: number;
     let progressInterval: NodeJS.Timeout;
 
-    // ✅ FIX: Use a local variable to track best location instead of relying on state
     let currentBestLocation: {
       latitude: number;
       longitude: number;
@@ -746,7 +832,6 @@ export default function AdminCreateVendorPage() {
       timestamp: number;
     } | null = null;
 
-    // Progress bar animation
     progressInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min((elapsed / COLLECTION_DURATION) * 100, 100);
@@ -754,7 +839,6 @@ export default function AdminCreateVendorPage() {
     }, PROGRESS_INTERVAL);
 
     try {
-      // Use watchPosition to continuously improve accuracy
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           const newLocation = {
@@ -766,7 +850,6 @@ export default function AdminCreateVendorPage() {
 
           setCurrentAccuracy(newLocation.accuracy);
 
-          // ✅ FIX: Update both state AND local variable
           if (
             !currentBestLocation ||
             newLocation.accuracy < currentBestLocation.accuracy
@@ -808,16 +891,13 @@ export default function AdminCreateVendorPage() {
         }
       );
 
-      // After collection duration, process the best location
       setTimeout(async () => {
         clearInterval(progressInterval);
         navigator.geolocation.clearWatch(watchId);
         setLocationProgress(100);
 
-        // ✅ FIX: Use the local variable instead of state
         if (currentBestLocation) {
           try {
-            // Reverse geocode the best location
             const address = await reverseGeocode(
               currentBestLocation.latitude,
               currentBestLocation.longitude
@@ -825,21 +905,18 @@ export default function AdminCreateVendorPage() {
 
             setDetectedAddress(address);
 
-            // Store coordinates in form data
             const coordinates = {
               latitude: currentBestLocation.latitude,
               longitude: currentBestLocation.longitude,
             };
             updateFormData({ gpsCoordinates: coordinates });
 
-            // Show success message with accuracy info
             toast.success(
               `Location captured with ${currentBestLocation.accuracy.toFixed(
                 0
               )}m accuracy`
             );
 
-            // Transition to address confirmation
             setTimeout(() => {
               setShowLocationVerification(false);
               setShowAddressConfirmation(true);
@@ -886,7 +963,6 @@ export default function AdminCreateVendorPage() {
     <div className="min-h-screen">
       <SiteHeader label="Seller Management" />
 
-      {/* Main Content */}
       <div className="mx-auto px-10 py-8">
         <div className="flex gap-8">
           {/* Sticky Steps Sidebar */}
@@ -922,7 +998,7 @@ export default function AdminCreateVendorPage() {
 
             {/* Form Content */}
             <div className="flex-1">
-              {/* Step 1: Personal Information */}
+              {/* Step 0: Personal Information */}
               {currentStep === 0 && (
                 <div className="bg-white rounded-lg p-6 dark:bg-[#303030]">
                   {!showVerification ? (
@@ -930,15 +1006,12 @@ export default function AdminCreateVendorPage() {
                       {/* Personal Information Section */}
                       <div className="mb-10">
                         <h2 className="text-xl font-semibold mb-2">
-                          Tell us a bit about yourself
+                          Personal Information
                         </h2>
                         <p className="text-sm text-[#303030] mb-6 dark:text-gray-400">
-                          For compliance purposes, we may verify your identity.
-                          This information will never be displayed publicly on
-                          World of Afrika.{" "}
-                          <span className="text-[#CC5500] cursor-pointer hover:underline">
-                            Learn more
-                          </span>
+                          Enter the vendor's personal information. This
+                          information will be used for verification purposes
+                          only.
                         </p>
 
                         {/* Name Fields */}
@@ -958,6 +1031,7 @@ export default function AdminCreateVendorPage() {
                               onChange={(e) =>
                                 handleInputChange("firstName", e.target.value)
                               }
+                              disabled={formData.emailVerified}
                             />
                           </div>
                           <div>
@@ -972,6 +1046,7 @@ export default function AdminCreateVendorPage() {
                               onChange={(e) =>
                                 handleInputChange("middleName", e.target.value)
                               }
+                              disabled={formData.emailVerified}
                             />
                           </div>
                           <div>
@@ -989,6 +1064,7 @@ export default function AdminCreateVendorPage() {
                               onChange={(e) =>
                                 handleInputChange("lastName", e.target.value)
                               }
+                              disabled={formData.emailVerified}
                             />
                           </div>
                         </div>
@@ -1016,7 +1092,13 @@ export default function AdminCreateVendorPage() {
                               onChange={(e) =>
                                 handleInputChange("email", e.target.value)
                               }
+                              disabled={formData.emailVerified}
                             />
+                            {formData.emailVerified && (
+                              <p className="text-xs text-green-600 mt-1">
+                                ✓ Email verified
+                              </p>
+                            )}
                           </div>
                           <div>
                             <Label htmlFor="phone" className="mb-2 block">
@@ -1035,6 +1117,7 @@ export default function AdminCreateVendorPage() {
                                 handleInputChange("countryCode", value)
                               }
                               placeholder="e.g. 743027395"
+                              disabled={formData.emailVerified}
                             />
                           </div>
                         </div>
@@ -1043,7 +1126,7 @@ export default function AdminCreateVendorPage() {
                       {/* Identity Verification Section */}
                       <div className="border-t pt-8">
                         <h2 className="text-xl font-semibold mb-2">
-                          Verify your identity{" "}
+                          Identity Verification{" "}
                           <RequiredFieldIndicator
                             completed={
                               formData.identityDocumentUrls &&
@@ -1052,17 +1135,16 @@ export default function AdminCreateVendorPage() {
                           />
                         </h2>
                         <p className="text-sm text-[#303030] mb-6 dark:text-gray-400">
-                          Upload clear images of both the front and back of your
-                          valid ID—National ID, Driving Permit, or Passport.
-                          Make sure all details are visible and legible.
+                          Upload clear images of both the front and back of the
+                          vendor's valid ID—National ID, Driving Permit, or
+                          Passport.
                         </p>
 
-                        {/* Identity Upload Component */}
                         <IdentityUpload
                           onDocumentsChange={handleDocumentsChange}
                           maxSize={1}
                           documentType="national_id"
-                          bucket="vendor-assets"
+                          bucket="world_of_afrika"
                           folder="identity-documents"
                           initialUrls={
                             formData.identityDocumentUrls &&
@@ -1075,119 +1157,194 @@ export default function AdminCreateVendorPage() {
                           }
                         />
 
-                        {/* Security Note */}
                         <div className="mt-6">
                           <h3 className="text-md font-semibold mb-2">Note</h3>
                           <p className="text-sm text-[#303030] dark:text-gray-400">
-                            Your documents are encrypted and stored securely. We
-                            only use them for verification and never share them
-                            with third parties.
+                            Documents are encrypted and stored securely. Only
+                            used for verification purposes.
                           </p>
                         </div>
                       </div>
 
-                      <div className="mt-12 border float-right items-end">
+                      <div className="mt-12 flex justify-end">
                         <Button
                           variant={"default"}
                           onClick={handleNext}
-                          disabled={!isCurrentStepValid()}
-                          className="px-8 py-3 w-xs h-12 text-white dark:text-black text-md font-smeibold disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={
+                            !(
+                              formData.firstName?.trim() &&
+                              formData.lastName?.trim() &&
+                              formData.email?.trim() &&
+                              /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+                                formData.email
+                              ) &&
+                              formData.phoneNumber?.trim() &&
+                              formData.identityDocumentUrls?.length >= 2
+                            ) || isSendingCode
+                          }
+                          className="px-8 py-3 h-12 text-white dark:text-black text-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Save and Continue
+                          {isSendingCode
+                            ? "Starting..."
+                            : formData.emailVerified
+                            ? "Save and Continue"
+                            : "Verify Email"}
                         </Button>
                       </div>
                     </>
                   ) : (
                     // Email Verification Screen
-                    <div className="flex flex-col items-center justify-center min-h-[600px] py-12">
-                      {/* Illustration */}
-                      <div className="mb-8">
-                        <img
-                          src={images.VerifyIMG}
-                          alt="checking email image"
-                          className="h-52 w-52 object-contain"
-                        />
-                      </div>
-
-                      <h2 className="text-2xl font-semibold mb-4 text-center">
-                        Verify your email address
-                      </h2>
-
-                      <p className="text-[#303030] dark:text-gray-400 mb-8 text-center max-w-md">
-                        We have sent a verification code to your email{" "}
-                        <span className="font-semibold">{formData.email}</span>
-                      </p>
-
-                      {/* Verification Code Inputs */}
-                      <div className="flex gap-3 mb-8">
-                        {verificationCode.map((digit, index) => (
-                          <Input
-                            key={index}
-                            id={`code-${index}`}
-                            type="text"
-                            maxLength={1}
-                            value={digit}
-                            onChange={(e) =>
-                              handleCodeChange(index, e.target.value)
-                            }
-                            onKeyDown={(e) => handleKeyDown(index, e)}
-                            onPaste={index === 0 ? handlePaste : undefined}
-                            className="w-12 h-14 text-center text-xl font-semibold"
+                    <div className="flex flex-col items-center justify-center min-h-[600px] dark:bg-[#121212]">
+                      <div className="w-full max-w-xl">
+                        <div className="flex flex-col items-center mb-3">
+                          <img
+                            src={images.VerifyIMG}
+                            alt="checking email image"
+                            className="h-52 w-52 object-contain"
                           />
-                        ))}
+                          <h2 className="text-2xl font-semibold text-gray-800 text-center mt-4 dark:text-white">
+                            Check email
+                          </h2>
+                          <p className="text-sm text-gray-500 mt-1 text-center dark:text-gray-300">
+                            Verification code sent to{" "}
+                            <span className="text-[#071437] font-medium dark:text-white">
+                              {formatEmailForDisplay(formData.email)}
+                            </span>
+                          </p>
+
+                          {verificationAttempts > 0 && (
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                              Attempts: {verificationAttempts}/3
+                            </p>
+                          )}
+
+                          {timeLeft > 0 && (
+                            <div className="w-full max-w-xs mt-2">
+                              <p className="text-xs text-gray-400 dark:text-gray-500 text-center mb-1">
+                                Resend in {timeLeft}s
+                              </p>
+                              <Progress
+                                value={((60 - timeLeft) / 60) * 100}
+                                className="h-1 bg-gray-200 dark:bg-gray-700"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col items-center space-y-4 mb-6">
+                          <div className="relative">
+                            <InputOTP
+                              maxLength={5}
+                              value={verificationCode}
+                              onChange={(value) => {
+                                setVerificationCode(value);
+                                if (verificationError) setVerificationError("");
+                              }}
+                              disabled={isVerifying}
+                              autoFocus
+                            >
+                              <InputOTPGroup>
+                                {[...Array(5)].map((_, index) => (
+                                  <InputOTPSlot
+                                    key={index}
+                                    index={index}
+                                    className="border-gray-300 dark:border-gray-600 h-14 w-12 text-xl"
+                                  />
+                                ))}
+                              </InputOTPGroup>
+                            </InputOTP>
+                          </div>
+
+                          <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                            {isVerifying
+                              ? "Verifying code..."
+                              : "Enter the 5-digit code (auto-verifies when complete)"}
+                          </p>
+
+                          {verificationError && (
+                            <p className="text-red-500 text-sm text-center">
+                              {verificationError}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="mb-4">
+                          <Button
+                            onClick={handleManualVerify}
+                            disabled={
+                              verificationCode.length !== 5 ||
+                              isVerifying ||
+                              verificationAttempts >= 3
+                            }
+                            className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isVerifying ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Verifying...
+                              </>
+                            ) : (
+                              "Verify Email"
+                            )}
+                          </Button>
+                          <p className="text-xs text-gray-400 text-center mt-1">
+                            Or wait for auto-verification
+                          </p>
+                        </div>
+
+                        <div className="flex flex-row items-center gap-3 justify-center mb-4">
+                          <p className="text-sm text-[#4B5675] dark:text-gray-300">
+                            Didn't receive code?
+                          </p>
+                          <Button
+                            type="button"
+                            onClick={handleResend}
+                            disabled={
+                              timeLeft > 0 ||
+                              isSendingCode ||
+                              verificationAttempts >= 3
+                            }
+                            className="text-[#1B84FF] text-md bg-transparent border-none hover:bg-transparent p-0 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isSendingCode
+                              ? "Sending..."
+                              : timeLeft > 0
+                              ? `Resend (${timeLeft}s)`
+                              : verificationAttempts >= 3
+                              ? "Too many attempts"
+                              : "Resend"}
+                          </Button>
+                        </div>
+
+                        <div className="text-center">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setShowVerification(false)}
+                            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                            disabled={isVerifying || isSendingCode}
+                          >
+                            Back to form
+                          </Button>
+                        </div>
                       </div>
-
-                      {/* Error Message */}
-                      {verificationError && (
-                        <p className="text-red-500 text-sm mb-4">
-                          {verificationError}
-                        </p>
-                      )}
-
-                      {/* Verify Button */}
-                      <Button
-                        onClick={handleVerify}
-                        disabled={
-                          isVerifying || verificationCode.join("").length !== 6
-                        }
-                        className="bg-black hover:bg-black/90 text-white h-11 px-12 rounded-full mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isVerifying ? "Verifying..." : "VERIFY"}
-                      </Button>
-
-                      {/* Resend Link */}
-                      <p className="text-sm text-[#303030] dark:text-gray-400">
-                        Didn't receive a code? ({formatTime(timeLeft)}){" "}
-                        <button
-                          onClick={handleResend}
-                          disabled={timeLeft > 0 || isSendingCode}
-                          className={`${
-                            timeLeft > 0 || isSendingCode
-                              ? "text-gray-400 cursor-not-allowed"
-                              : "text-[#CC5500] hover:underline cursor-pointer"
-                          }`}
-                        >
-                          {isSendingCode ? "Sending..." : "Resend"}
-                        </button>
-                      </p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Step 2: Store Details - First Part */}
+              {/* Step 1: Store Setup - Same as before */}
               {currentStep === 1 && (
                 <div className="bg-white rounded-lg p-6 dark:bg-[#303030]">
                   {!showLocationVerification && !showAddressConfirmation ? (
                     <>
-                      {/* Shop Name Section */}
                       <div className="mb-10">
                         <h2 className="text-xl font-semibold mb-2">
-                          Shop Name
+                          Shop Information
                         </h2>
                         <p className="text-sm text-[#303030] mb-6 dark:text-gray-400">
-                          This is how your shop will appear to buyers. Keep it
-                          clear and memorable.
+                          Enter the shop details and verify its physical
+                          location.
                         </p>
 
                         <div className="space-y-6">
@@ -1259,7 +1416,7 @@ export default function AdminCreateVendorPage() {
                               </Label>
                               <Input
                                 id="city"
-                                placeholder="Select the city"
+                                placeholder="Enter the city"
                                 className="h-11"
                                 value={formData.city}
                                 onChange={(e) =>
@@ -1271,15 +1428,12 @@ export default function AdminCreateVendorPage() {
                         </div>
                       </div>
 
-                      {/* Address Section */}
                       <div className="border-t pt-8">
                         <h2 className="text-xl font-semibold mb-2">
-                          Enter Address of the shop
+                          Shop Address
                         </h2>
                         <p className="text-sm text-[#303030] mb-6 dark:text-gray-400">
-                          By sharing a verified location, you unlock access to
-                          local logistics support, and guarantee that payouts
-                          and compliance checks run seamlessly.
+                          Enter the shop's physical address details.
                         </p>
 
                         <div className="space-y-6">
@@ -1303,7 +1457,7 @@ export default function AdminCreateVendorPage() {
 
                           <div>
                             <Label htmlFor="streetName" className="mb-2 block">
-                              Street name/Street number/landmark{" "}
+                              Street name/number/landmark{" "}
                               <span className="text-gray-500">(optional)</span>
                             </Label>
                             <Input
@@ -1322,7 +1476,7 @@ export default function AdminCreateVendorPage() {
                               htmlFor="additionalAddress"
                               className="mb-2 block"
                             >
-                              Additional details/Detailed address{" "}
+                              Additional details{" "}
                               <span className="text-gray-500">(optional)</span>
                             </Label>
                             <Textarea
@@ -1342,7 +1496,6 @@ export default function AdminCreateVendorPage() {
                         </div>
                       </div>
 
-                      {/* Continue to Location Verification Button */}
                       <div className="mt-8 flex justify-end">
                         <Button
                           onClick={handleContinueToLocationVerification}
@@ -1361,6 +1514,7 @@ export default function AdminCreateVendorPage() {
                       </div>
                     </>
                   ) : showLocationVerification ? (
+                    // Location Verification UI - same as KYC
                     <div className="flex flex-col items-center justify-center min-h-[600px] py-12">
                       <div className="mb-8">
                         <div className="h-52 w-52 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
@@ -1386,29 +1540,24 @@ export default function AdminCreateVendorPage() {
                         </div>
                       </div>
 
-                      {/* Title */}
                       <h2 className="text-2xl font-semibold mb-4 text-center">
                         {isVerifyingLocation
-                          ? "Verifying your location"
-                          : "Verify your location"}
+                          ? "Verifying location"
+                          : "Verify Shop Location"}
                       </h2>
 
-                      {/* Description */}
                       {!isVerifyingLocation ? (
                         <>
                           <p className="text-[#303030] dark:text-gray-400 mb-4 text-center max-w-2xl">
-                            To verify your shop location, please ensure you are
-                            physically at your shop premises. This allows us to
-                            capture the exact GPS pin of your store, helping
-                            customers trust your business and ensuring smooth
-                            deliveries.
+                            To verify the shop location, you need to be
+                            physically at the shop premises or have access to
+                            the device at that location.
                           </p>
 
                           <p className="text-[#303030] dark:text-gray-400 mb-8 text-center max-w-2xl text-sm">
-                            If you are not at your shop right now, you can pause
-                            here and return later — your progress will be saved,
-                            and you can complete verification once you're at the
-                            location.
+                            This captures the exact GPS coordinates of the
+                            store, helping with delivery accuracy and customer
+                            trust.
                           </p>
                         </>
                       ) : (
@@ -1417,7 +1566,6 @@ export default function AdminCreateVendorPage() {
                             Improving location accuracy...
                           </p>
 
-                          {/* Progress Bar */}
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-4">
                             <div
                               className="bg-[#CC5500] h-2.5 rounded-full transition-all duration-300 ease-out"
@@ -1425,7 +1573,6 @@ export default function AdminCreateVendorPage() {
                             />
                           </div>
 
-                          {/* Accuracy Info */}
                           {currentAccuracy !== null && (
                             <p className="text-sm text-center text-[#303030] dark:text-gray-400">
                               Current accuracy:{" "}
@@ -1441,42 +1588,37 @@ export default function AdminCreateVendorPage() {
                           )}
 
                           <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-2">
-                            Please keep your device steady for best results
+                            Please keep the device steady for best results
                           </p>
                         </div>
                       )}
 
-                      {/* Verify Button */}
                       {!isVerifyingLocation && (
                         <Button
                           onClick={handleVerifyLocation}
                           className="bg-black hover:bg-black/90 text-white h-11 px-12 rounded-md mb-6"
                         >
-                          VERIFY
+                          VERIFY LOCATION
                         </Button>
                       )}
                     </div>
                   ) : (
-                    // Address Confirmation Screen
+                    // Address Confirmation Screen - same as KYC
                     <div className="flex flex-col items-center justify-center min-h-[600px] py-12">
-                      {/* Illustration placeholder */}
                       <div className="mb-8">
                         <div className="h-52 w-52 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
                           <CheckCircle className="w-24 h-24 text-green-600 dark:text-green-400" />
                         </div>
                       </div>
 
-                      {/* Title */}
                       <h2 className="text-2xl font-semibold mb-4 text-center">
                         Confirm Address
                       </h2>
 
-                      {/* Description */}
                       <p className="text-[#303030] dark:text-gray-400 mb-8 text-center max-w-md">
-                        Please review your shop address details carefully.
+                        Please review the shop address details carefully.
                       </p>
 
-                      {/* Instructions */}
                       <div className="mb-8 space-y-2 text-sm text-[#303030] dark:text-gray-400 max-w-2xl">
                         <div className="flex items-start gap-2">
                           <span>•</span>
@@ -1489,12 +1631,11 @@ export default function AdminCreateVendorPage() {
                           <span>•</span>
                           <span>
                             If something is wrong, choose Re-verify to update
-                            your location before moving forward.
+                            the location.
                           </span>
                         </div>
                       </div>
 
-                      {/* Address Display */}
                       <div className="w-full max-w-2xl mb-8">
                         <Label htmlFor="detectedAddress" className="mb-2 block">
                           Address
@@ -1513,7 +1654,6 @@ export default function AdminCreateVendorPage() {
                         )}
                       </div>
 
-                      {/* Action Buttons */}
                       <div className="flex gap-4">
                         <Button
                           onClick={handleReverifyLocation}
@@ -1533,12 +1673,12 @@ export default function AdminCreateVendorPage() {
                   )}
 
                   {!showLocationVerification && !showAddressConfirmation && (
-                    <div className="mt-12 border float-right items-end">
+                    <div className="mt-12 flex justify-end">
                       <Button
                         variant={"default"}
                         onClick={handleNext}
                         disabled={!isCurrentStepValid()}
-                        className="px-8 py-3 w-xs h-12 text-white dark:text-black text-md font-smeibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-8 py-3 h-12 text-white dark:text-black text-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Save and Continue
                       </Button>
@@ -1547,68 +1687,65 @@ export default function AdminCreateVendorPage() {
                 </div>
               )}
 
-              {/* Step 3: Store Details - Second Part */}
+              {/* Step 2: Store Description */}
               {currentStep === 2 && (
                 <div>
                   <div className="bg-white rounded-lg p-8 dark:bg-[#303030]">
                     <div>
-                      <div>
-                        <h2 className="text-xl font-semibold mb-3">
-                          Store Details
-                        </h2>
-                        <p className="text-sm text-[#303030] mb-8">
-                          This is how your shop will appear to buyers. Keep it
-                          clear and memorable.
-                        </p>
+                      <h2 className="text-xl font-semibold mb-3">
+                        Store Description
+                      </h2>
+                      <p className="text-sm text-[#303030] mb-8 dark:text-gray-400">
+                        Describe what the store sells and what makes it unique.
+                      </p>
 
-                        <div className="space-y-5">
-                          <div>
-                            <Label className="mb-2 block">
-                              Store Description{" "}
-                              <RequiredFieldIndicator
-                                completed={!!formData.storeDescription?.trim()}
-                              />
-                            </Label>
-                            <TextEditor
-                              value={formData.storeDescription}
-                              onChange={handleStoreDescriptionChange}
-                              placeholder="Start writing your amazing content..."
-                              className="mb-4"
+                      <div className="space-y-5">
+                        <div>
+                          <Label className="mb-2 block">
+                            Store Description{" "}
+                            <RequiredFieldIndicator
+                              completed={!!formData.storeDescription?.trim()}
                             />
-                          </div>
+                          </Label>
+                          <TextEditor
+                            value={formData.storeDescription}
+                            onChange={handleStoreDescriptionChange}
+                            placeholder="Describe the store, products, and what makes it special..."
+                            className="mb-4"
+                          />
+                        </div>
 
-                          {/* Video Upload Section */}
-                          <div className="border-t pt-6">
-                            <h2 className="text-xl font-semibold mb-2">
-                              Share Your Story
-                            </h2>
-                            <p className="text-[#303030] text-sm mb-6">
-                              We'd love to hear your story. Record a short video
-                              introducing yourself and your business—this helps
-                              buyers connect with the real person behind the
-                              products.
-                            </p>
+                        {/* Video Upload Section */}
+                        <div className="border-t pt-6">
+                          <h2 className="text-xl font-semibold mb-2">
+                            Seller Story{" "}
+                            <span className="text-gray-500 text-sm font-normal">
+                              (Optional)
+                            </span>
+                          </h2>
+                          <p className="text-[#303030] text-sm mb-6 dark:text-gray-400">
+                            Upload a video introducing the seller and their
+                            business story.
+                          </p>
 
-                            <VideoUpload
-                              onVideoChange={handleVideoChange}
-                              maxSize={100}
-                              className="w-full"
-                              bucket="vendor-assets"
-                              folder="seller-stories"
-                              initialUrl={formData.videoUrl || undefined}
-                            />
-                          </div>
+                          <VideoUpload
+                            onVideoChange={handleVideoChange}
+                            maxSize={100}
+                            className="w-full"
+                            bucket="world_of_afrika"
+                            folder="seller-stories"
+                            initialUrl={formData.videoUrl || undefined}
+                          />
                         </div>
                       </div>
                     </div>
                   </div>
-                  {/* Action Buttons */}
-                  <div className="mt-12 border float-right items-end">
+                  <div className="mt-12 flex justify-end">
                     <Button
                       variant={"default"}
                       onClick={handleNext}
                       disabled={!isCurrentStepValid()}
-                      className="px-8 py-3 w-xs h-12 text-white dark:text-black text-md font-smeibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-8 py-3 h-12 text-white dark:text-black text-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Save and Continue
                     </Button>
@@ -1616,7 +1753,7 @@ export default function AdminCreateVendorPage() {
                 </div>
               )}
 
-              {/* Step 4: Bank Details */}
+              {/* Step 3: Bank Details */}
               {currentStep === 3 && (
                 <div>
                   <div className="bg-white p-6 rounded-md mt-6 dark:bg-[#303030]">
@@ -1624,13 +1761,12 @@ export default function AdminCreateVendorPage() {
                       <h2 className="text-xl font-semibold mb-3">
                         Bank Details
                       </h2>
-                      <p className="text-sm text-[#303030] mb-8">
-                        Share your bank details so we can send your earnings
-                        securely and on time.
+                      <p className="text-sm text-[#303030] mb-8 dark:text-gray-400">
+                        Enter the bank account details for payment transfers.
                       </p>
 
                       <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2">
                             <Label>
                               Account Holder Name{" "}
@@ -1639,7 +1775,7 @@ export default function AdminCreateVendorPage() {
                               />
                             </Label>
                             <Input
-                              placeholder="e.g Your Fit"
+                              placeholder="e.g John Doe"
                               className="h-11"
                               value={formData.accountHolderName}
                               onChange={(e) =>
@@ -1668,7 +1804,7 @@ export default function AdminCreateVendorPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2">
                             <Label>
                               Account Number{" "}
@@ -1750,9 +1886,12 @@ export default function AdminCreateVendorPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2">
-                            <Label>Swift Code (Optional)</Label>
+                            <Label>
+                              Swift Code{" "}
+                              <span className="text-gray-500">(Optional)</span>
+                            </Label>
                             <Input
                               placeholder="Enter swift code"
                               className="h-11"
@@ -1766,8 +1905,8 @@ export default function AdminCreateVendorPage() {
 
                         {/* Validation Summary */}
                         {isBankDetailsComplete && (
-                          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                            <div className="flex items-center gap-2 text-green-700">
+                          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                            <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
                               <CheckCircle className="w-4 h-4" />
                               <span className="font-medium">
                                 All bank details are complete and valid
@@ -1778,13 +1917,12 @@ export default function AdminCreateVendorPage() {
                       </div>
                     </div>
                   </div>
-                  {/* Action Buttons */}
-                  <div className="mt-12 border float-right items-end">
+                  <div className="mt-12 flex justify-end">
                     <Button
                       variant={"default"}
                       onClick={handleNext}
                       disabled={!isCurrentStepValid()}
-                      className="px-8 py-3 w-xs h-12 text-white dark:text-black text-md font-smeibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-8 py-3 h-12 text-white dark:text-black text-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Save and Continue
                     </Button>
@@ -1792,7 +1930,7 @@ export default function AdminCreateVendorPage() {
                 </div>
               )}
 
-              {/* Step 5: Preview */}
+              {/* Step 4: Preview */}
               {currentStep === 4 && (
                 <div>
                   <div className="bg-white p-6 rounded-md mt-6 dark:bg-[#303030]">
@@ -1803,11 +1941,11 @@ export default function AdminCreateVendorPage() {
                           <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400 flex-shrink-0" />
                           <div className="ml-4">
                             <h2 className="text-xl font-semibold text-green-800 dark:text-green-300">
-                              Ready to Submit Vendor Application
+                              Ready to Create Vendor Account
                             </h2>
                             <p className="text-green-700 dark:text-green-400 mt-1">
-                              Please review all information below. Once
-                              submitted, the application will be processed.
+                              Please review all information below before
+                              creating the vendor account.
                             </p>
                           </div>
                         </div>
@@ -2128,7 +2266,7 @@ export default function AdminCreateVendorPage() {
                         </CardHeader>
                         <CardContent>
                           <div
-                            className="prose prose-sm max-w-none"
+                            className="prose prose-sm max-w-none dark:prose-invert"
                             dangerouslySetInnerHTML={{
                               __html: formData.storeDescription,
                             }}
@@ -2155,7 +2293,7 @@ export default function AdminCreateVendorPage() {
                                 src={formData.videoUrl}
                               />
                               <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Click play to preview your seller story video
+                                Click play to preview the seller story video
                               </p>
                             </div>
                           ) : (
@@ -2287,14 +2425,14 @@ export default function AdminCreateVendorPage() {
                       </Card>
                     </div>
                   </div>
-                  {/* Action Buttons */}
-                  <div className="mt-12 border float-right items-end">
+                  <div className="mt-12 flex justify-end">
                     <Button
                       variant={"default"}
                       onClick={handleSubmit}
-                      className="px-8 py-3 w-xs h-12 text-white dark:text-black text-md font-smeibold"
+                      disabled={isSubmitting}
+                      className="px-8 py-3 h-12 text-white dark:text-black text-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Submit
+                      {isSubmitting ? "Creating Vendor..." : "Create Vendor"}
                     </Button>
                   </div>
                 </div>

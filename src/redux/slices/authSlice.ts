@@ -176,14 +176,49 @@ const handleApiError = (error: unknown): string => {
 };
 
 // 🔄 Refresh token logic
+// Update the refreshAccessToken thunk in your authSlice
 export const refreshAccessToken = createAsyncThunk(
   "auth/refreshToken",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.post("/api/v1/auth/refresh");
-      return response.data;
+      // Get refresh token from localStorage
+      if (typeof window !== "undefined") {
+        const authData = localStorage.getItem("authData");
+        if (!authData) {
+          throw new Error("No authentication data found");
+        }
+
+        const { refreshToken } = JSON.parse(authData);
+
+        const response = await api.post("/api/v1/auth/refresh", {
+          refreshToken,
+        });
+
+        // Update localStorage with new tokens
+        const updatedAuthData = {
+          ...JSON.parse(authData),
+          token: response.data.accessToken,
+          refreshToken: response.data.refreshToken || refreshToken,
+        };
+        localStorage.setItem("authData", JSON.stringify(updatedAuthData));
+
+        return {
+          accessToken: response.data.accessToken,
+          refreshToken: response.data.refreshToken,
+          user: response.data.user,
+        };
+      }
+
+      throw new Error("Window is not defined");
     } catch (error: unknown) {
       const errorMessage = handleApiError(error);
+
+      // If refresh token is invalid/expired, clear storage
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("authData");
+        localStorage.removeItem("user");
+      }
+
       return rejectWithValue(errorMessage);
     }
   }
@@ -1078,7 +1113,7 @@ const authSlice = createSlice({
       })
       .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.loading = false;
-        if (action.payload.userId) {
+        if (action.payload.user.userId) {
           const user = mapApiResponseToUser(action.payload);
 
           // Check if email is verified before authenticating

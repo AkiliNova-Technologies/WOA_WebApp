@@ -1,5 +1,5 @@
 import "./App.css";
-import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import WebsiteLayout from "@/layout/WebsiteLayout.tsx";
 import PageNotFound from "@/pages/PageNotFound.tsx";
 // import ConsumerHomePage from "@/pages/consumer/ConsumerHome.tsx";
@@ -94,7 +94,7 @@ function App() {
     <div>
       <main className="min-h-screen p-0">
         <BreadcrumbProvider>
-          <Router>
+          
             <Routes>
               <Route path="" element={<WebsiteLayout />}>
                 <Route index element={<HomePage />} />
@@ -327,7 +327,7 @@ function App() {
               offset={16}
               
             />
-          </Router>
+          
         </BreadcrumbProvider>
       </main>
     </div>

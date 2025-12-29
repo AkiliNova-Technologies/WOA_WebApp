@@ -20,7 +20,7 @@ export interface UploadProgress {
 }
 
 export class SupabaseUploadService {
-  private defaultBucket = 'vendor-assets';
+  private defaultBucket = 'world_of_afrika';
   private isPublicBucket = false; // Based on your SUPABASE_PUBLIC_READ=false
 
   /**

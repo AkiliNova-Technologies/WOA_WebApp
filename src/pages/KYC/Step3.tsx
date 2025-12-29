@@ -161,7 +161,7 @@ export default function Step3({ formData, updateFormData }: Step3Props) {
           maxSize={100}
           className="w-full"
           description="Recommended size: 1920×1080px · Format: MP4 · Max time: 60secs"
-          bucket="vendor-assets"
+          bucket="world_of_afrika"
           folder="seller-stories"
           initialUrl={formData.videoUrl || undefined}
         />

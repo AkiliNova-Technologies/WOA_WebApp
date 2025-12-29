@@ -24,6 +24,8 @@ export interface VendorKYC {
   reviewNotes?: string;
 }
 
+export type VendorStatus = 'pending' | 'active' | 'suspended' | 'deactivated' | 'deleted';
+
 export interface VendorProfile {
   id: string;
   userId: string;

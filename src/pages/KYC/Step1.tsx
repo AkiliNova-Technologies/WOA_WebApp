@@ -376,7 +376,7 @@ export default function Step1({
               onDocumentsChange={handleDocumentsChange}
               maxSize={1}
               documentType="national_id"
-              bucket="vendor-assets"
+              bucket="world_of_afrika"
               folder="identity-documents"
               initialUrls={
                 formData.identityDocumentUrls &&

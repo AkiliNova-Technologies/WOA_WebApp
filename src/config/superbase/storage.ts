@@ -1,8 +1,14 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = "https://repdwvidgouhbfuppmed.supabase.co";
-const supabaseAnonKey = "sb_publishable_RGUYwCV5tZ8nEqcF7TLLHg_KId1yPvo";
+// Environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://uovgxmoarvgrpnwnckcl.supabase.co";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || "";
+const defaultBucket = import.meta.env.VITE_SUPABASE_BUCKET_VENDOR || "World_of_Africa";
+const signedUrlTTL = parseInt(import.meta.env.VITE_SUPABASE_SIGNED_URL_TTL_SEC || "3600", 10);
+const publicRead = import.meta.env.VITE_SUPABASE_PUBLIC_READ === "true";
 
+// Create client for general use (with anon key)
 export const supabase: SupabaseClient = createClient(
   supabaseUrl,
   supabaseAnonKey,
@@ -10,10 +16,17 @@ export const supabase: SupabaseClient = createClient(
     auth: {
       persistSession: false,
     },
-    global: {
-      headers: {
-        apikey: supabaseAnonKey,
-      },
+  }
+);
+
+// Create admin client for privileged operations (with service role key)
+export const supabaseAdmin: SupabaseClient = createClient(
+  supabaseUrl,
+  supabaseServiceRoleKey,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   }
 );
@@ -25,28 +38,17 @@ export interface UploadResult {
   signedUrl?: string;
 }
 
-// Allowed subfolders for organization
-export const ALLOWED_SUBFOLDERS = [
-  "identity-documents",
-  "production-story",
-  "product-images",
-  "vendor-logos",
-  "user-avatars",
-  "videos",
-  "seller-stories",
-  "public", // Default folder
-] as const;
-
-export type AllowedSubfolder = (typeof ALLOWED_SUBFOLDERS)[number];
+// Get bucket from environment variable or use default
+export const DEFAULT_BUCKET = defaultBucket;
 
 /**
- * Uploads a file to Supabase Storage with proper folder organization
+ * Uploads a file to Supabase Storage using admin client for bypassing RLS
  */
 export const uploadToStorage = async (
   file: File,
-  bucket: string = "vendor-assets",
-  folder: AllowedSubfolder | string = "public",
-  isPublic: boolean = false
+  bucket: string = DEFAULT_BUCKET,
+  folder: string = "", // No subfolder by default
+  isPublic: boolean = publicRead
 ): Promise<UploadResult> => {
   try {
     // Validate file
@@ -54,7 +56,7 @@ export const uploadToStorage = async (
       return { url: null, error: "No file provided" };
     }
 
-    // Validate file type - now includes video formats
+    // Validate file type - includes images, documents, and videos
     const allowedTypes = [
       // Images
       "image/jpeg",
@@ -71,10 +73,10 @@ export const uploadToStorage = async (
       "video/wmv",
       "video/flv",
       "video/webm",
-      "video/quicktime", // .mov files
-      "video/x-msvideo", // .avi files
-      "video/x-flv", // .flv files
-      "video/x-ms-wmv", // .wmv files
+      "video/quicktime",
+      "video/x-msvideo",
+      "video/x-flv",
+      "video/x-ms-wmv",
     ];
     
     if (!allowedTypes.includes(file.type)) {
@@ -84,81 +86,79 @@ export const uploadToStorage = async (
       };
     }
 
-    // Validate folder (convert to lowercase for consistency)
-    const normalizedFolder = folder.toLowerCase().trim();
-
     // Generate unique filename with original extension
-    const originalName = file.name.replace(/\s+/g, "-"); // Replace spaces with hyphens
+    const originalName = file.name.replace(/\s+/g, "-");
     const fileExt = file.name.split(".").pop()?.toLowerCase() || "file";
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 10);
     const fileName = `${timestamp}-${randomStr}.${fileExt}`;
-    const filePath = normalizedFolder
-      ? `${normalizedFolder}/${fileName}`
+    
+    // Build file path (with or without folder)
+    const filePath = folder && folder.trim() 
+      ? `${folder.trim()}/${fileName}`
       : fileName;
 
     console.log("Uploading to Supabase:", {
       bucket,
-      folder: normalizedFolder,
+      folder: folder || "(root)",
       filePath,
       originalName,
       size: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
       type: file.type,
+      supabaseUrl,
+      usingServiceRole: true,
     });
 
-    // Direct upload attempt
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // Use admin client for upload (bypasses RLS policies)
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from(bucket)
       .upload(filePath, file, {
         cacheControl: "3600",
         upsert: false,
         contentType: file.type,
-        duplex: "half", // Required for some environments
       });
 
     if (uploadError) {
       console.error("Upload error details:", {
         message: uploadError.message,
         name: uploadError.name,
-        errorString: JSON.stringify(uploadError),
+        status: (uploadError as any).status,
+        statusCode: (uploadError as any).statusCode,
+        bucket,
+        url: supabaseUrl,
       });
 
-      // Enhanced error handling with specific messages
+      // Enhanced error handling
       let userErrorMessage = uploadError.message;
 
-      // Check for 404/not found errors in the message
       if (
         uploadError.message.includes("not found") ||
         uploadError.message.includes("404") ||
         uploadError.message.toLowerCase().includes("bucket")
       ) {
-        userErrorMessage = `Bucket '${bucket}' doesn't exist or you don't have access. Please:\n1. Verify bucket exists in Supabase Dashboard\n2. Check bucket permissions and policies`;
+        userErrorMessage = `Bucket '${bucket}' doesn't exist. Please verify:\n1. Bucket exists in Supabase Dashboard\n2. Bucket name is correct\n3. Service role key has access`;
+      } else if (
+        uploadError.message.includes("Invalid Compact JWS") ||
+        uploadError.message.includes("JWT") ||
+        uploadError.message.includes("token")
+      ) {
+        userErrorMessage = `Authentication error. Please verify:\n1. SUPABASE_SERVICE_ROLE_KEY is correct\n2. Key hasn't expired\n3. Key has proper permissions\n\nTechnical: ${uploadError.message}`;
       } else if (
         uploadError.message.includes("policy") ||
         uploadError.message.includes("permission") ||
         uploadError.message.includes("unauthorized") ||
         uploadError.message.includes("403")
       ) {
-        userErrorMessage = `Permission denied for folder '${normalizedFolder}'. Please:\n1. Update storage policies to allow '${normalizedFolder}' folder\n2. Ensure file type '${file.type}' is allowed\n\nTechnical: ${uploadError.message}`;
-      } else if (
-        uploadError.message.includes("invalid") ||
-        uploadError.message.includes("Invalid")
-      ) {
-        userErrorMessage = `Invalid file or path. Please:\n1. Check file type is supported\n2. Ensure folder name is valid\n\nTechnical: ${uploadError.message}`;
+        userErrorMessage = `Permission denied. Using service role key should bypass RLS policies.\n\nTechnical: ${uploadError.message}`;
       } else if (uploadError.message.includes("already exists")) {
-        // Retry with a different filename
-        const retryFileName = `${timestamp}-${randomStr}-retry.${fileExt}`;
-        const retryFilePath = normalizedFolder
-          ? `${normalizedFolder}/${retryFileName}`
-          : retryFileName;
-
-        console.log("File exists, retrying with:", retryFilePath);
-
-        const { data: _retryData, error: retryError } = await supabase.storage
+        // Retry with upsert
+        console.log("File exists, retrying with upsert...");
+        
+        const { error: retryError } = await supabaseAdmin.storage
           .from(bucket)
-          .upload(retryFilePath, file, {
+          .upload(filePath, file, {
             cacheControl: "3600",
-            upsert: false,
+            upsert: true, // Overwrite existing file
             contentType: file.type,
           });
 
@@ -169,8 +169,7 @@ export const uploadToStorage = async (
           };
         }
 
-        // Use retry data
-        return await generateFileUrl(bucket, retryFilePath, isPublic);
+        return await generateFileUrl(bucket, filePath, isPublic);
       }
 
       return { url: null, error: userErrorMessage };
@@ -189,8 +188,7 @@ export const uploadToStorage = async (
     if (error instanceof TypeError && error.message.includes("fetch")) {
       return {
         url: null,
-        error:
-          "Network error: Unable to connect to Supabase. Please check:\n1. Internet connection\n2. Supabase URL is correct\n3. CORS is configured in Supabase dashboard",
+        error: `Network error: Unable to connect to Supabase at ${supabaseUrl}. Please check internet connection.`,
       };
     }
 
@@ -211,16 +209,16 @@ const generateFileUrl = async (
 ): Promise<UploadResult> => {
   try {
     if (!isPublic) {
-      // Generate signed URL for private files
-      const { data: signedData, error: signedError } = await supabase.storage
+      // Generate signed URL for private files using admin client
+      const { data: signedData, error: signedError } = await supabaseAdmin.storage
         .from(bucket)
-        .createSignedUrl(filePath, 3600); // 1 hour TTL
+        .createSignedUrl(filePath, signedUrlTTL);
 
       if (signedError) {
-        console.warn("Signed URL failed, using public URL:", signedError);
+        console.warn("Signed URL failed, falling back to public URL:", signedError);
         const {
           data: { publicUrl },
-        } = supabase.storage.from(bucket).getPublicUrl(filePath);
+        } = supabaseAdmin.storage.from(bucket).getPublicUrl(filePath);
 
         return {
           url: publicUrl,
@@ -240,7 +238,7 @@ const generateFileUrl = async (
     // For public files
     const {
       data: { publicUrl },
-    } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    } = supabaseAdmin.storage.from(bucket).getPublicUrl(filePath);
 
     console.log("Generated public URL:", publicUrl);
 
@@ -266,9 +264,9 @@ const generateFileUrl = async (
  */
 export const uploadMultipleToStorage = async (
   files: File[],
-  bucket: string = "vendor-assets",
-  folder: AllowedSubfolder | string = "public",
-  isPublic: boolean = false
+  bucket: string = DEFAULT_BUCKET,
+  folder: string = "",
+  isPublic: boolean = publicRead
 ): Promise<UploadResult[]> => {
   const uploadPromises = files.map((file) =>
     uploadToStorage(file, bucket, folder, isPublic)
@@ -281,12 +279,12 @@ export const uploadMultipleToStorage = async (
  * Get folder contents
  */
 export const listFolderContents = async (
-  bucket: string = "vendor-assets",
+  bucket: string = DEFAULT_BUCKET,
   folder: string = "",
   limit: number = 100
 ): Promise<{ data: any[] | null; error: string | null }> => {
   try {
-    const { data, error } = await supabase.storage.from(bucket).list(folder, {
+    const { data, error } = await supabaseAdmin.storage.from(bucket).list(folder, {
       limit,
       offset: 0,
       sortBy: { column: "name", order: "asc" },
@@ -309,11 +307,11 @@ export const listFolderContents = async (
  * Delete file from storage
  */
 export const deleteFromStorage = async (
-  bucket: string,
+  bucket: string = DEFAULT_BUCKET,
   filePath: string
 ): Promise<{ error: string | null }> => {
   try {
-    const { error } = await supabase.storage.from(bucket).remove([filePath]);
+    const { error } = await supabaseAdmin.storage.from(bucket).remove([filePath]);
 
     if (error) {
       console.error("Delete error:", error);
@@ -331,15 +329,15 @@ export const deleteFromStorage = async (
 };
 
 /**
- * Get signed URL for private file (3600 seconds = 1 hour)
+ * Get signed URL for private file
  */
 export const getSignedUrl = async (
   bucket: string,
   filePath: string,
-  expiresIn: number = 3600
+  expiresIn: number = signedUrlTTL
 ): Promise<string | null> => {
   try {
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseAdmin.storage
       .from(bucket)
       .createSignedUrl(filePath, expiresIn);
 
@@ -361,20 +359,36 @@ export const getSignedUrl = async (
 export const testStorageConnection = async (): Promise<{
   success: boolean;
   message: string;
+  details?: any;
 }> => {
   try {
-    const { data, error } = await supabase.storage.listBuckets();
+    console.log("Testing storage connection...");
+    console.log("Supabase URL:", supabaseUrl);
+    console.log("Using service role key:", supabaseServiceRoleKey ? "Yes (hidden)" : "No");
+    console.log("Default bucket:", defaultBucket);
+
+    // Test with admin client
+    const { data, error } = await supabaseAdmin.storage.listBuckets();
 
     if (error) {
       return {
         success: false,
         message: `Storage connection failed: ${error.message}`,
+        details: error,
       };
     }
 
+    const buckets = data?.map((b: any) => b.name) || [];
+    const hasBucket = buckets.includes(defaultBucket);
+
     return {
       success: true,
-      message: `Connected successfully. Found ${data?.length || 0} buckets.`,
+      message: `Connected successfully. Found ${buckets.length} bucket(s).`,
+      details: {
+        buckets,
+        defaultBucketExists: hasBucket,
+        defaultBucket,
+      },
     };
   } catch (error) {
     return {
@@ -382,28 +396,33 @@ export const testStorageConnection = async (): Promise<{
       message: `Network error: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
+      details: error,
     };
   }
 };
 
 /**
- * Test if a specific subfolder is accessible
+ * Test upload to verify permissions
  */
-export const testSubfolderAccess = async (
-  bucket: string = "vendor-assets",
-  folder: AllowedSubfolder | string = "identity-documents"
-): Promise<{ accessible: boolean; message: string }> => {
+export const testUpload = async (
+  bucket: string = DEFAULT_BUCKET,
+  folder: string = ""
+): Promise<{ success: boolean; message: string; url?: string }> => {
   try {
-    const testFile = new File(["test"], `test-access-${Date.now()}.txt`, {
-      type: "text/plain",
-    });
+    console.log("Testing upload to bucket:", bucket, "folder:", folder || "(root)");
+
+    const testFile = new File(
+      ["test content"], 
+      `test-${Date.now()}.txt`, 
+      { type: "text/plain" }
+    );
 
     const result = await uploadToStorage(testFile, bucket, folder, true);
 
     if (result.error) {
       return {
-        accessible: false,
-        message: `Folder '${folder}' not accessible: ${result.error}`,
+        success: false,
+        message: `Upload test failed: ${result.error}`,
       };
     }
 
@@ -413,12 +432,13 @@ export const testSubfolderAccess = async (
     }
 
     return {
-      accessible: true,
-      message: `Folder '${folder}' is accessible`,
+      success: true,
+      message: `Upload test successful to bucket '${bucket}'${folder ? `, folder '${folder}'` : ""}`,
+      url: result.url || undefined,
     };
   } catch (error) {
     return {
-      accessible: false,
+      success: false,
       message: `Test failed: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
@@ -427,32 +447,117 @@ export const testSubfolderAccess = async (
 };
 
 /**
- * Simple bucket existence check (alternative method)
+ * Check bucket exists and is accessible
  */
 export const checkBucketExists = async (
-  bucketName: string = "vendor-assets"
-): Promise<boolean> => {
+  bucketName: string = DEFAULT_BUCKET
+): Promise<{ exists: boolean; accessible: boolean; message: string }> => {
   try {
-    // Try to list a non-existent path to see if bucket exists
-    const { error } = await supabase.storage
-      .from(bucketName)
-      .list("", { limit: 0 });
+    // List buckets
+    const { data, error } = await supabaseAdmin.storage.listBuckets();
 
-    // If we get a "bucket not found" error, bucket doesn't exist
     if (error) {
-      // Check error message for bucket not found
-      if (
-        error.message.toLowerCase().includes("bucket") &&
-        error.message.toLowerCase().includes("not found")
-      ) {
-        return false;
-      }
-      // Any other error means bucket exists but we might not have permission
-      return true;
+      return {
+        exists: false,
+        accessible: false,
+        message: `Cannot list buckets: ${error.message}`,
+      };
     }
 
-    return true;
-  } catch {
-    return false;
+    const buckets = data?.map((b: any) => b.name) || [];
+    const exists = buckets.includes(bucketName);
+
+    if (!exists) {
+      return {
+        exists: false,
+        accessible: false,
+        message: `Bucket '${bucketName}' not found. Available buckets: ${buckets.join(", ")}`,
+      };
+    }
+
+    // Try to list files in bucket to verify access
+    const { error: listError } = await supabaseAdmin.storage
+      .from(bucketName)
+      .list("", { limit: 1 });
+
+    if (listError) {
+      return {
+        exists: true,
+        accessible: false,
+        message: `Bucket '${bucketName}' exists but is not accessible: ${listError.message}`,
+      };
+    }
+
+    return {
+      exists: true,
+      accessible: true,
+      message: `Bucket '${bucketName}' is accessible`,
+    };
+  } catch (error) {
+    return {
+      exists: false,
+      accessible: false,
+      message: `Check failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    };
   }
 };
+
+/**
+ * Validate configuration
+ */
+export const validateConfiguration = (): {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+} => {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!supabaseUrl) {
+    errors.push("VITE_SUPABASE_URL is not set");
+  } else if (!supabaseUrl.startsWith("https://")) {
+    errors.push("VITE_SUPABASE_URL must start with https://");
+  }
+
+  if (!supabaseAnonKey) {
+    errors.push("VITE_SUPABASE_ANON_KEY is not set");
+  }
+
+  if (!supabaseServiceRoleKey) {
+    errors.push("VITE_SUPABASE_SERVICE_ROLE_KEY is not set");
+  } else if (!supabaseServiceRoleKey.startsWith("eyJ")) {
+    warnings.push("VITE_SUPABASE_SERVICE_ROLE_KEY might be incorrect (should start with 'eyJ')");
+  }
+
+  if (!defaultBucket) {
+    warnings.push("VITE_SUPABASE_BUCKET_VENDOR is not set, using default");
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  };
+};
+
+// Log configuration on load (only in development)
+if (import.meta.env.DEV) {
+  console.log("Supabase Storage Configuration:", {
+    url: supabaseUrl,
+    hasAnonKey: !!supabaseAnonKey,
+    hasServiceRoleKey: !!supabaseServiceRoleKey,
+    defaultBucket,
+    signedUrlTTL,
+    publicRead,
+  });
+
+  const validation = validateConfiguration();
+  if (!validation.valid) {
+    console.error("Configuration errors:", validation.errors);
+  }
+  if (validation.warnings.length > 0) {
+    console.warn("Configuration warnings:", validation.warnings);
+  }
+}

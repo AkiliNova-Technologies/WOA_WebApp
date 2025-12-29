@@ -50,6 +50,10 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useReduxVendors } from "@/hooks/useReduxVendors";
+import { StatusUpdateModal } from "@/components/status-update-modal";
+import api from "@/utils/api";
+import { toast } from "sonner";
+import type { VendorStatus } from "@/redux/slices/vendorsSlice";
 
 interface InfoProps {
   label: string;
@@ -76,7 +80,9 @@ function Info({
         )}
         <div className="flex flex-col space-y-1">
           <p className="text-[#666666] text-sm">{label}</p>
-          <p className="font-medium dark:text-white">{value || "Not provided"}</p>
+          <p className="font-medium dark:text-white">
+            {value || "Not provided"}
+          </p>
         </div>
       </div>
     </div>
@@ -147,20 +153,28 @@ const generateAvatarColor = (seed: string): string => {
   for (let i = 0; i < seed.length; i++) {
     hash = seed.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
+
   const colors = [
-    '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2',
-    '#EF476F', '#073B4C', '#7209B7', '#3A86FF', '#FB5607'
+    "#FF6B6B",
+    "#4ECDC4",
+    "#FFD166",
+    "#06D6A0",
+    "#118AB2",
+    "#EF476F",
+    "#073B4C",
+    "#7209B7",
+    "#3A86FF",
+    "#FB5607",
   ];
-  
+
   return colors[Math.abs(hash) % colors.length];
 };
 
 export default function AdminVendorDetailPage() {
-  const { id } = useParams<{ id: string }>();  // This is userId
+  const { id } = useParams<{ id: string }>(); // This is userId
   const navigate = useNavigate();
   const { getVendor, loading, error } = useReduxVendors();
-  
+
   const [vendor, setVendor] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
@@ -169,11 +183,14 @@ export default function AdminVendorDetailPage() {
   const [sellingPeriod, setSellingPeriod] = useState("12-months");
   const [revenuePeriod, setRevenuePeriod] = useState("12-months");
 
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
+
   // Fetch vendor data
   useEffect(() => {
     const fetchVendorData = async () => {
       if (!id) return;
-      
+
       try {
         console.log("🔍 Fetching vendor with userId:", id);
         const vendorData = await getVendor(id, false);
@@ -239,7 +256,7 @@ export default function AdminVendorDetailPage() {
       const diffMs = now.getTime() - date.getTime();
       const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      
+
       if (diffHrs < 24) return `${diffHrs}hr ago`;
       if (diffDays < 30) return `${diffDays} days ago`;
       if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
@@ -391,7 +408,9 @@ export default function AdminVendorDetailPage() {
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">Loading vendor details...</p>
+            <p className="text-gray-600 dark:text-gray-400">
+              Loading vendor details...
+            </p>
           </div>
         </div>
       </>
@@ -417,22 +436,95 @@ export default function AdminVendorDetailPage() {
 
   // Extract data safely from the API response
   const user = vendor.user || {};
-  const firstName = user.firstName || '';
-  const lastName = user.lastName || '';
-  const email = user.email || '';
-  const storeName = vendor.storeName || 'Unknown Store';
-  const city = vendor.city || 'Unknown';
-  const country = vendor.country || 'Unknown';
+  const firstName = user.firstName || "";
+  const lastName = user.lastName || "";
+  const email = user.email || "";
+  const storeName = vendor.storeName || "Unknown Store";
+  const city = vendor.city || "Unknown";
+  const country = vendor.country || "Unknown";
   const avatarColor = generateAvatarColor(email || vendor.id);
-  const isVerified = vendor.kycStatus === 'approved';
-  const vendorStatus = (vendor.vendorStatus || 'pending') as keyof typeof vendorStatusConfig;
-  const vendorStatusDisplay = vendorStatusConfig[vendorStatus] || vendorStatusConfig.pending;
-  
+  const isVerified = vendor.kycStatus === "approved";
+  const vendorStatus = (vendor.vendorStatus ||
+    "pending") as keyof typeof vendorStatusConfig;
+  const vendorStatusDisplay =
+    vendorStatusConfig[vendorStatus] || vendorStatusConfig.pending;
+
   // Safe initials generation
   const getInitials = () => {
-    const firstInitial = firstName.charAt(0).toUpperCase() || '?';
-    const lastInitial = lastName.charAt(0).toUpperCase() || '?';
+    const firstInitial = firstName.charAt(0).toUpperCase() || "?";
+    const lastInitial = lastName.charAt(0).toUpperCase() || "?";
     return `${firstInitial}${lastInitial}`;
+  };
+
+  const handleStatusUpdate = async (newStatus: VendorStatus) => {
+    if (!vendor || !id) return;
+
+    setStatusUpdateLoading(true);
+
+    try {
+      let endpoint = "";
+      let successMessage = `Vendor status updated to ${newStatus}`;
+
+      // Map the status to the correct API endpoint
+      switch (newStatus) {
+        case "active":
+          if (vendorStatus === "deleted" || vendorStatus === "suspended") {
+            endpoint = `/api/v1/vendor/activate`;
+          } else if (vendorStatus === "pending") {
+            endpoint = `/api/v1/vendor/approve`;
+          }
+          break;
+
+        case "suspended":
+          endpoint = `/api/v1/vendor/suspend`;
+          break;
+
+        case "pending":
+          // Reactivation to pending might not be needed
+          endpoint = `/api/v1/vendor/admin/reset-pending`;
+          break;
+
+        case "deactivated":
+          endpoint = `/api/v1/vendor/admin/deactivate`;
+          break;
+
+        case "deleted":
+          endpoint = `/api/v1/vendor/admin/delete`;
+          break;
+
+        default:
+          console.warn(`No API endpoint defined for status: ${newStatus}`);
+      }
+
+      if (endpoint) {
+        // Call the API with vendorId
+        await api.post(endpoint, { vendorId: vendor.id });
+
+        // Update local state
+        setVendor((prev: any) =>
+          prev ? { ...prev, vendorStatus: newStatus } : null
+        );
+
+        toast.success(successMessage);
+        console.log(`Vendor status updated to ${newStatus}`);
+
+        // Refresh vendor data if needed
+        const updatedVendor = await getVendor(id, false);
+        setVendor(updatedVendor);
+      } else {
+        toast.error(
+          `Cannot change status from ${vendorStatus} to ${newStatus}`
+        );
+      }
+    } catch (error: any) {
+      console.error("Failed to update vendor status:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to update vendor status"
+      );
+    } finally {
+      setStatusUpdateLoading(false);
+      setIsStatusModalOpen(false);
+    }
   };
 
   return (
@@ -458,9 +550,7 @@ export default function AdminVendorDetailPage() {
               className="object-cover w-full h-full"
             />
 
-            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3">
-              
-            </div>
+            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3"></div>
           </div>
 
           {/* ================= STORE SUMMARY ================= */}
@@ -495,7 +585,9 @@ export default function AdminVendorDetailPage() {
 
               {/* Stats */}
               <div className="flex flex-col gap-6 text-md">
-                <div className={`h-11 rounded-md px-6 flex flex-col justify-center items-center ${vendorStatusDisplay.className} text-md`}>
+                <div
+                  className={`h-11 rounded-md px-6 flex flex-col justify-center items-center ${vendorStatusDisplay.className} text-md`}
+                >
                   <p className="text-center">{vendorStatusDisplay.label}</p>
                 </div>
               </div>
@@ -550,13 +642,17 @@ export default function AdminVendorDetailPage() {
                   <TabsContent value="overview" className="space-y-8">
                     <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
                       <CardContent className="px-6 py-8">
-                        <h2 className="text-2xl font-semibold mb-8">Shop Rating</h2>
+                        <h2 className="text-2xl font-semibold mb-8">
+                          Shop Rating
+                        </h2>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           {/* Store Rating */}
                           <div className="border-2 border-gray-200 dark:border-gray-700 rounded-lg p-6">
                             <div className="flex justify-between items-center mb-6">
-                              <h3 className="text-lg font-semibold">Store Rating</h3>
+                              <h3 className="text-lg font-semibold">
+                                Store Rating
+                              </h3>
                               <div className="flex items-center gap-2">
                                 {[...Array(5)].map((_, i) => (
                                   <Star
@@ -573,7 +669,9 @@ export default function AdminVendorDetailPage() {
                             </div>
 
                             <div className="space-y-3">
-                              <p className="text-sm font-medium mb-2">Rating overview</p>
+                              <p className="text-sm font-medium mb-2">
+                                Rating overview
+                              </p>
                               {[
                                 { stars: 5, percent: 0 },
                                 { stars: 4, percent: 0 },
@@ -581,7 +679,10 @@ export default function AdminVendorDetailPage() {
                                 { stars: 2, percent: 0 },
                                 { stars: 1, percent: 0 },
                               ].map((item) => (
-                                <div key={item.stars} className="flex items-center gap-3">
+                                <div
+                                  key={item.stars}
+                                  className="flex items-center gap-3"
+                                >
                                   <div className="flex items-center gap-1 min-w-[80px]">
                                     {[...Array(5)].map((_, i) => (
                                       <Star
@@ -608,7 +709,8 @@ export default function AdminVendorDetailPage() {
                             </div>
                             <div className="mt-4 pt-4 border-t">
                               <p className="text-sm text-gray-600">
-                                Total Reviews: <span className="font-semibold">0</span>
+                                Total Reviews:{" "}
+                                <span className="font-semibold">0</span>
                               </p>
                             </div>
                           </div>
@@ -630,7 +732,9 @@ export default function AdminVendorDetailPage() {
                                         </AvatarFallback>
                                       </Avatar>
                                       <div>
-                                        <p className="font-medium">{review.name}</p>
+                                        <p className="font-medium">
+                                          {review.name}
+                                        </p>
                                         <p className="text-xs text-gray-500">
                                           {review.date}
                                         </p>
@@ -685,7 +789,9 @@ export default function AdminVendorDetailPage() {
                     <Card className="max-w-8xl mx-auto shadow-none border-none bg-white">
                       <CardContent className="px-6 py-8">
                         <div className="mb-8">
-                          <h2 className="text-2xl font-semibold mb-2">Revenue</h2>
+                          <h2 className="text-2xl font-semibold mb-2">
+                            Revenue
+                          </h2>
                           <div className="flex justify-between items-center">
                             <p className="text-gray-500">
                               Total Revenue contributed
@@ -902,7 +1008,9 @@ export default function AdminVendorDetailPage() {
                       {/* Seller story */}
                       <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
                         <CardContent className="p-6">
-                          <h2 className="text-lg font-semibold mb-4">Seller story</h2>
+                          <h2 className="text-lg font-semibold mb-4">
+                            Seller story
+                          </h2>
                           <div className="w-full overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800 h-[450px] flex items-center justify-center">
                             <p className="text-gray-400">No video available</p>
                           </div>
@@ -955,19 +1063,27 @@ export default function AdminVendorDetailPage() {
                       {/* Store Status */}
                       <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
                         <CardHeader>
-                          <h2 className="text-lg font-semibold">Store Status</h2>
+                          <h2 className="text-lg font-semibold">
+                            Store Status
+                          </h2>
                         </CardHeader>
                         <CardContent>
                           <div className="flex flex-row flex-1 justify-between items-center">
                             <div className="space-y-2">
-                              <p className="text-md">Change seller store status</p>
+                              <p className="text-md">
+                                Change seller store status
+                              </p>
                               <p className="text-sm text-gray-600">
-                                Current status: <span className="font-semibold">{vendorStatusDisplay.label}</span>
+                                Current status:{" "}
+                                <span className="font-semibold">
+                                  {vendorStatusDisplay.label}
+                                </span>
                               </p>
                             </div>
                             <Button
-                              variant={"secondary"}
-                              className="text-[#E51C00] h-11"
+                              variant={"outline"}
+                              className="h-11 text-[#E51C00] hover:text-[#E51C00]/90 border-[#E51C00]"
+                              onClick={() => setIsStatusModalOpen(true)}
                             >
                               Change Status
                             </Button>
@@ -975,6 +1091,17 @@ export default function AdminVendorDetailPage() {
                         </CardContent>
                       </Card>
                     </div>
+
+                    <StatusUpdateModal
+                      isOpen={isStatusModalOpen}
+                      onClose={() => setIsStatusModalOpen(false)}
+                      onConfirm={handleStatusUpdate}
+                      currentStatus={vendorStatus}
+                      userType="vendor"
+                      title="Update Vendor Status"
+                      description="Select a new status for this vendor's store"
+                      loading={statusUpdateLoading}
+                    />
                   </TabsContent>
 
                   {/* ================= ORDERS TAB ================= */}
@@ -1033,7 +1160,8 @@ export default function AdminVendorDetailPage() {
                                   </DropdownMenuContent>
                                 </DropdownMenu>
 
-                                {(selectedStatuses.length > 0 || searchQuery) && (
+                                {(selectedStatuses.length > 0 ||
+                                  searchQuery) && (
                                   <Button
                                     variant="ghost"
                                     onClick={clearAllFilters}
@@ -1127,7 +1255,9 @@ export default function AdminVendorDetailPage() {
                                           size="sm"
                                           className="w-full mt-2"
                                           onClick={() =>
-                                            navigate(`/admin/orders/${order.id}`)
+                                            navigate(
+                                              `/admin/orders/${order.id}`
+                                            )
                                           }
                                         >
                                           <EyeIcon className="h-4 w-4 mr-2" />
