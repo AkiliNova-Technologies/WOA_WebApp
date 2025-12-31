@@ -49,7 +49,7 @@ export function ImageUpload({
   disabled = false,
   initialUrls = [],
   readOnly = false,
-  bucket = "world_of_afrika",
+  bucket = "World_of_Africa",
   folder = "products",
 }: ImageUploadProps) {
   const [documents, setDocuments] = React.useState<UploadDocument[]>([]);

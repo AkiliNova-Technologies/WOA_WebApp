@@ -7,7 +7,7 @@ import React from "react";
 import { uploadToStorage, deleteFromStorage } from "@/config/superbase/storage";
 
 export interface LogoUploadProps {
-  onLogoChange: (url: string | null) => void; // Now returns URL instead of file
+  onLogoChange: (url: string | null) => void;
   className?: string;
   maxSize?: number;
   acceptedFormats?: string;
@@ -21,7 +21,7 @@ export function LogoUpload({
   className,
   maxSize = 2,
   acceptedFormats = "image/jpeg,image/jpg,image/png,image/svg+xml",
-  bucket = "world_of_afrika",
+  bucket = "World_of_Africa",
   folder = "logos",
   initialUrl,
 }: LogoUploadProps) {

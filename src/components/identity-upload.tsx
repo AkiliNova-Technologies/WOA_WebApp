@@ -35,7 +35,7 @@ export function IdentityUpload({
   maxSize = 1,
   acceptedFormats = "image/jpeg,image/jpg,image/png",
   documentType = "national_id",
-  bucket = "world_of_afrika",
+  bucket = "World_of_Africa",
   folder = "identity",
   initialUrls,
 }: IdentityUploadProps) {
