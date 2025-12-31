@@ -88,158 +88,160 @@ import VendorProductDetailsPage from "./pages/vendor/dashboard/ProductDetails.ts
 import VendorWishlistPage from "./pages/vendor/dashboard/Wishlist.tsx";
 import AdminStaffDetailPage from "./pages/admin/StaffDetails.tsx";
 import HomePage from "./pages/consumer/Home.tsx";
+import ClientWebsiteLayout from "./layout/ClientHomeLayout.tsx";
 
 function App() {
   return (
     <div>
       <main className="min-h-screen p-0">
         <BreadcrumbProvider>
-          
-            <Routes>
-              <Route path="" element={<WebsiteLayout />}>
-                <Route index element={<HomePage />} />
+          <Routes>
+            <Route path="" element={<ClientWebsiteLayout />}>
+              <Route index element={<HomePage />} />
+            </Route>
+            <Route path="" element={<WebsiteLayout />}>
+              <Route path="/profile" element={<ProfileLayout />}>
+                <Route index element={<MyAccountPage />} />
+                <Route path="inbox" element={<InboxPage />} />
 
-                <Route path="/profile" element={<ProfileLayout />}>
-                  <Route index element={<MyAccountPage />} />
-                  <Route path="inbox" element={<InboxPage />} />
-
-                  <Route path="orders" element={<SimpleLayout />}>
-                    <Route index element={<OrderHistoryPage />} />
-                    <Route
-                      path="details/:id"
-                      element={<OrderHistoryDetailPage />}
-                    />
-                  </Route>
-
-                  <Route path="history" element={<HistoryPage />} />
-                  <Route path="following" element={<FollowingPage />} />
-                  <Route path="settings" element={<ProfileSettingsPage />} />
-                  <Route path="reviews" element={<ReviewsPage />} />
-                </Route>
-
-                <Route path="/wishlist" element={<WishListPage />} />
-
-                <Route path="/cart" element={<SimpleLayout />}>
-                  <Route index element={<CartPage />} />
-                  <Route path="checkout" element={<CheckoutPage />} />
-                </Route>
-
-                <Route path="/category" element={<CategoryLayout />}>
-                  <Route index element={<CategoryPage />} />
+                <Route path="orders" element={<SimpleLayout />}>
+                  <Route index element={<OrderHistoryPage />} />
                   <Route
-                    path="product/:productId"
-                    element={<ProductDetailPage />}
-                  />
-                  <Route
-                    path="sub-category/:categoryId"
-                    element={<SubCategoryPage />}
-                  />
-                  {/* Add this new route for types */}
-                  <Route
-                    path="sub-category/:categoryId/type"
-                    element={<TypePage />}
-                  />
-                  <Route
-                    path="vendor-profile"
-                    element={<VendorProfilePage />}
+                    path="details/:id"
+                    element={<OrderHistoryDetailPage />}
                   />
                 </Route>
-                <Route path="/*" element={<PageNotFound />} />
+
+                <Route path="history" element={<HistoryPage />} />
+                <Route path="following" element={<FollowingPage />} />
+                <Route path="settings" element={<ProfileSettingsPage />} />
+                <Route path="reviews" element={<ReviewsPage />} />
               </Route>
 
-              <Route path="/auth" element={<AuthLayout />}>
-                <Route index element={<SigninPage />} />
-                <Route path="signin" element={<SigninPage />} />
-                <Route path="verify" element={<EmailOTPPage />} />
+              <Route path="/wishlist" element={<WishListPage />} />
+
+              <Route path="/cart" element={<SimpleLayout />}>
+                <Route index element={<CartPage />} />
+                <Route path="checkout" element={<CheckoutPage />} />
+              </Route>
+
+              <Route path="/category" element={<CategoryLayout />}>
+                <Route index element={<CategoryPage />} />
                 <Route
-                  path="create-password"
-                  element={<CreatePasswordPage />}
+                  path="product/:productId"
+                  element={<ProductDetailPage />}
                 />
                 <Route
-                  path="forgot-password"
-                  element={<ForgotPasswordPage />}
+                  path="sub-category/:categoryId"
+                  element={<SubCategoryPage />}
                 />
-                <Route path="signup" element={<SignupPage />} />
-              </Route>
-
-              <Route path="/admin/auth" element={<AdminAuthLayout />}>
-                <Route index element={<AdminSignInPage />} />
-                <Route path="signin" element={<AdminSignInPage />} />
-                <Route path="verify" element={<AdminEmailOTPPage />} />
+                {/* Add this new route for types */}
                 <Route
-                  path="forgot-password"
-                  element={<AdminForgotPasswordPage />}
+                  path="sub-category/:categoryId/type"
+                  element={<TypePage />}
                 />
+                <Route path="vendor-profile" element={<VendorProfilePage />} />
               </Route>
+              <Route path="/*" element={<PageNotFound />} />
+            </Route>
 
-              <Route path="/vendor/auth" element={<VendorAuthLayout />}>
-                <Route index element={<VendorSignInPage />} />
-                <Route path="signin" element={<VendorSignInPage />} />
-                <Route path="verify" element={<VendorEmailOTPPage />} />
-                <Route
-                  path="forgot-password"
-                  element={<VendorForgotPasswordPage />}
-                />
+            <Route path="/auth" element={<AuthLayout />}>
+              <Route index element={<SigninPage />} />
+              <Route path="signin" element={<SigninPage />} />
+              <Route path="verify" element={<EmailOTPPage />} />
+              <Route path="create-password" element={<CreatePasswordPage />} />
+              <Route path="forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="signup" element={<SignupPage />} />
+            </Route>
+
+            <Route path="/admin/auth" element={<AdminAuthLayout />}>
+              <Route index element={<AdminSignInPage />} />
+              <Route path="signin" element={<AdminSignInPage />} />
+              <Route path="verify" element={<AdminEmailOTPPage />} />
+              <Route
+                path="forgot-password"
+                element={<AdminForgotPasswordPage />}
+              />
+            </Route>
+
+            <Route path="/vendor/auth" element={<VendorAuthLayout />}>
+              <Route index element={<VendorSignInPage />} />
+              <Route path="signin" element={<VendorSignInPage />} />
+              <Route path="verify" element={<VendorEmailOTPPage />} />
+              <Route
+                path="forgot-password"
+                element={<VendorForgotPasswordPage />}
+              />
+            </Route>
+
+            <Route path="kyc" element={<KYCLayout />}>
+              <Route index element={<StepsContainer />} />
+            </Route>
+
+            <Route path="/vendor" element={<VendorDashboardLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="products" element={<SimpleLayout />}>
+                <Route index element={<ProductsPage />} />
+                <Route path="add-product" element={<ProductAddPage />} />
+                <Route path="detail" element={<VendorProductDetailsPage />} />
               </Route>
+              <Route path="revenue" element={<RevenuePage />} />
+              <Route path="inventory" element={<InventoryPage />} />
+              <Route path="wishlist" element={<VendorWishlistPage />} />
+              <Route path="orders" element={<OrdersPage />} />
 
-              <Route path="kyc" element={<KYCLayout />}>
-                <Route index element={<StepsContainer />} />
+              <Route
+                path="settings"
+                element={<VendorSettingsDashboardLayout />}
+              >
+                <Route index element={<SettingsPage />} />
+                <Route path="edit-store" element={<EditStore />} />
+                <Route path="change-password" element={<CreatePassword />} />
               </Route>
+            </Route>
 
-              <Route path="/vendor" element={<VendorDashboardLayout />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="products" element={<SimpleLayout />}>
-                  <Route index element={<ProductsPage />} />
-                  <Route path="add-product" element={<ProductAddPage />} />
-                  <Route path="detail" element={<VendorProductDetailsPage />} />
+            {/* Admin Routes - Updated to match AdminNavMain structure */}
+            <Route path="/admin" element={<AdminDashboardLayout />}>
+              <Route index element={<AdminDashboardPage />} />
+
+              <Route path="users" element={<AdminSimpleLayout />}>
+                <Route index element={<AdminUsersPage />} />
+                <Route path="vendors" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminVendorsPage />} />
+                  <Route path="create" element={<AdminCreateVendorPage />} />
+                  <Route
+                    path=":id/details"
+                    element={<AdminVendorDetailPage />}
+                  />
                 </Route>
-                <Route path="revenue" element={<RevenuePage />} />
-                <Route path="inventory" element={<InventoryPage />} />
-                <Route path="wishlist" element={<VendorWishlistPage />} />
-                <Route path="orders" element={<OrdersPage />} />
-
-                <Route
-                  path="settings"
-                  element={<VendorSettingsDashboardLayout />}
-                >
-                  <Route index element={<SettingsPage />} />
-                  <Route path="edit-store" element={<EditStore />} />
-                  <Route path="change-password" element={<CreatePassword />} />
+                <Route path="customers" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminCustomersPage />} />
+                  <Route
+                    path=":id/details"
+                    element={<AdminCustomerDetailPage />}
+                  />
+                </Route>
+                <Route path="staff" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminStaffPage />} />
+                  <Route path="create" element={<AdminCreateStaffPage />} />
+                  <Route
+                    path=":id/details"
+                    element={<AdminStaffDetailPage />}
+                  />
+                  <Route path=":id/edit" element={<AdminEditStaffPage />} />
                 </Route>
               </Route>
 
-              {/* Admin Routes - Updated to match AdminNavMain structure */}
-              <Route path="/admin" element={<AdminDashboardLayout />}>
-                <Route index element={<AdminDashboardPage />} />
+              <Route path="categories" element={<AdminSimpleLayout />}>
+                <Route index element={<AdminCategoriesPage />} />
+                <Route
+                  path="create-category"
+                  element={<AdminCreateCategoriesPage />}
+                />
+              </Route>
 
-                <Route path="users" element={<AdminSimpleLayout />}>
-                  <Route index element={<AdminUsersPage />} />
-                  <Route path="vendors" element={<AdminSimpleLayout />}>
-                    <Route index element={<AdminVendorsPage />} />
-                    <Route path="create" element={<AdminCreateVendorPage />} />
-                    <Route
-                      path=":id/details"
-                      element={<AdminVendorDetailPage />}
-                    />
-                  </Route>
-                  <Route path="customers" element={<AdminSimpleLayout />}>
-                    <Route index element={<AdminCustomersPage />} />
-                    <Route
-                      path=":id/details"
-                      element={<AdminCustomerDetailPage />}
-                    />
-                  </Route>
-                  <Route path="staff" element={<AdminSimpleLayout />}>
-                    <Route index element={<AdminStaffPage />} />
-                    <Route path="create" element={<AdminCreateStaffPage />} />
-                    <Route
-                      path=":id/details"
-                      element={<AdminStaffDetailPage />}
-                    />
-                    <Route path=":id/edit" element={<AdminEditStaffPage />} />
-                  </Route>
-                </Route>
-
+              <Route path="products" element={<AdminSimpleLayout />}>
+                <Route index element={<AdminProductApprovalsPage />} />
                 <Route path="categories" element={<AdminSimpleLayout />}>
                   <Route index element={<AdminCategoriesPage />} />
                   <Route
@@ -247,87 +249,75 @@ function App() {
                     element={<AdminCreateCategoriesPage />}
                   />
                 </Route>
-
-                <Route path="products" element={<AdminSimpleLayout />}>
-                  <Route index element={<AdminProductApprovalsPage />} />
-                  <Route path="categories" element={<AdminSimpleLayout />}>
-                    <Route index element={<AdminCategoriesPage />} />
-                    <Route
-                      path="create-category"
-                      element={<AdminCreateCategoriesPage />}
-                    />
-                  </Route>
-                  <Route
-                    path="approvals"
-                    element={<AdminProductApprovalsPage />}
-                  />
+                <Route
+                  path="approvals"
+                  element={<AdminProductApprovalsPage />}
+                />
+                <Route
+                  path=":productId/details"
+                  element={<AdminProductDetailsPage />}
+                />
+                <Route path="wishlist" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminWishlistPage />} />
                   <Route
                     path=":productId/details"
-                    element={<AdminProductDetailsPage />}
-                  />
-                  <Route path="wishlist" element={<AdminSimpleLayout />}>
-                    <Route index element={<AdminWishlistPage />} />
-                    <Route
-                      path=":productId/details"
-                      element={<AdminWishlistDetailPage />}
-                    />
-                  </Route>
-                  <Route path="cart" element={<AdminSimpleLayout />}>
-                    <Route index element={<AdminCartPage />} />
-                    <Route
-                      path=":productId/details"
-                      element={<AdminCartDetailPage />}
-                    />
-                  </Route>
-                  <Route path="orders" element={<AdminOrdersPage />} />
-                </Route>
-
-                <Route path="logistics" element={<AdminSimpleLayout />}>
-                  <Route index element={<AdminDropOffZonesPage />} />
-                  <Route
-                    path="drop-off-zones"
-                    element={<AdminDropOffZonesPage />}
-                  />
-                  <Route path="warehouses" element={<AdminWarehousesPage />} />
-                  <Route
-                    path=":id/warehouse-details"
-                    element={<AdminWarehouseDetailsPage />}
-                  />
-                  <Route
-                    path="create-warehouse"
-                    element={<AdminCreateWarehousePage />}
-                  />
-                  <Route
-                    path="create-dropoff"
-                    element={<AdminCreateDropoffPage />}
-                  />
-                  <Route path="details" element={<AdminViewDropoffPage />} />
-                  <Route
-                    path=":id/dropoff-details"
-                    element={<AdminDropOffZoneDetailsPage />}
+                    element={<AdminWishlistDetailPage />}
                   />
                 </Route>
-
-                <Route path="revenue" element={<AdminRevenuePage />} />
-
-                <Route path="settings" element={<AdminSettingsPage />} />
-
-                <Route path="supoort" element={<AdminSimpleLayout />}>
-                  <Route index element={<AdminSupportPage />} />
+                <Route path="cart" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminCartPage />} />
+                  <Route
+                    path=":productId/details"
+                    element={<AdminCartDetailPage />}
+                  />
                 </Route>
+                <Route path="orders" element={<AdminOrdersPage />} />
               </Route>
-            </Routes>
-            <Toaster
-              position="top-right"
-              expand={false}
-              richColors
-              closeButton
-              duration={4000}
-              visibleToasts={3}
-              offset={16}
-              
-            />
-          
+
+              <Route path="logistics" element={<AdminSimpleLayout />}>
+                <Route index element={<AdminDropOffZonesPage />} />
+                <Route
+                  path="drop-off-zones"
+                  element={<AdminDropOffZonesPage />}
+                />
+                <Route path="warehouses" element={<AdminWarehousesPage />} />
+                <Route
+                  path=":id/warehouse-details"
+                  element={<AdminWarehouseDetailsPage />}
+                />
+                <Route
+                  path="create-warehouse"
+                  element={<AdminCreateWarehousePage />}
+                />
+                <Route
+                  path="create-dropoff"
+                  element={<AdminCreateDropoffPage />}
+                />
+                <Route path="details" element={<AdminViewDropoffPage />} />
+                <Route
+                  path=":id/dropoff-details"
+                  element={<AdminDropOffZoneDetailsPage />}
+                />
+              </Route>
+
+              <Route path="revenue" element={<AdminRevenuePage />} />
+
+              <Route path="settings" element={<AdminSettingsPage />} />
+
+              <Route path="supoort" element={<AdminSimpleLayout />}>
+                <Route index element={<AdminSupportPage />} />
+              </Route>
+            </Route>
+          </Routes>
+          <Toaster
+            position="top-right"
+            expand={false}
+            richColors
+            closeButton
+            duration={4000}
+            visibleToasts={3}
+            offset={16}
+          />
         </BreadcrumbProvider>
       </main>
     </div>

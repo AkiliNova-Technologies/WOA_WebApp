@@ -1,5 +1,3 @@
-// pages/consumer/HomePage.tsx
-import { CategoryCard } from "@/components/category-card";
 import { ProductCard } from "@/components/productCard";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
@@ -9,6 +7,14 @@ import { FeaturedStories } from "@/components/FeaturedStories";
 
 import { useProducts } from "@/hooks/useProducts";
 import { ClippedButton } from "@/components/clipped-button";
+import { HomeCategoryCard } from "@/components/home-category-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function HomePage() {
   const { products, categories } = useProducts();
@@ -100,28 +106,30 @@ export default function HomePage() {
       {/* Shop by Category */}
       <section className="py-12 md:py-16 px-4 sm:px-6 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#1A1A1A] dark:text-white">
+          <div className="flex items-center justify-center mb-12">
+            <h2 className="text-2xl md:text-3xl text-center font-semibold text-[#1A1A1A] dark:text-white">
               Shop by Category
             </h2>
-            <Button
-              variant="ghost"
-              className="text-[#C75A00] hover:text-[#C75A00]/80 flex items-center gap-2"
-            >
-              View All
-              <ArrowRight className="h-4 w-4" />
-            </Button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
             {categories.map((category) => (
-              <CategoryCard
+              <HomeCategoryCard
                 key={category.id}
                 id={parseInt(category.id)}
                 name={category.name}
                 image={category.image}
               />
             ))}
+            <div className="flex flex-col items-center justify-center">
+              <Button
+                variant="secondary"
+                className="h-20 w-20 text-[#3A3A3A] bg-[#F5F6FA] hover:scale-105 transition-all hover:shadow-xs duration-300 hover:bg-[#F5F6FA]/90 flex items-center rounded-full justify-center p-0"
+              >
+                <ArrowRight className="size-8" />
+              </Button>
+              <p className="mt-6 text-sm text-center">View All</p>
+            </div>
           </div>
         </div>
       </section>
@@ -132,31 +140,61 @@ export default function HomePage() {
       {/* All Products */}
       <section className="py-12 md:py-16 px-4 sm:px-6 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col items-start justify-between mb-8 space-y-8">
             <h2 className="text-2xl md:text-3xl font-semibold text-[#1A1A1A] dark:text-white">
               All Products
             </h2>
-            <div className="flex items-center gap-4">
-              <select className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C75A00] dark:bg-[#2D2D2D] dark:border-gray-700">
-                <option>All Categories</option>
-                <option>Fashion</option>
-                <option>Art & Craft</option>
-              </select>
-              <select className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C75A00] dark:bg-[#2D2D2D] dark:border-gray-700">
-                <option>Price</option>
-                <option>Low to High</option>
-                <option>High to Low</option>
-              </select>
-              <select className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C75A00] dark:bg-[#2D2D2D] dark:border-gray-700">
-                <option>Review</option>
-                <option>Highest Rated</option>
-                <option>Most Reviews</option>
-              </select>
-              <select className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C75A00] dark:bg-[#2D2D2D] dark:border-gray-700">
-                <option>Sort by:</option>
-                <option>Newest</option>
-                <option>Popular</option>
-              </select>
+            <div className="flex items-center justify-between w-full gap-4">
+              <div className="flex gap-4">
+                {/* Category Select - Only this one has colored background */}
+                <Select>
+                  <SelectTrigger className="px-4 py-2 bg-[#CC5500] text-white! border-none rounded-lg text-sm dark:bg-[#CC5500] dark:text-white" iconClassName="text-white!">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all-categories">
+                      All Categories
+                    </SelectItem>
+                    <SelectItem value="fashion">Fashion</SelectItem>
+                    <SelectItem value="art-craft">Art & Craft</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Price Select */}
+                <Select>
+                  <SelectTrigger className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700">
+                    <SelectValue placeholder="Price" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="price">Price</SelectItem>
+                    <SelectItem value="low-to-high">Low to High</SelectItem>
+                    <SelectItem value="high-to-low">High to Low</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Review Select */}
+                <Select>
+                  <SelectTrigger className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none  dark:bg-[#2D2D2D] dark:border-gray-700">
+                    <SelectValue placeholder="Review" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="review">Review</SelectItem>
+                    <SelectItem value="highest-rated">Highest Rated</SelectItem>
+                    <SelectItem value="most-reviews">Most Reviews</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Sort Select */}
+              <Select>
+                <SelectTrigger className="px-4 py-2 w-40 border border-gray-200 rounded-lg text-sm focus:outline-none  dark:bg-[#2D2D2D] dark:border-gray-700">
+                  <SelectValue placeholder="Sort by:" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest</SelectItem>
+                  <SelectItem value="popular">Popular</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -177,8 +215,8 @@ export default function HomePage() {
 
           <div className="flex justify-center mt-12">
             <Button
-              variant="outline"
-              className="rounded-full px-8 py-6 text-base hover:bg-gray-50 dark:hover:bg-[#2D2D2D]"
+              variant="secondary"
+              className="rounded-full px-8 py-6 w-3xs text-base hover:bg-gray-50 dark:hover:bg-[#2D2D2D] hover:scale-105 transition-all duration-300"
             >
               View more
             </Button>
@@ -212,12 +250,8 @@ export default function HomePage() {
                 customers. We believe every product carries a story, and every
                 story deserves to be shared.
               </p>
-              {/* <Button className="bg-[#C75A00] hover:bg-[#C75A00]/90 text-white w-2xs rounded-sm px-8 py-6 text-base flex items-center gap-2">
-                LEARN MORE
-                <ArrowRight className="h-5 w-5" />
-              </Button> */}
 
-              <ClippedButton  onClick={() => console.log("clicked")}>
+              <ClippedButton onClick={() => console.log("clicked")}>
                 LEARN MORE
               </ClippedButton>
             </div>

@@ -246,11 +246,11 @@
 }
 
 .carousel-arrow-left {
-  left: -0.5rem;
+  left: 0.5rem;
 }
 
 .carousel-arrow-right {
-  right: -0.5rem;
+  right: 0.5rem;
 }
 
 .carousel-arrow-side:hover:not(:disabled) {
