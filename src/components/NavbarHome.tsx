@@ -191,7 +191,7 @@ export default function NavbarHomeSection() {
   };
 
   return (
-    <nav className="max-w-8xl w-full flex flex-1  px-4 fixed py-2 top-0 z-50">
+    <nav className="max-w-8xl w-full flex flex-1  px-4 absolute py-2 top-0 z-50">
       <div className="text-white bg-white flex items-center justify-between w-full max-w-7xl mx-auto gap-4 px-4 sm:px-12 py-4 sticky top-0 z-50 shadow-lg rounded-xl">
         {/* Left section: Logo + Categories */}
         <div className="flex items-center gap-4 sm:gap-6">
