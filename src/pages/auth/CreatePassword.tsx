@@ -18,6 +18,16 @@ interface SignUpData {
   countryCode: string;
 }
 
+// Password requirement type
+interface PasswordRequirements {
+  minLength: boolean;
+  hasLowercase: boolean;
+  hasUppercase: boolean;
+  hasNumber: boolean;
+  hasSpecialChar: boolean;
+  specialChars: string[]; // Track which special characters are actually present
+}
+
 export default function CreatePasswordPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -43,6 +53,19 @@ export default function CreatePasswordPage() {
     confirmPassword: "",
     terms: "",
   });
+  
+  // Track password requirements in real-time
+  const [passwordRequirements, setPasswordRequirements] = useState<PasswordRequirements>({
+    minLength: false,
+    hasLowercase: false,
+    hasUppercase: false,
+    hasNumber: false,
+    hasSpecialChar: false,
+    specialChars: []
+  });
+
+  // Common special characters for validation
+  const SPECIAL_CHARACTERS = ['!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '_', '+', '=', '[', ']', '{', '}', '|', '\\', ';', ':', '"', "'", '<', '>', ',', '.', '?', '/', '~', '`'];
 
   // Clear localStorage before signup to prevent false authentication
   useEffect(() => {
@@ -88,24 +111,68 @@ export default function CreatePasswordPage() {
     });
   }, [isAuthenticated, user, verificationPending]);
 
+  // Update password requirements in real-time as user types
+  useEffect(() => {
+    if (password) {
+      const foundSpecialChars: string[] = [];
+      SPECIAL_CHARACTERS.forEach(char => {
+        if (password.includes(char)) {
+          foundSpecialChars.push(char);
+        }
+      });
+
+      setPasswordRequirements({
+        minLength: password.length >= 8,
+        hasLowercase: /[a-z]/.test(password),
+        hasUppercase: /[A-Z]/.test(password),
+        hasNumber: /\d/.test(password),
+        hasSpecialChar: foundSpecialChars.length > 0,
+        specialChars: foundSpecialChars
+      });
+    } else {
+      // Reset when password is empty
+      setPasswordRequirements({
+        minLength: false,
+        hasLowercase: false,
+        hasUppercase: false,
+        hasNumber: false,
+        hasSpecialChar: false,
+        specialChars: []
+      });
+    }
+  }, [password]);
+
   const validatePassword = () => {
     const errors = { password: "", confirmPassword: "", terms: "" };
     let isValid = true;
+    const missingRequirements: string[] = [];
 
-    if (password.length < 8) {
-      errors.password = "Password must be at least 8 characters long";
-      isValid = false;
-    } else if (!/(?=.*[a-z])/.test(password)) {
-      errors.password = "Password must contain at least one lowercase letter";
-      isValid = false;
-    } else if (!/(?=.*[A-Z])/.test(password)) {
-      errors.password = "Password must contain at least one uppercase letter";
-      isValid = false;
-    } else if (!/(?=.*\d)/.test(password)) {
-      errors.password = "Password must contain at least one number";
-      isValid = false;
-    } else if (!/(?=.*[@$!%*?&])/.test(password)) {
-      errors.password = "Password must contain at least one special character";
+    // Check each requirement and collect what's missing
+    if (!passwordRequirements.minLength) {
+      missingRequirements.push("at least 8 characters");
+    }
+    if (!passwordRequirements.hasLowercase) {
+      missingRequirements.push("one lowercase letter (a-z)");
+    }
+    if (!passwordRequirements.hasUppercase) {
+      missingRequirements.push("one uppercase letter (A-Z)");
+    }
+    if (!passwordRequirements.hasNumber) {
+      missingRequirements.push("one number (0-9)");
+    }
+    if (!passwordRequirements.hasSpecialChar) {
+      missingRequirements.push(`one special character (e.g., ! @ # $ % ^ & *)`);
+    }
+
+    // If there are missing requirements, create a detailed error message
+    if (missingRequirements.length > 0) {
+      errors.password = `Password must contain: ${missingRequirements.join(", ")}`;
+      
+      // If special character is missing, show examples
+      if (!passwordRequirements.hasSpecialChar) {
+        errors.password += `. Special characters include: ${SPECIAL_CHARACTERS.slice(0, 8).join(" ")}...`;
+      }
+      
       isValid = false;
     }
 
@@ -121,6 +188,15 @@ export default function CreatePasswordPage() {
 
     setFormErrors(errors);
     return isValid;
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPassword(value);
+    // Clear password error when user starts typing
+    if (formErrors.password && value) {
+      setFormErrors(prev => ({ ...prev, password: "" }));
+    }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -271,7 +347,7 @@ export default function CreatePasswordPage() {
             )}
 
             <form className="space-y-4" onSubmit={handleSignUp}>
-              {/* Password */}
+              {/* Password with real-time feedback */}
               <div className="space-y-2">
                 <Label className="text-sm text-gray-700 dark:text-white">
                   Password
@@ -279,12 +355,49 @@ export default function CreatePasswordPage() {
                 <PasswordInput
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
                   className="mt-1 bg-[#FCFCFC]"
                   required
                 />
+                
+                {/* Real-time password requirements indicator */}
+                {password && (
+                  <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
+                    <p className="text-sm font-medium mb-2 dark:text-white">
+                      Password must contain:
+                    </p>
+                    <ul className="space-y-1 text-sm">
+                      <li className={`flex items-center ${passwordRequirements.minLength ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordRequirements.minLength ? '✓' : '○'} At least 8 characters
+                      </li>
+                      <li className={`flex items-center ${passwordRequirements.hasLowercase ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordRequirements.hasLowercase ? '✓' : '○'} One lowercase letter
+                      </li>
+                      <li className={`flex items-center ${passwordRequirements.hasUppercase ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordRequirements.hasUppercase ? '✓' : '○'} One uppercase letter
+                      </li>
+                      <li className={`flex items-center ${passwordRequirements.hasNumber ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordRequirements.hasNumber ? '✓' : '○'} One number
+                      </li>
+                      <li className={`flex items-center ${passwordRequirements.hasSpecialChar ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordRequirements.hasSpecialChar ? '✓' : '○'} One special character
+                        {passwordRequirements.specialChars.length > 0 && (
+                          <span className="ml-2 text-xs">
+                            (Found: {passwordRequirements.specialChars.slice(0, 3).join(", ")})
+                          </span>
+                        )}
+                      </li>
+                    </ul>
+                  </div>
+                )}
+                
                 {formErrors.password && (
-                  <p className="text-sm text-red-600">{formErrors.password}</p>
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {formErrors.password}
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
 
