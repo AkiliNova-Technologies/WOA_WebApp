@@ -1144,7 +1144,7 @@ export default function AdminCreateVendorPage() {
                           onDocumentsChange={handleDocumentsChange}
                           maxSize={1}
                           documentType="national_id"
-                          bucket="world_of_afrika"
+                          bucket="World_of_Africa"
                           folder="identity-documents"
                           initialUrls={
                             formData.identityDocumentUrls &&

@@ -858,7 +858,7 @@ const authSlice = createSlice({
             // FIX: Always set user as authenticated if we have a user in localStorage
             // Email verification will be handled separately in the UI
             state.user = user;
-            state.isAuthenticated = true; // THIS IS THE FIX - always true if user exists
+            state.isAuthenticated = true; 
 
             if (hasPendingVerification || !isEmailVerified) {
               console.log(

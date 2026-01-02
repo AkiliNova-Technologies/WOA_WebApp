@@ -11,6 +11,7 @@ import { CheckCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import api from "@/utils/api";
+import kycApi from "@/utils/kyc-api";
 
 // Define the form data type
 export interface FormData {
@@ -38,7 +39,7 @@ export interface FormData {
 
   // Step3 data - Store Description & Seller Story
   storeDescription: string;
-  videoUrl: string | null; // Changed from File to URL
+  videoUrl: string | null;
   step3Completed: boolean;
 
   // Step4 data - Bank Details
@@ -80,13 +81,13 @@ export default function StepsContainer() {
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [requestEmailVerification, setRequestEmailVerification] =
-    useState(false);
+  const [requestEmailVerification, setRequestEmailVerification] = useState(false);
   const [_kycSessionId, setKycSessionId] = useState<string | null>(null);
   const [kycStatus, setKycStatus] = useState<
     "draft" | "email_pending" | "email_verified" | "submitted"
   >("draft");
   const [isStartingKYC, setIsStartingKYC] = useState(false);
+  const [_isLoading, setIsLoading] = useState(true); 
 
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
@@ -120,14 +121,24 @@ export default function StepsContainer() {
 
   // Track completed steps
   const [completedSteps, setCompletedSteps] = useState<number[]>([0]);
+  // const [authRequired, setAuthRequired] = useState(false);
 
   // Check existing KYC status on component mount
   useEffect(() => {
     const checkExistingKYCStatus = async () => {
+      setIsLoading(true);
       try {
-        const response = await api.get("/api/v1/vendor/kyc");
+        const response = await kycApi.get("/api/v1/vendor/kyc");
         if (response.data) {
           setKycStatus(response.data.kycStatus);
+          
+          // If KYC is already submitted, redirect or show message
+          if (response.data.kycStatus === 'submitted' || response.data.kycStatus === 'approved') {
+            toast.info('Your KYC has already been submitted and is under review');
+            navigate('/dashboard', { replace: true });
+            return;
+          }
+          
           if (response.data.emailVerified) {
             updateFormData({
               emailVerified: true,
@@ -141,19 +152,56 @@ export default function StepsContainer() {
             setKycSessionId(response.data.sessionId);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.log("No existing KYC session or error checking status:", error);
-        // This is normal for new users
+        
+        // Handle 401 Unauthorized specifically
+        if (error.response?.status === 401) {
+          console.log('Authentication required for KYC');
+          // setAuthRequired(true);
+        }
+        
+        // For other errors, just continue (user might not have started KYC yet)
+      } finally {
+        setIsLoading(false);
       }
     };
 
     checkExistingKYCStatus();
   }, []);
 
+  // Load saved KYC data from localStorage
+  useEffect(() => {
+    const savedKycData = localStorage.getItem('kycDraftData');
+    if (savedKycData) {
+      try {
+        const parsedData = JSON.parse(savedKycData);
+        setFormData(prev => ({ ...prev, ...parsedData }));
+        localStorage.removeItem('kycDraftData');
+      } catch (error) {
+        console.error('Error loading saved KYC data:', error);
+      }
+    }
+  }, []);
+
+  // const handleAuthRequired = () => {
+  //   // Store current KYC data before redirecting
+  //   localStorage.setItem('kycDraftData', JSON.stringify(formData));
+    
+  //   navigate('/auth/login', {
+  //     state: {
+  //       from: '/vendor/kyc',
+  //       message: 'Please login to continue with KYC',
+  //       preserveKycData: true
+  //     }
+  //   });
+  // };
+
   const updateFormData = (newData: Partial<FormData>) => {
     setFormData((prev) => {
       const updated = { ...prev, ...newData };
 
+      // Update step 1 completion
       if (
         newData.firstName !== undefined ||
         newData.lastName !== undefined ||
@@ -177,6 +225,7 @@ export default function StepsContainer() {
         }
       }
 
+      // Update step 2 completion
       if (
         newData.storeName !== undefined ||
         newData.country !== undefined ||
@@ -197,6 +246,7 @@ export default function StepsContainer() {
         }
       }
 
+      // Update step 3 completion
       if (newData.storeDescription !== undefined && newData.step3Completed === undefined) {
         const step3Complete = Boolean(
           updated.storeDescription.trim().length > 0
@@ -207,6 +257,7 @@ export default function StepsContainer() {
         }
       }
 
+      // Update step 4 completion
       if (
         (newData.accountHolderName !== undefined ||
         newData.accountNumber !== undefined ||
@@ -237,7 +288,7 @@ export default function StepsContainer() {
       // Call the backend endpoint to start KYC
       const response = await api.post("/api/v1/vendor/kyc/start", {
         email: formData.email,
-        phone_number: formData.phoneNumber, // optional but we include it
+        phone_number: formData.phoneNumber,
       });
 
       if (response.data.otpSent) {
@@ -250,9 +301,16 @@ export default function StepsContainer() {
       }
     } catch (error: any) {
       console.error("Error starting KYC:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to start KYC process"
-      );
+      
+      // Handle 401 specifically
+      if (error.response?.status === 401) {
+        // setAuthRequired(true);
+        toast.error("Your session has expired. Please login again.");
+      } else {
+        toast.error(
+          error?.response?.data?.message || "Failed to start KYC process"
+        );
+      }
       throw error;
     } finally {
       setIsStartingKYC(false);
@@ -365,6 +423,12 @@ export default function StepsContainer() {
     try {
       setIsSubmitting(true);
 
+      // Validate all required fields
+      if (!formData.emailVerified) {
+        toast.error("Please verify your email first");
+        return;
+      }
+
       // Create JSON object with all data according to backend requirements
       const kycData = {
         // Personal Information
@@ -408,10 +472,17 @@ export default function StepsContainer() {
       setCurrent(steps.length);
     } catch (error: any) {
       console.error("Failed to submit KYC:", error);
-      toast.error(
-        error?.response?.data?.message ||
-          "Failed to submit KYC. Please try again."
-      );
+      
+      // Handle 401 specifically
+      if (error.response?.status === 401) {
+        // setAuthRequired(true);
+        toast.error("Your session has expired. Please login again.");
+      } else {
+        toast.error(
+          error?.response?.data?.message ||
+            "Failed to submit KYC. Please try again."
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -544,7 +615,7 @@ export default function StepsContainer() {
               <div className="text-center">
                 <Button
                   className="bg-black hover:bg-black/90 text-white h-11 px-8 rounded-md"
-                  onClick={() => navigate("/vendor")}
+                  onClick={() => navigate("/")}
                 >
                   Back to Website
                 </Button>

@@ -149,7 +149,7 @@ export default function Step3({ formData, updateFormData }: Step3Props) {
 
       {/* Seller Story Section */}
       <div className="border-t pt-8">
-        <h2 className="text-xl font-semibold mb-2">Seller Story (Optional)</h2>
+        <h2 className="text-xl font-semibold mb-2">Seller Story</h2>
         <p className="text-sm text-[#303030] mb-6 dark:text-gray-400">
           We'd love to hear your story. Record a short video introducing
           yourself and your business—this helps buyers connect with the real
@@ -161,7 +161,7 @@ export default function Step3({ formData, updateFormData }: Step3Props) {
           maxSize={100}
           className="w-full"
           description="Recommended size: 1920×1080px · Format: MP4 · Max time: 60secs"
-          bucket="world_of_afrika"
+          bucket="World_of_Africa"
           folder="seller-stories"
           initialUrl={formData.videoUrl || undefined}
         />

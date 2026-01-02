@@ -1,6 +1,10 @@
 // redux/slices/vendorsSlice.ts
-import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import api from '@/utils/api';
+import {
+  createAsyncThunk,
+  createSlice,
+  type PayloadAction,
+} from "@reduxjs/toolkit";
+import api from "@/utils/api";
 
 export interface VendorKYC {
   id: string;
@@ -11,20 +15,30 @@ export interface VendorKYC {
   businessAddress: string;
   taxId?: string;
   registrationNumber?: string;
-  businessType: 'individual' | 'company' | 'cooperative';
+  businessType: "individual" | "company" | "cooperative";
   documents: Array<{
-    type: 'id_card' | 'business_registration' | 'tax_certificate' | 'utility_bill' | 'other';
+    type:
+      | "id_card"
+      | "business_registration"
+      | "tax_certificate"
+      | "utility_bill"
+      | "other";
     url: string;
     uploadedAt: string;
   }>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: "pending" | "approved" | "rejected";
   submittedAt: string;
   reviewedAt?: string;
   reviewerId?: string;
   reviewNotes?: string;
 }
 
-export type VendorStatus = 'pending' | 'active' | 'suspended' | 'deactivated' | 'deleted';
+export type VendorStatus =
+  | "pending"
+  | "active"
+  | "suspended"
+  | "deactivated"
+  | "deleted";
 
 export interface VendorProfile {
   id: string;
@@ -47,7 +61,7 @@ export interface VendorProfile {
   reviewCount: number;
   followerCount: number;
   productCount: number;
-  vendorStatus: 'pending' | 'active' | 'suspended' | 'deactivated' | 'deleted';
+  vendorStatus: "pending" | "active" | "suspended" | "deactivated" | "deleted";
   isVerified: boolean;
   joinedAt: string;
   lastActiveAt: string;
@@ -59,6 +73,10 @@ export interface VendorProfile {
     email: string;
     avatar?: string;
   };
+  kycStatus?: string;
+  emailVerified?: boolean;
+  vendorProfileId?: string;
+  idDocUrls?: string[];
 }
 
 export interface PublicVendor {
@@ -112,21 +130,53 @@ const initialState: VendorsState = {
   actionError: null,
 };
 
-// Vendor KYC submission/update
+// @/redux/slices/vendorsSlice.ts - Update submitVendorKYC thunk
 export const submitVendorKYC = createAsyncThunk(
-  'vendors/submitKYC',
+  "vendors/submitKYC",
   async (kycData: FormData | any, { rejectWithValue }) => {
     try {
       const isFormData = kycData instanceof FormData;
-      const response = await api.post('/api/v1/vendor/kyc', kycData, {
-        headers: isFormData ? {
-          'Content-Type': 'multipart/form-data',
-        } : {},
+      const response = await api.post("/api/v1/vendor/kyc/submit", kycData, {
+        headers: isFormData
+          ? {
+              "Content-Type": "multipart/form-data",
+            }
+          : {},
       });
-      return response.data;
+
+      // Map the backend response to your expected format
+      const backendResponse = response.data;
+
+      // Return a mapped object that matches what your reducers expect
+      return {
+        message: backendResponse.message || "KYC submitted successfully",
+        kycStatus: backendResponse.kycStatus || "submitted",
+        emailVerified: backendResponse.emailVerified || false,
+        userId: backendResponse.userId,
+        vendorProfileId: backendResponse.vendorProfileId,
+        idDocUrls: backendResponse.idDocUrls || [],
+        // Add vendor profile fields if needed
+        vendorProfile: {
+          id: backendResponse.vendorProfileId,
+          userId: backendResponse.userId,
+          businessName: kycData.store_name || "Pending Review",
+          vendorStatus: "pending", // Set to pending after KYC submission
+          isVerified: false,
+          // Add other required fields with default values
+          businessEmail: "",
+          businessPhone: "",
+          businessAddress: "",
+          rating: 0,
+          reviewCount: 0,
+          followerCount: 0,
+          productCount: 0,
+          joinedAt: new Date().toISOString(),
+          lastActiveAt: new Date().toISOString(),
+        },
+      };
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to submit KYC'
+        error.response?.data?.message || "Failed to submit KYC"
       );
     }
   }
@@ -134,14 +184,14 @@ export const submitVendorKYC = createAsyncThunk(
 
 // Close own shop
 export const closeVendorShop = createAsyncThunk(
-  'vendors/closeShop',
+  "vendors/closeShop",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.post('/api/v1/vendor/close');
+      const response = await api.post("/api/v1/vendor/close");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to close shop'
+        error.response?.data?.message || "Failed to close shop"
       );
     }
   }
@@ -149,14 +199,14 @@ export const closeVendorShop = createAsyncThunk(
 
 // Soft delete own vendor profile
 export const deleteVendorProfile = createAsyncThunk(
-  'vendors/deleteProfile',
+  "vendors/deleteProfile",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.post('/api/v1/vendor/delete');
+      const response = await api.post("/api/v1/vendor/delete");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to delete profile'
+        error.response?.data?.message || "Failed to delete profile"
       );
     }
   }
@@ -164,14 +214,14 @@ export const deleteVendorProfile = createAsyncThunk(
 
 // Admin: Suspend a vendor
 export const suspendVendor = createAsyncThunk(
-  'vendors/suspend',
+  "vendors/suspend",
   async (vendorId: string, { rejectWithValue }) => {
     try {
       const response = await api.post(`/api/v1/vendor/suspend`, { vendorId });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to suspend vendor'
+        error.response?.data?.message || "Failed to suspend vendor"
       );
     }
   }
@@ -179,14 +229,14 @@ export const suspendVendor = createAsyncThunk(
 
 // Admin: Activate a vendor
 export const activateVendor = createAsyncThunk(
-  'vendors/activate',
+  "vendors/activate",
   async (vendorId: string, { rejectWithValue }) => {
     try {
       const response = await api.post(`/api/v1/vendor/activate`, { vendorId });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to activate vendor'
+        error.response?.data?.message || "Failed to activate vendor"
       );
     }
   }
@@ -194,14 +244,14 @@ export const activateVendor = createAsyncThunk(
 
 // Admin: Approve vendor KYC
 export const approveVendorKYC = createAsyncThunk(
-  'vendors/approveKYC',
+  "vendors/approveKYC",
   async (vendorId: string, { rejectWithValue }) => {
     try {
       const response = await api.post(`/api/v1/vendor/approve`, { vendorId });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to approve KYC'
+        error.response?.data?.message || "Failed to approve KYC"
       );
     }
   }
@@ -209,14 +259,14 @@ export const approveVendorKYC = createAsyncThunk(
 
 // Admin: List all vendors with pending KYC
 export const fetchPendingVendors = createAsyncThunk(
-  'vendors/fetchPending',
+  "vendors/fetchPending",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/api/v1/vendor/pending');
+      const response = await api.get("/api/v1/vendor/pending");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to fetch pending vendors'
+        error.response?.data?.message || "Failed to fetch pending vendors"
       );
     }
   }
@@ -224,14 +274,14 @@ export const fetchPendingVendors = createAsyncThunk(
 
 // Get single vendor details
 export const fetchVendor = createAsyncThunk(
-  'vendors/fetchOne',
+  "vendors/fetchOne",
   async (id: string, { rejectWithValue }) => {
     try {
       const response = await api.get(`/api/v1/vendor/${id}`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to fetch vendor'
+        error.response?.data?.message || "Failed to fetch vendor"
       );
     }
   }
@@ -239,14 +289,14 @@ export const fetchVendor = createAsyncThunk(
 
 // Admin: Reactivate soft-deleted vendor
 export const reactivateVendor = createAsyncThunk(
-  'vendors/reactivate',
+  "vendors/reactivate",
   async (vendorId: string, { rejectWithValue }) => {
     try {
       const response = await api.post(`/api/v1/vendor/${vendorId}/reactivate`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to reactivate vendor'
+        error.response?.data?.message || "Failed to reactivate vendor"
       );
     }
   }
@@ -254,14 +304,14 @@ export const reactivateVendor = createAsyncThunk(
 
 // Public: Get vendor storefront data
 export const fetchPublicVendor = createAsyncThunk(
-  'vendors/fetchPublic',
+  "vendors/fetchPublic",
   async (id: string, { rejectWithValue }) => {
     try {
       const response = await api.get(`/api/v1/vendor/public/${id}`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to fetch public vendor'
+        error.response?.data?.message || "Failed to fetch public vendor"
       );
     }
   }
@@ -269,14 +319,16 @@ export const fetchPublicVendor = createAsyncThunk(
 
 // Follow or unfollow a vendor
 export const toggleFollowVendor = createAsyncThunk(
-  'vendors/toggleFollow',
+  "vendors/toggleFollow",
   async (vendorId: string, { rejectWithValue }) => {
     try {
-      const response = await api.post('/api/v1/vendor/me/followed-vendors', { vendorId });
+      const response = await api.post("/api/v1/vendor/me/followed-vendors", {
+        vendorId,
+      });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to toggle follow'
+        error.response?.data?.message || "Failed to toggle follow"
       );
     }
   }
@@ -284,14 +336,14 @@ export const toggleFollowVendor = createAsyncThunk(
 
 // Get followed vendors
 export const fetchFollowedVendors = createAsyncThunk(
-  'vendors/fetchFollowed',
+  "vendors/fetchFollowed",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/api/v1/vendor/me/followed-vendors');
+      const response = await api.get("/api/v1/vendor/me/followed-vendors");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to fetch followed vendors'
+        error.response?.data?.message || "Failed to fetch followed vendors"
       );
     }
   }
@@ -299,21 +351,21 @@ export const fetchFollowedVendors = createAsyncThunk(
 
 // Get all vendors (admin)
 export const fetchAllVendors = createAsyncThunk(
-  'vendors/fetchAll',
+  "vendors/fetchAll",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/api/v1/vendor/all');
+      const response = await api.get("/api/v1/vendor/all");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to fetch vendors'
+        error.response?.data?.message || "Failed to fetch vendors"
       );
     }
   }
 );
 
 const vendorsSlice = createSlice({
-  name: 'vendors',
+  name: "vendors",
   initialState,
   reducers: {
     setSelectedVendor: (state, action: PayloadAction<VendorProfile>) => {
@@ -327,7 +379,7 @@ const vendorsSlice = createSlice({
       state.actionError = null;
     },
     updateVendorInList: (state, action: PayloadAction<VendorProfile>) => {
-      const index = state.vendors.findIndex(v => v.id === action.payload.id);
+      const index = state.vendors.findIndex((v) => v.id === action.payload.id);
       if (index !== -1) {
         state.vendors[index] = action.payload;
       }
@@ -345,13 +397,56 @@ const vendorsSlice = createSlice({
       })
       .addCase(submitVendorKYC.fulfilled, (state, action) => {
         state.actionLoading = false;
-        state.selectedVendor = action.payload;
+
+        const responseData = action.payload;
+
+        const updatedVendor: VendorProfile = {
+          ...(state.selectedVendor || {}),
+
+          id: responseData.vendorProfileId || state.selectedVendor?.id || "",
+          userId: responseData.userId || state.selectedVendor?.userId || "",
+          businessName:
+            state.selectedVendor?.businessName ||
+            responseData.vendorProfile?.businessName ||
+            "",
+          businessEmail: state.selectedVendor?.businessEmail || "",
+          businessPhone: state.selectedVendor?.businessPhone || "",
+          businessAddress: state.selectedVendor?.businessAddress || "",
+          vendorStatus: "pending",
+          isVerified: responseData.emailVerified || false,
+          rating: state.selectedVendor?.rating || 0,
+          reviewCount: state.selectedVendor?.reviewCount || 0,
+          followerCount: state.selectedVendor?.followerCount || 0,
+          productCount: state.selectedVendor?.productCount || 0,
+          joinedAt: state.selectedVendor?.joinedAt || new Date().toISOString(),
+          lastActiveAt:
+            state.selectedVendor?.lastActiveAt || new Date().toISOString(),
+
+          // Store response-specific data
+          kycStatus: responseData.kycStatus,
+          emailVerified: responseData.emailVerified,
+          vendorProfileId: responseData.vendorProfileId,
+          idDocUrls: responseData.idDocUrls,
+        };
+
+        state.selectedVendor = updatedVendor;
+
+        // Also update in the vendors list if it exists
+        const existingIndex = state.vendors.findIndex(
+          (v) => v.id === updatedVendor.id || v.userId === updatedVendor.userId
+        );
+
+        if (existingIndex !== -1) {
+          state.vendors[existingIndex] = updatedVendor;
+        }
+
+        state.actionError = null;
       })
       .addCase(submitVendorKYC.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload as string;
       })
-      
+
       // Close shop
       .addCase(closeVendorShop.pending, (state) => {
         state.actionLoading = true;
@@ -360,14 +455,14 @@ const vendorsSlice = createSlice({
       .addCase(closeVendorShop.fulfilled, (state, _action) => {
         state.actionLoading = false;
         if (state.selectedVendor) {
-          state.selectedVendor.vendorStatus = 'deactivated';
+          state.selectedVendor.vendorStatus = "deactivated";
         }
       })
       .addCase(closeVendorShop.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload as string;
       })
-      
+
       // Delete profile
       .addCase(deleteVendorProfile.pending, (state) => {
         state.actionLoading = true;
@@ -376,14 +471,14 @@ const vendorsSlice = createSlice({
       .addCase(deleteVendorProfile.fulfilled, (state, _action) => {
         state.actionLoading = false;
         if (state.selectedVendor) {
-          state.selectedVendor.vendorStatus = 'deleted';
+          state.selectedVendor.vendorStatus = "deleted";
         }
       })
       .addCase(deleteVendorProfile.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload as string;
       })
-      
+
       // Suspend vendor
       .addCase(suspendVendor.pending, (state) => {
         state.actionLoading = true;
@@ -391,16 +486,16 @@ const vendorsSlice = createSlice({
       })
       .addCase(suspendVendor.fulfilled, (state, action) => {
         state.actionLoading = false;
-        const vendor = state.vendors.find(v => v.id === action.payload.id);
+        const vendor = state.vendors.find((v) => v.id === action.payload.id);
         if (vendor) {
-          vendor.vendorStatus = 'suspended';
+          vendor.vendorStatus = "suspended";
         }
       })
       .addCase(suspendVendor.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload as string;
       })
-      
+
       // Activate vendor
       .addCase(activateVendor.pending, (state) => {
         state.actionLoading = true;
@@ -408,16 +503,16 @@ const vendorsSlice = createSlice({
       })
       .addCase(activateVendor.fulfilled, (state, action) => {
         state.actionLoading = false;
-        const vendor = state.vendors.find(v => v.id === action.payload.id);
+        const vendor = state.vendors.find((v) => v.id === action.payload.id);
         if (vendor) {
-          vendor.vendorStatus = 'active';
+          vendor.vendorStatus = "active";
         }
       })
       .addCase(activateVendor.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload as string;
       })
-      
+
       // Approve KYC
       .addCase(approveVendorKYC.pending, (state) => {
         state.actionLoading = true;
@@ -425,17 +520,17 @@ const vendorsSlice = createSlice({
       })
       .addCase(approveVendorKYC.fulfilled, (state, action) => {
         state.actionLoading = false;
-        const vendor = state.vendors.find(v => v.id === action.payload.id);
+        const vendor = state.vendors.find((v) => v.id === action.payload.id);
         if (vendor && vendor.kyc) {
-          vendor.kyc.status = 'approved';
-          vendor.vendorStatus = 'active';
+          vendor.kyc.status = "approved";
+          vendor.vendorStatus = "active";
         }
       })
       .addCase(approveVendorKYC.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload as string;
       })
-      
+
       // Fetch pending vendors
       .addCase(fetchPendingVendors.pending, (state) => {
         state.loading = true;
@@ -449,7 +544,7 @@ const vendorsSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      
+
       // Fetch single vendor
       .addCase(fetchVendor.pending, (state) => {
         state.loading = true;
@@ -463,7 +558,7 @@ const vendorsSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      
+
       // Reactivate vendor
       .addCase(reactivateVendor.pending, (state) => {
         state.actionLoading = true;
@@ -471,16 +566,16 @@ const vendorsSlice = createSlice({
       })
       .addCase(reactivateVendor.fulfilled, (state, action) => {
         state.actionLoading = false;
-        const vendor = state.vendors.find(v => v.id === action.payload.id);
+        const vendor = state.vendors.find((v) => v.id === action.payload.id);
         if (vendor) {
-          vendor.vendorStatus = 'active';
+          vendor.vendorStatus = "active";
         }
       })
       .addCase(reactivateVendor.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload as string;
       })
-      
+
       // Fetch public vendor
       .addCase(fetchPublicVendor.pending, (state) => {
         state.loading = true;
@@ -494,7 +589,7 @@ const vendorsSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      
+
       // Toggle follow
       .addCase(toggleFollowVendor.pending, (state) => {
         state.actionLoading = true;
@@ -503,7 +598,9 @@ const vendorsSlice = createSlice({
       .addCase(toggleFollowVendor.fulfilled, (state, action) => {
         state.actionLoading = false;
         // Update follower count and following status
-        const vendor = state.publicVendors.find(v => v.id === action.payload.vendorId);
+        const vendor = state.publicVendors.find(
+          (v) => v.id === action.payload.vendorId
+        );
         if (vendor) {
           vendor.isFollowing = action.payload.isFollowing;
           vendor.followerCount = action.payload.followerCount;
@@ -513,7 +610,7 @@ const vendorsSlice = createSlice({
         state.actionLoading = false;
         state.actionError = action.payload as string;
       })
-      
+
       // Fetch followed vendors
       .addCase(fetchFollowedVendors.pending, (state) => {
         state.loading = true;
@@ -527,7 +624,7 @@ const vendorsSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      
+
       // Fetch all vendors
       .addCase(fetchAllVendors.pending, (state) => {
         state.loading = true;
@@ -544,17 +641,31 @@ const vendorsSlice = createSlice({
   },
 });
 
-export const { setSelectedVendor, clearSelectedVendor, clearError, updateVendorInList } = vendorsSlice.actions;
+export const {
+  setSelectedVendor,
+  clearSelectedVendor,
+  clearError,
+  updateVendorInList,
+} = vendorsSlice.actions;
 
 // Selectors
-export const selectVendors = (state: { vendors: VendorsState }) => state.vendors.vendors;
-export const selectPublicVendors = (state: { vendors: VendorsState }) => state.vendors.publicVendors;
-export const selectPendingVendors = (state: { vendors: VendorsState }) => state.vendors.pendingVendors;
-export const selectSelectedVendor = (state: { vendors: VendorsState }) => state.vendors.selectedVendor;
-export const selectVendorStats = (state: { vendors: VendorsState }) => state.vendors.stats;
-export const selectVendorsLoading = (state: { vendors: VendorsState }) => state.vendors.loading;
-export const selectVendorsError = (state: { vendors: VendorsState }) => state.vendors.error;
-export const selectVendorActionLoading = (state: { vendors: VendorsState }) => state.vendors.actionLoading;
-export const selectVendorActionError = (state: { vendors: VendorsState }) => state.vendors.actionError;
+export const selectVendors = (state: { vendors: VendorsState }) =>
+  state.vendors.vendors;
+export const selectPublicVendors = (state: { vendors: VendorsState }) =>
+  state.vendors.publicVendors;
+export const selectPendingVendors = (state: { vendors: VendorsState }) =>
+  state.vendors.pendingVendors;
+export const selectSelectedVendor = (state: { vendors: VendorsState }) =>
+  state.vendors.selectedVendor;
+export const selectVendorStats = (state: { vendors: VendorsState }) =>
+  state.vendors.stats;
+export const selectVendorsLoading = (state: { vendors: VendorsState }) =>
+  state.vendors.loading;
+export const selectVendorsError = (state: { vendors: VendorsState }) =>
+  state.vendors.error;
+export const selectVendorActionLoading = (state: { vendors: VendorsState }) =>
+  state.vendors.actionLoading;
+export const selectVendorActionError = (state: { vendors: VendorsState }) =>
+  state.vendors.actionError;
 
 export default vendorsSlice.reducer;

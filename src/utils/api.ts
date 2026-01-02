@@ -76,7 +76,6 @@ api.interceptors.request.use(
   }
 );
 
-// Function to refresh backend token
 const refreshBackendToken = async (): Promise<string> => {
   try {
     if (typeof window === "undefined") {
@@ -121,53 +120,42 @@ const refreshBackendToken = async (): Promise<string> => {
     }
 
     throw new Error("Invalid refresh response format");
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Backend token refresh failed:", error);
-
-    // If refresh fails, clear auth data and redirect to login
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("authData");
-      localStorage.removeItem("user");
-
-      // Only redirect if not already on login page
-      if (!window.location.pathname.includes("/auth")) {
-        window.location.href = "/auth";
-      }
-    }
 
     throw error;
   }
 };
 
 // Function to refresh Firebase token
-const refreshFirebaseToken = async (): Promise<string | null> => {
-  try {
-    if (!auth.currentUser) {
-      return null;
-    }
+// const refreshFirebaseToken = async (): Promise<string | null> => {
+//   try {
+//     if (!auth.currentUser) {
+//       return null;
+//     }
 
-    console.log("🔄 Refreshing Firebase token...");
-    const newToken = await auth.currentUser.getIdToken(true);
+//     console.log("🔄 Refreshing Firebase token...");
+//     const newToken = await auth.currentUser.getIdToken(true);
 
-    // Update stored Firebase token
-    if (typeof window !== "undefined") {
-      const currentAuthData = localStorage.getItem("authData");
-      if (currentAuthData) {
-        const parsed = JSON.parse(currentAuthData);
-        if (parsed.firebaseToken) {
-          parsed.firebaseToken = newToken;
-          localStorage.setItem("authData", JSON.stringify(parsed));
-        }
-      }
-    }
+//     // Update stored Firebase token
+//     if (typeof window !== "undefined") {
+//       const currentAuthData = localStorage.getItem("authData");
+//       if (currentAuthData) {
+//         const parsed = JSON.parse(currentAuthData);
+//         if (parsed.firebaseToken) {
+//           parsed.firebaseToken = newToken;
+//           localStorage.setItem("authData", JSON.stringify(parsed));
+//         }
+//       }
+//     }
 
-    console.log("✅ Firebase token refreshed");
-    return newToken;
-  } catch (error) {
-    console.error("❌ Firebase token refresh failed:", error);
-    return null;
-  }
-};
+//     console.log("✅ Firebase token refreshed");
+//     return newToken;
+//   } catch (error) {
+//     console.error("❌ Firebase token refresh failed:", error);
+//     return null;
+//   }
+// };
 
 // Function to check if token is expired
 const isTokenExpired = (token: string): boolean => {
@@ -209,7 +197,9 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       originalRequest &&
-      !originalRequest._retry
+      !originalRequest._retry &&
+      // Don't retry auth endpoints
+      !originalRequest.url?.includes("/auth/")
     ) {
       originalRequest._retry = true;
 
@@ -237,29 +227,19 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        if (originalRequest.url?.includes("/auth/")) {
-          try {
-            const firebaseToken = await refreshFirebaseToken();
-            if (firebaseToken) {
-              return api(originalRequest);
-            }
-          } catch (firebaseError) {
-            console.error("Firebase refresh also failed:", firebaseError);
-          }
-        }
-
+        console.error("Token refresh failed:", refreshError);
+        
+        // Don't redirect automatically
+        // Just reject the promise and let components handle it
+        processQueue(refreshError, null);
+        
+        // Clear auth data but don't redirect
         if (typeof window !== "undefined") {
           localStorage.removeItem("authData");
           localStorage.removeItem("user");
-
-          if (!window.location.pathname.includes("/auth")) {
-            window.location.href = "/auth";
-          }
         }
-
-        // Process queue with error
-        processQueue(refreshError, null);
-        return Promise.reject(refreshError);
+        
+        return Promise.reject(new Error("Session expired. Please login again."));
       } finally {
         isRefreshing = false;
       }
@@ -278,7 +258,7 @@ api.interceptors.response.use(
         return new Promise((resolve) => {
           setTimeout(() => {
             resolve(api(originalRequest));
-          }, Math.min(retryDelay, 5000)); // Max 5 seconds delay
+          }, Math.min(retryDelay, 5000));
         });
       }
     }
