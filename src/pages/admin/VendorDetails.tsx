@@ -47,6 +47,7 @@ import {
   Star,
   Loader2,
   ArrowLeft,
+  Video,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useReduxVendors } from "@/hooks/useReduxVendors";
@@ -1014,7 +1015,23 @@ export default function AdminVendorDetailPage() {
                             Seller story
                           </h2>
                           <div className="w-full overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800 h-[450px] flex items-center justify-center">
-                            <p className="text-gray-400">No video available</p>
+                            {vendor.videoUrl ? (
+                              <video
+                                controls
+                                className="w-full h-full aspect-video"
+                                src={vendor.videoUrl}
+                                // poster={
+                                //   vendor.businessBanner || images.Placeholder
+                                // }
+                              >
+                                Your browser does not support the video tag.
+                              </video>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-gray-400">
+                                <Video className="h-16 w-16 mb-4" />
+                                <p>No video available</p>
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -1026,9 +1043,44 @@ export default function AdminVendorDetailPage() {
                             Identity verification
                           </h2>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <ImageUpload onImageChange={() => {}} />
-                            <ImageUpload onImageChange={() => {}} />
+                            {vendor.galleryUrls &&
+                            vendor.galleryUrls.length > 0 ? (
+                              vendor.galleryUrls.map(
+                                (imageUrl: string, index: number) => (
+                                  <div key={index} className="space-y-2">
+                                    <p className="text-sm font-medium">
+                                      Identity Image {index + 1}
+                                    </p>
+                                    <div className="border rounded-lg overflow-hidden h-64">
+                                      <img
+                                        src={imageUrl}
+                                        alt={`Identity verification ${
+                                          index + 1
+                                        }`}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          e.currentTarget.src =
+                                            images.Placeholder;
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                )
+                              )
+                            ) : (
+                              <>
+                                <ImageUpload onImageChange={() => {}} disabled/>
+                                <ImageUpload onImageChange={() => {}} disabled/>
+                              </>
+                            )}
                           </div>
+                          {vendor.galleryUrls &&
+                            vendor.galleryUrls.length > 0 && (
+                              <p className="text-sm text-gray-500 mt-4">
+                                {vendor.galleryUrls.length} identity image(s)
+                                uploaded
+                              </p>
+                            )}
                         </CardContent>
                       </Card>
 

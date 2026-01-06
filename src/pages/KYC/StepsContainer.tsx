@@ -615,16 +615,17 @@ export default function StepsContainer() {
         // For step 1, check if basic fields are filled
         if (!formData.emailVerified) {
           // Before email verification
-          return (
-            !(
-              formData.firstName &&
-              formData.lastName &&
-              formData.email &&
-              formData.phoneNumber &&
-              formData.identityDocumentUrls &&
-              formData.identityDocumentUrls.length >= 2
-            ) || isStartingKYC
+          const basicFieldsFilled = Boolean(
+            formData.firstName &&
+            formData.lastName &&
+            formData.email &&
+            formData.phoneNumber &&
+            formData.identityDocumentUrls &&
+            formData.identityDocumentUrls.length >= 2
           );
+          
+          // Button is disabled if fields not filled or KYC is starting
+          return !basicFieldsFilled || isStartingKYC;
         } else {
           // After email verification - button should not be shown
           return true;

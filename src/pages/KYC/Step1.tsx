@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AfricanPhoneInput } from "@/components/african-phone-input";
 import { IdentityUpload } from "@/components/identity-upload";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,11 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { Loader2 } from "lucide-react"
+import { Loader2, CheckCircle } from "lucide-react"
 import { Progress } from "@/components/ui/progress";
 import images from "@/assets/images";
 import { toast } from "sonner";
+import { debounce } from "lodash";
 
 // Helper function to format email for display
 const formatEmailForDisplay = (email: string): string => {
@@ -52,6 +53,11 @@ export default function Step1({
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [verificationAttempts, setVerificationAttempts] = useState(0);
   const [isAutoVerifying, setIsAutoVerifying] = useState(false);
+
+  // Email availability states
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
+  const [emailError, setEmailError] = useState("");
 
   // Auto-show verification if KYC is in email_pending status
   useEffect(() => {
@@ -92,8 +98,62 @@ export default function Step1({
     }
   }, [verificationCode, showVerification, isVerifying, isAutoVerifying]);
 
+  // Debounced email availability check
+  const checkEmailAvailability = useCallback(
+    debounce(async (email: string) => {
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setEmailAvailable(null);
+        setEmailError("");
+        return;
+      }
+
+      // Don't check if email is already verified
+      if (formData.emailVerified) {
+        return;
+      }
+
+      setCheckingEmail(true);
+      setEmailError("");
+      
+      try {
+        // Check email availability using the KYC endpoint or auth endpoint
+        const response = await api.post("/api/v1/auth/check-email", {
+          email: email,
+        });
+
+        const available = response.data.available;
+        setEmailAvailable(available);
+
+        if (!available) {
+          setEmailError("This email is already registered");
+        }
+      } catch (error: any) {
+        console.error("Email check failed:", error);
+        setEmailAvailable(null);
+        
+        // If the endpoint doesn't exist, we'll skip validation
+        if (error.response?.status === 404) {
+          console.log("Email availability check endpoint not available");
+          setEmailAvailable(null);
+        } else {
+          setEmailError("Could not verify email availability");
+        }
+      } finally {
+        setCheckingEmail(false);
+      }
+    }, 500),
+    [formData.emailVerified]
+  );
+
   const handleInputChange = (field: keyof FormData, value: string) => {
     updateFormData({ [field]: value });
+
+    // Check email availability when email changes
+    if (field === "email") {
+      setEmailError("");
+      setEmailAvailable(null);
+      checkEmailAvailability(value);
+    }
   };
 
   // Handle identity document URLs from IdentityUpload
@@ -109,6 +169,18 @@ export default function Step1({
   // This is called from parent when "Save and continue" is clicked
   const sendVerificationCode = async () => {
     if (isSendingCode) return;
+
+    // Check if email is available before sending verification
+    if (emailAvailable === false) {
+      toast.error("This email is already registered. Please use a different email.");
+      return;
+    }
+
+    // Wait if still checking
+    if (checkingEmail) {
+      toast.error("Please wait while we verify your email availability");
+      return;
+    }
 
     try {
       setIsSendingCode(true);
@@ -324,9 +396,28 @@ export default function Step1({
             {/* Contact Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label htmlFor="email" className="mb-2 block">
-                  Email Address <span className="text-red-500">*</span>
-                </Label>
+                <div className="flex justify-between items-center mb-2">
+                  <Label htmlFor="email">
+                    Email Address <span className="text-red-500">*</span>
+                  </Label>
+                  {checkingEmail && (
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Checking...
+                    </span>
+                  )}
+                  {emailAvailable === true && !checkingEmail && !formData.emailVerified && (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Available
+                    </span>
+                  )}
+                  {emailAvailable === false && !checkingEmail && (
+                    <span className="text-xs text-red-600">
+                      Already registered
+                    </span>
+                  )}
+                </div>
                 <Input
                   id="email"
                   type="email"
@@ -339,6 +430,11 @@ export default function Step1({
                 {formData.emailVerified && (
                   <p className="text-xs text-green-600 mt-1">
                     ✓ Email verified
+                  </p>
+                )}
+                {emailError && !formData.emailVerified && (
+                  <p className="text-xs text-red-600 mt-1">
+                    {emailError}
                   </p>
                 )}
               </div>
