@@ -9,7 +9,11 @@ import {
   logout
 } from '@/redux/slices/authSlice';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { checkAuthSession, getAuthState } from './api';
+import { 
+  checkAuthSession, 
+  getAuthState,
+  startTokenRefreshScheduler
+} from './api';
 
 export function AuthInitializer({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
@@ -21,17 +25,19 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastRefreshRef = useRef<number>(0);
+  const schedulerCleanupRef = useRef<(() => void) | null>(null);
 
   // Get user-specific redirect path based on user type
   const getUserRedirectPath = (userType: string): string => {
     const redirectMap: Record<string, string> = {
+      'superadmin': '/admin/dashboard',
+      'admin': '/admin/dashboard',
       'ADMIN': '/admin/dashboard',
       'SUPER_ADMIN': '/admin/dashboard',
       'APP_USER': '/dashboard',
       'CLIENT': '/dashboard',
       'VENDOR': '/vendor/dashboard',
       'MANAGER': '/manager/dashboard',
-      // Add more user types as needed
     };
 
     return redirectMap[userType] || '/dashboard';
@@ -42,29 +48,28 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
     if (!userType) return '/auth/login';
 
     const signInMap: Record<string, string> = {
-      'ADMIN': '/admin/login',
-      'SUPER_ADMIN': '/admin/login',
-      'APP_USER': '/auth/login',
-      'CLIENT': '/auth/login',
-      'VENDOR': '/vendor/login',
-      'MANAGER': '/manager/login',
+      'superadmin': '/admin/auth',
+      'admin': '/admin/auth',
+      'ADMIN': '/admin/auth',
+      'SUPER_ADMIN': '/admin/auth',
+      'APP_USER': '/auth',
+      'CLIENT': '/auth',
+      'VENDOR': '/vendor/auth',
     };
 
-    return signInMap[userType] || '/auth/login';
+    return signInMap[userType] || '/auth';
   };
 
   // Check if current path is a public route
   const isPublicRoute = (path: string): boolean => {
     const publicRoutes = [
-      '/auth/login',
+      '/auth',
       '/auth/register',
       '/auth/forgot-password',
       '/auth/reset-password',
       '/auth/verify-email',
-      '/admin/login',
-      '/vendor/login',
-      '/manager/login',
-      '/public',
+      '/admin/auth',
+      '/vendor/auth',
       '/',
     ];
 
@@ -123,27 +128,12 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Setup automatic token refresh scheduler
-  const setupTokenRefreshScheduler = () => {
-    // Clear existing timer
-    if (refreshTimerRef.current) {
-      clearInterval(refreshTimerRef.current);
-    }
-
-    // Refresh token every 10 minutes
-    refreshTimerRef.current = setInterval(() => {
-      if (isAuthenticated && user) {
-        refreshTokenIfNeeded(false);
-      }
-    }, 10 * 60 * 1000); // 10 minutes
-
-    console.log('✅ Token refresh scheduler started');
-  };
-
   // Initial auth check and load
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        console.log('🔄 Initializing auth...');
+        
         // Load user from storage
         dispatch(loadUserFromStorage());
 
@@ -154,14 +144,18 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
           // Try to refresh token on initial load
           const refreshSuccess = await refreshTokenIfNeeded(true);
           
-          if (refreshSuccess && authState.user) {
+          if (refreshSuccess) {
             // User is authenticated, check if they're on the right page
             const currentPath = location.pathname;
             const isPublic = isPublicRoute(currentPath);
             
-            if (isPublic && authState.user.emailVerified) {
+            // Check if user has verified email and get their role
+            const isEmailVerified = authState.emailVerified === true;
+            const userRole = authState.role || 'APP_USER';
+            
+            if (isPublic && isEmailVerified) {
               // Redirect authenticated users away from public pages
-              const redirectPath = getUserRedirectPath(authState.user.userType);
+              const redirectPath = getUserRedirectPath(userRole);
               console.log('🔄 Redirecting authenticated user to:', redirectPath);
               navigate(redirectPath, { replace: true });
             }
@@ -171,22 +165,58 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
         console.error('Auth initialization error:', error);
       } finally {
         setIsInitialized(true);
+        console.log('✅ Auth initialized');
       }
     };
 
     initializeAuth();
   }, [dispatch]);
 
-  // Setup token refresh scheduler when user is authenticated
+  // Start token refresh scheduler when user is authenticated
   useEffect(() => {
     if (isAuthenticated && user && isInitialized) {
-      setupTokenRefreshScheduler();
+      console.log('🚀 Starting token refresh scheduler...');
+      
+      // Start the API-level scheduler
+      const cleanup = startTokenRefreshScheduler();
+      schedulerCleanupRef.current = cleanup;
+      
+      // Also keep the component-level scheduler for redundancy
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current);
+      }
+
+      // Refresh token every 10 minutes
+      refreshTimerRef.current = setInterval(() => {
+        if (isAuthenticated && user) {
+          refreshTokenIfNeeded(false);
+        }
+      }, 10 * 60 * 1000); // 10 minutes
+
+      console.log('✅ Token refresh schedulers started');
+    } else {
+      // Stop schedulers if not authenticated
+      if (schedulerCleanupRef.current) {
+        schedulerCleanupRef.current();
+        schedulerCleanupRef.current = null;
+      }
+      
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
     }
 
     // Cleanup
     return () => {
+      if (schedulerCleanupRef.current) {
+        schedulerCleanupRef.current();
+        schedulerCleanupRef.current = null;
+      }
+      
       if (refreshTimerRef.current) {
         clearInterval(refreshTimerRef.current);
+        refreshTimerRef.current = null;
       }
     };
   }, [isAuthenticated, user, isInitialized]);

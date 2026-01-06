@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { X, Plus } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -11,44 +12,48 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Attribute {
+interface SubCategoryType {
   id: string;
   name: string;
-  inputType: "dropdown" | "multiselect" | "boolean" | "text" | "number";
-  purpose: string;
-  values: string[];
+  appliesTo: string[];
 }
 
 interface AddAttributeDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddAttribute: (attribute: Omit<Attribute, "id">) => void;
+  onAddAttribute: (attribute: {
+    name: string;
+    description?: string;
+    inputType: "dropdown" | "multiselect" | "boolean" | "text" | "number" | "textarea";
+    purpose: "filter" | "specification" | "both";
+    values: string[];
+    isRequired: boolean;
+    filterStatus: "active" | "inactive";
+    order: number;
+    appliesTo: string[];
+    additionalDetails?: string;
+  }) => void;
+  subCategoryTypes: SubCategoryType[];
 }
 
 export function AddAttributeDrawer({
   isOpen,
   onClose,
   onAddAttribute,
+  subCategoryTypes,
 }: AddAttributeDrawerProps) {
   const [attributeName, setAttributeName] = useState("");
-  const [inputType, setInputType] = useState<Attribute["inputType"]>("dropdown");
-  const [purpose, setPurpose] = useState("");
-  const [values, setValues] = useState<string[]>([""]);
+  const [inputType, setInputType] = useState<
+    "dropdown" | "multiselect" | "boolean" | "text" | "number" | "textarea"
+  >("text");
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
-  const handleAddValue = () => {
-    setValues([...values, ""]);
-  };
-
-  const handleRemoveValue = (index: number) => {
-    if (values.length > 1) {
-      setValues(values.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleValueChange = (index: number, value: string) => {
-    const newValues = [...values];
-    newValues[index] = value;
-    setValues(newValues);
+  const handleTypeToggle = (typeId: string) => {
+    setSelectedTypes((prev) =>
+      prev.includes(typeId)
+        ? prev.filter((id) => id !== typeId)
+        : [...prev, typeId]
+    );
   };
 
   const handleAddAttribute = () => {
@@ -57,16 +62,20 @@ export function AddAttributeDrawer({
       return;
     }
 
-    if (!purpose.trim()) {
-      alert("Please enter a purpose");
+    if (selectedTypes.length === 0) {
+      alert("Please select at least one sub category type");
       return;
     }
 
     const attributeData = {
       name: attributeName.trim(),
       inputType,
-      purpose: purpose.trim(),
-      values: values.filter(value => value.trim() !== ""),
+      purpose: "both" as const,
+      values: [],
+      isRequired: false,
+      filterStatus: "active" as const,
+      order: 0,
+      appliesTo: selectedTypes,
     };
 
     onAddAttribute(attributeData);
@@ -75,16 +84,24 @@ export function AddAttributeDrawer({
 
   const handleClose = () => {
     setAttributeName("");
-    setInputType("dropdown");
-    setPurpose("");
-    setValues([""]);
+    setInputType("text");
+    setSelectedTypes([]);
     onClose();
   };
 
   if (!isOpen) return null;
 
+  const dataTypeLabels = {
+    text: "Text",
+    number: "Number",
+    dropdown: "Dropdown",
+    multiselect: "Multi-select",
+    boolean: "Boolean",
+    textarea: "Textarea",
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       {/* Overlay */}
       <div
         className="fixed inset-0 bg-black/50 transition-opacity"
@@ -92,15 +109,17 @@ export function AddAttributeDrawer({
       />
 
       {/* Drawer Content */}
-      <div className="relative bg-white w-full max-w-3xl rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto dark:bg-[#1A1A1A]">
         {/* Header */}
-        <div className="flex items-center justify-between p-6">
-          <h2 className="text-xl font-semibold">Add Attribute</h2>
+        <div className="flex items-center justify-between p-6 border-b dark:border-[#333333]">
+          <h2 className="text-xl font-semibold dark:text-white">
+            Add attribute
+          </h2>
           <Button
             variant="ghost"
             size="icon"
             onClick={handleClose}
-            className="h-8 w-8"
+            className="h-8 w-8 hover:bg-gray-100 dark:hover:bg-[#333333]"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -110,112 +129,95 @@ export function AddAttributeDrawer({
         <div className="p-6 space-y-6">
           {/* Attribute Name */}
           <div className="space-y-2">
-            <Label htmlFor="attributeName" className="text-sm font-medium">
-              Attribute Name
+            <Label
+              htmlFor="attributeName"
+              className="text-sm font-medium dark:text-white"
+            >
+              Name *
             </Label>
             <Input
               id="attributeName"
               type="text"
-              placeholder="Enter attribute name"
+              placeholder="e.g. T-shirts"
               value={attributeName}
               onChange={(e) => setAttributeName(e.target.value)}
-              className="h-11"
+              className="h-11 dark:bg-[#303030] dark:border-[#444444] dark:text-white"
+              required
             />
           </div>
 
-          {/* Input Type */}
+          {/* Data Type */}
           <div className="space-y-2">
-            <Label htmlFor="inputType" className="text-sm font-medium">
-              Input Type
+            <Label className="text-sm font-medium dark:text-white">
+              Data type *
             </Label>
-            <Select value={inputType} onValueChange={(value: Attribute["inputType"]) => setInputType(value)}>
-              <SelectTrigger className="h-11">
+            <Select
+              value={inputType}
+              onValueChange={(value: any) => setInputType(value)}
+            >
+              <SelectTrigger className="h-11 dark:bg-[#303030] dark:border-[#444444] dark:text-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="dropdown">Dropdown (single select)</SelectItem>
-                <SelectItem value="multiselect">Multi-Select Checkboxes</SelectItem>
-                <SelectItem value="boolean">Boolean (yes or no)</SelectItem>
-                <SelectItem value="text">Single-line text</SelectItem>
-                <SelectItem value="number">Number/Decimal</SelectItem>
+                {Object.entries(dataTypeLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Purpose */}
-          <div className="space-y-2">
-            <Label htmlFor="purpose" className="text-sm font-medium">
-              Purpose
+          {/* Sub Category Types Selection */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium dark:text-white">
+              Sub category/type it applies to *
             </Label>
-            <Input
-              id="purpose"
-              type="text"
-              placeholder="Enter purpose"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              className="h-11"
-            />
-          </div>
-
-          {/* Attribute Values - Only show for dropdown and multiselect */}
-          {(inputType === "dropdown" || inputType === "multiselect") && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Attribute Values</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddValue}
-                  className="h-9"
-                >
-                  <Plus className="size-4 mr-1" />
-                  Add Value
-                </Button>
-              </div>
-              
-              <div className="space-y-2">
-                {values.map((value, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      value={value}
-                      onChange={(e) => handleValueChange(index, e.target.value)}
-                      placeholder={`Value ${index + 1}`}
-                      className="h-11"
+            {subCategoryTypes.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No sub category types available. Please create sub category types first.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {subCategoryTypes.map((type) => (
+                  <div key={type.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`type-${type.id}`}
+                      checked={selectedTypes.includes(type.id)}
+                      onCheckedChange={() => handleTypeToggle(type.id)}
                     />
-                    {values.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleRemoveValue(index)}
-                        className="h-11 w-11 text-red-500 hover:text-red-700"
-                      >
-                        <X className="size-4" />
-                      </Button>
-                    )}
+                    <label
+                      htmlFor={`type-${type.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {type.name}
+                    </label>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 p-6 border-t">
+        <div className="flex gap-3 p-6 border-t dark:border-[#333333]">
           <Button
             variant="outline"
             onClick={handleClose}
-            className="flex-1 h-11"
+            className="flex-1 h-11 dark:bg-[#303030] dark:border-[#444444] dark:text-white dark:hover:bg-[#404040]"
           >
             Cancel
           </Button>
           <Button
             onClick={handleAddAttribute}
-            className="flex-1 h-11 bg-[#CC5500] hover:bg-[#B34D00]"
-            disabled={!attributeName.trim() || !purpose.trim()}
+            className="flex-1 h-11 bg-[#0A0A0A] hover:bg-[#262626] text-white"
+            disabled={
+              !attributeName.trim() ||
+              selectedTypes.length === 0 ||
+              subCategoryTypes.length === 0
+            }
           >
-            Add Attribute
+            Save
           </Button>
         </div>
       </div>

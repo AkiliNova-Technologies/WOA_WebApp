@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useProducts } from "@/hooks/useProducts";
 import { ProductCard } from "@/components/productCard";
 import { CategoryCard } from "@/components/category-card";
+import { normalizeVendor } from "@/utils/productHelpers";
 
 export default function SubCategoryPage() {
   const { categoryId } = useParams<{ categoryId: string }>();
@@ -53,7 +54,7 @@ export default function SubCategoryPage() {
                   rating={product.rating}
                   reviews={product.reviews}
                   price={product.price}
-                  vendor={product.vendor}
+                  vendor={normalizeVendor(product.seller) || "Unknown Vendor"}
                   image={product.image}
                 />
               ))}

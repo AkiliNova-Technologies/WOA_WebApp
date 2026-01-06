@@ -14,14 +14,15 @@ export interface User {
   lastName?: string;
   username?: string;
   isActive: boolean;
-  emailVerified: boolean; // Add this field
+  emailVerified: boolean;
+  forcePasswordChange: boolean; 
   permissions: string[];
   roles: string[];
   avatar?: string;
   firebaseUid?: string;
   phoneNumber?: string;
-  accountStatus?: string; // Add this if needed
-  avatarUrl?: string; // Add this if needed
+  accountStatus?: string; 
+  avatarUrl?: string; 
 }
 
 // Serializable Firebase user interface
@@ -125,6 +126,7 @@ const mapApiResponseToUser = (
     firstName: additionalData?.firstName || apiData.firstName || "",
     lastName: additionalData?.lastName || apiData.lastName || "",
     username: apiData.email || "",
+    forcePasswordChange: apiData.forcePasswordChange,
 
     // Use emailVerified from API, fallback to isActive or false
     emailVerified: apiData.emailVerified || apiData.isActive === true || false,
@@ -175,8 +177,7 @@ const handleApiError = (error: unknown): string => {
   return "An unexpected error occurred";
 };
 
-// 🔄 Refresh token logic
-// Update the refreshAccessToken thunk in your authSlice
+// 🔄 Refresh token logic - UPDATED to use Authorization header
 export const refreshAccessToken = createAsyncThunk(
   "auth/refreshToken",
   async (_, { rejectWithValue }) => {
@@ -190,21 +191,32 @@ export const refreshAccessToken = createAsyncThunk(
 
         const { refreshToken } = JSON.parse(authData);
 
-        const response = await api.post("/api/v1/auth/refresh", {
-          refreshToken,
-        });
+        if (!refreshToken) {
+          throw new Error("No refresh token available");
+        }
+
+        // Send refresh token as Authorization header
+        const response = await api.post(
+          "/api/v1/auth/refresh",
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${refreshToken}`,
+            },
+          }
+        );
 
         // Update localStorage with new tokens
         const updatedAuthData = {
           ...JSON.parse(authData),
-          token: response.data.accessToken,
-          refreshToken: response.data.refreshToken || refreshToken,
+          token: response.data.tokens.accessToken,
+          refreshToken: response.data.tokens.refreshToken || refreshToken,
         };
         localStorage.setItem("authData", JSON.stringify(updatedAuthData));
 
         return {
-          accessToken: response.data.accessToken,
-          refreshToken: response.data.refreshToken,
+          accessToken: response.data.tokens.accessToken,
+          refreshToken: response.data.tokens.refreshToken,
           user: response.data.user,
         };
       }

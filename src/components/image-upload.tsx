@@ -12,28 +12,27 @@ export interface UploadDocument {
   name?: string;
   file?: File;
   previewUrl: string;
-  storageUrl?: string; // Supabase URL
-  storagePath?: string; // Path in Supabase storage
+  storageUrl?: string;
+  storagePath?: string;
   uploading?: boolean;
   uploadProgress?: number;
+  status?: "uploading" | "success" | "error";
   [key: string]: any;
 }
 
 export interface ImageUploadProps {
-  onImageChange?: (urls: string[]) => void; // Now returns URLs instead of files
+  onImageChange?: (urls: string[]) => void;
   className?: string;
   maxSize?: number;
   acceptedFormats?: string;
-  aspectRatio?: "square" | "video" | "custom";
-  height?: string;
-  maxHeight?: string;
   description?: string;
   footer?: boolean;
   disabled?: boolean;
-  initialUrls?: string[]; // Accept initial URLs
+  initialUrls?: string[];
   readOnly?: boolean;
   bucket?: string;
   folder?: string;
+  maxImages?: number;
 }
 
 export function ImageUpload({
@@ -41,9 +40,6 @@ export function ImageUpload({
   className,
   maxSize = 10,
   acceptedFormats = "image/jpeg,image/jpg,image/png",
-  aspectRatio = "square",
-  height = "h-48",
-  maxHeight = "max-h-48",
   description,
   footer = true,
   disabled = false,
@@ -51,6 +47,7 @@ export function ImageUpload({
   readOnly = false,
   bucket = "World_of_Africa",
   folder = "products",
+  maxImages,
 }: ImageUploadProps) {
   const [documents, setDocuments] = React.useState<UploadDocument[]>([]);
   const [isDragging, setIsDragging] = React.useState(false);
@@ -63,16 +60,30 @@ export function ImageUpload({
         previewUrl: url,
         storageUrl: url,
         name: `Image ${index + 1}`,
+        status: "success",
       }));
       setDocuments(initialDocs);
     }
   }, [initialUrls]);
+
+  const canUploadMore = () => {
+    if (maxImages) {
+      return documents.length < maxImages;
+    }
+    return true;
+  };
 
   const handleFile = async (
     file: File,
     type: "front" | "back" | "other" = "other"
   ) => {
     if (disabled || readOnly) return;
+
+    // Check max images limit
+    if (!canUploadMore()) {
+      alert(`Maximum of ${maxImages} images allowed`);
+      return;
+    }
 
     // Validate file type
     if (!acceptedFormats.split(",").includes(file.type)) {
@@ -100,6 +111,7 @@ export function ImageUpload({
       previewUrl,
       uploading: true,
       uploadProgress: 0,
+      status: "uploading",
     };
 
     // Add temp document with loading state
@@ -115,14 +127,19 @@ export function ImageUpload({
       return;
     }
 
+    // Clean up the blob URL
+    URL.revokeObjectURL(previewUrl);
+
     // Update document with storage URL
     const uploadedDocument: UploadDocument = {
       ...tempDocument,
       id: `doc_${Date.now()}`,
+      previewUrl: result.url!,
       storageUrl: result.url!,
       storagePath: result.path,
       uploading: false,
       uploadProgress: 100,
+      status: "success",
     };
 
     setDocuments((prev) => {
@@ -148,7 +165,11 @@ export function ImageUpload({
 
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      Array.from(files).forEach((file) => handleFile(file));
+      const filesToUpload = maxImages 
+        ? Array.from(files).slice(0, maxImages - documents.length)
+        : Array.from(files);
+      
+      filesToUpload.forEach((file) => handleFile(file));
     }
   };
 
@@ -168,7 +189,11 @@ export function ImageUpload({
 
     const files = e.target.files;
     if (files && files.length > 0) {
-      Array.from(files).forEach((file) => handleFile(file));
+      const filesToUpload = maxImages 
+        ? Array.from(files).slice(0, maxImages - documents.length)
+        : Array.from(files);
+      
+      filesToUpload.forEach((file) => handleFile(file));
     }
     e.target.value = "";
   };
@@ -213,151 +238,168 @@ export function ImageUpload({
 
   const canInteract = !disabled && !readOnly;
 
-  return (
-    <div className={cn("space-y-3", className)}>
-      {(canInteract || documents.length === 0) && (
+  const CompactImagePreview = ({ document }: { document: UploadDocument }) => (
+    <div className="shrink-0">
+      <div className="relative group">
         <div
           className={cn(
-            "border-2 border-dashed rounded-lg transition-colors overflow-hidden",
-            canInteract ? "cursor-pointer" : "cursor-not-allowed opacity-60",
-            isDragging
-              ? "border-[#CC5500] bg-orange-50 dark:bg-orange-950/20"
-              : "border-gray-300 bg-gray-50 hover:border-[#CC5500] dark:border-gray-600 dark:bg-[#303030] dark:hover:border-[#CC5500]",
-            documents.length > 0 ? "border-solid border-gray-300 dark:border-gray-600" : height,
-            maxHeight
+            "w-24 h-24 border-2 rounded-lg overflow-hidden",
+            document.uploading
+              ? "border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#404040]"
+              : "border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#404040]"
           )}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={() =>
-            canInteract &&
-            document.getElementById("image-upload-input")?.click()
-          }
         >
-          {documents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-              <div className="p-3 bg-white dark:bg-gray-700 rounded-full mb-3">
-                <FolderUp className="w-5 h-5 text-[#CC5500]" />
+          {document.uploading ? (
+            <div className="w-full h-full flex flex-col items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-[#CC5500] mb-2" />
+              <span className="text-xs text-gray-500">Uploading...</span>
+            </div>
+          ) : (
+            <img
+              src={document.previewUrl}
+              alt={document.name || "Image"}
+              className="w-full h-full object-contain p-2"
+            />
+          )}
+        </div>
+
+        {!document.uploading && canInteract && (
+          <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(document.previewUrl, "_blank");
+              }}
+              className="w-6 h-6 p-0 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
+            >
+              <Eye className="w-3 h-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeDocument(document.id);
+              }}
+              className="w-6 h-6 p-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
+
+        {document.uploading && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700 rounded-b-lg overflow-hidden">
+            <div
+              className="h-full bg-[#CC5500] transition-all duration-300"
+              style={{ width: `${document.uploadProgress || 0}%` }}
+            />
+          </div>
+        )}
+      </div>
+      
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center truncate max-w-[96px]">
+        {document.name || "Image"}
+      </p>
+    </div>
+  );
+
+  return (
+    <div className={cn("space-y-6", className)}>
+      <div className="flex flex-col sm:flex-row gap-6 items-start">
+        {/* Image Previews */}
+        {documents.length > 0 && (
+          <div className="shrink-0 flex flex-wrap gap-3 max-w-full">
+            {documents.map((document) => (
+              <CompactImagePreview key={document.id} document={document} />
+            ))}
+          </div>
+        )}
+
+        {/* Upload Area - Show if no images or can upload more */}
+        {(documents.length === 0 || (canInteract && canUploadMore())) && (
+          <div
+            className={cn(
+              "border-2 border-dashed rounded-lg transition-colors",
+              canInteract ? "cursor-pointer" : "cursor-not-allowed opacity-60",
+              isDragging
+                ? "border-[#CC5500] bg-orange-50 dark:bg-orange-950/20"
+                : "border-gray-300 bg-gray-50 hover:border-[#CC5500] dark:border-gray-600 dark:bg-[#303030] dark:hover:border-[#CC5500]",
+              documents.length > 0 ? "p-12 text-center w-full flex-1" : "p-12 w-full"
+            )}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() =>
+              canInteract &&
+              document.getElementById("image-upload-input")?.click()
+            }
+          >
+            <div className="space-y-3">
+              <div className="flex justify-center">
+                <div className="p-3 bg-white dark:bg-gray-700 rounded-full">
+                  <FolderUp className="w-6 h-6 text-[#CC5500]" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <p className="font-medium text-gray-900 mb-1 dark:text-white">
+              <div className="space-y-2 flex flex-col justify-center items-center">
+                <p className="text-lg font-medium text-gray-900 dark:text-white">
                   {description ||
                     (disabled
                       ? "Upload disabled"
                       : readOnly
                       ? "No images uploaded"
+                      : documents.length > 0
+                      ? "Add more images"
                       : "Click to upload from computer")}
                 </p>
                 {canInteract && (
                   <>
                     <p className="text-sm text-gray-500 dark:text-gray-400">OR</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Drag and Drop</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Drag and Drop
+                    </p>
                   </>
+                )}
+                {maxImages && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                    {documents.length} / {maxImages} images
+                  </p>
                 )}
               </div>
             </div>
-          ) : null}
 
-          <input
-            id="image-upload-input"
-            type="file"
-            accept={acceptedFormats}
-            onChange={handleFileInput}
-            className="hidden"
-            disabled={!canInteract}
-            multiple
-          />
-        </div>
-      )}
+            <input
+              id="image-upload-input"
+              type="file"
+              accept={acceptedFormats}
+              onChange={handleFileInput}
+              className="hidden"
+              disabled={!canInteract}
+              multiple
+            />
+          </div>
+        )}
+      </div>
 
-      {documents.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              className={cn(
-                "relative border rounded-lg overflow-hidden group",
-                !canInteract && "opacity-80",
-                "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]"
-              )}
-            >
-              {doc.uploading ? (
-                <div className="w-full aspect-square flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                  <Loader2 className="w-8 h-8 animate-spin text-[#CC5500]" />
-                </div>
-              ) : (
-                <img
-                  src={doc.previewUrl}
-                  alt={`Document: ${doc.name || "Image"}`}
-                  className={cn(
-                    "w-full h-full object-cover",
-                    aspectRatio === "square" ? "aspect-square" : "aspect-video"
-                  )}
-                />
-              )}
-
-              {canInteract && !doc.uploading && (
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(doc.previewUrl, "_blank");
-                    }}
-                    className="bg-white/90 backdrop-blur-sm hover:bg-white text-gray-900"
-                  >
-                    <Eye className="w-4 h-4 mr-1" />
-                    View
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeDocument(doc.id);
-                    }}
-                    className="bg-red-500/90 backdrop-blur-sm hover:bg-red-600"
-                  >
-                    <X className="w-4 h-4 mr-1" />
-                    Remove
-                  </Button>
-                </div>
-              )}
-
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white p-2">
-                <span className="text-xs truncate block">
-                  {doc.name || "Image"}
-                </span>
-              </div>
-
-              {doc.uploading && (
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700">
-                  <div
-                    className="h-full bg-[#CC5500] transition-all duration-300"
-                    style={{ width: `${doc.uploadProgress || 0}%` }}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {footer && canInteract && (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-          <p>Recommended: 1920x1080px</p>
-          <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-          <p>Format: JPEG, PNG</p>
-          <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-          <p>Max: {maxSize}MB</p>
-          {documents.length > 0 && (
-            <>
-              <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-              <p className="text-[#CC5500] font-medium">
-                {documents.length} image(s) uploaded
-              </p>
-            </>
+      {footer && (
+        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+          <p>
+            Recommended: 1920x1080px · Format:{" "}
+            {acceptedFormats.replace(/image\//g, "").toUpperCase()} · Max:{" "}
+            {maxSize}MB
+          </p>
+          {documents.length > 0 && documents.filter((d) => d.status === "success").length > 0 && (
+            <p className="text-[#CC5500] font-medium">
+              ✓ {documents.filter((d) => d.status === "success").length} image(s)
+              uploaded successfully
+            </p>
+          )}
+          {documents.some((d) => d.uploading) && (
+            <p className="text-blue-600 dark:text-blue-500 font-medium">
+              ⟳ {documents.filter((d) => d.uploading).length} uploading...
+            </p>
           )}
         </div>
       )}

@@ -1,4 +1,3 @@
-// hooks/useCart.ts
 import { useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import {

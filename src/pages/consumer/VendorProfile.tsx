@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Copy,
@@ -25,9 +25,10 @@ import { Rate } from "antd";
 import { ProductCard } from "@/components/productCard";
 import { ActiveFilters } from "@/components/active-filters";
 import { FilterSheet } from "@/components/filter-sheet";
-import { useProducts } from "@/hooks/useProducts";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
+import { normalizeVendor } from "@/utils/productHelpers";
 import type { SortOption } from "@/types/product";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 const vendorData = {
   name: "Victor Wandulu",
@@ -79,28 +80,137 @@ const ratingDist = [
 
 export default function VendorProfilePage() {
   const navigate = useNavigate();
+  const { vendorId } = useParams<{ vendorId?: string }>();
   const [isPlaying, setIsPlaying] = useState(false);
   const [sortBy, setSortBy] = useState("price-low-high");
 
+  // Use Redux hook
   const {
-    products,
-    categories,
-    filters,
-    sortOption,
-    setSortOption,
-    updateFilter,
-    resetFilters,
-    filteredProductsCount,
-    allVendors,
-    productionMethods,
-  } = useProducts();
+    publicProducts,
+    loading,
+    getPublicProducts,
+    getProductsBySeller,
+  } = useReduxProducts();
 
-  // Create a wrapper function that converts string to SortOption
+  // Local state for filters
+  const [filters, setFilters] = useState({
+    categories: [] as string[],
+    subCategories: [] as string[],
+    types: [] as string[],
+    priceRange: [0, 1000] as [number, number],
+    productionMethods: [] as string[],
+    vendors: [] as string[],
+    inStock: false,
+    onSale: false,
+    minRating: 0,
+  });
+
+  const [sortOption, setSortOption] = useState<string>("most-recent");
+
+  // Fetch products on mount
+  useEffect(() => {
+    getPublicProducts();
+  }, [getPublicProducts]);
+
+  // Filter products by vendor if vendorId is provided
+  const vendorProducts = vendorId 
+    ? getProductsBySeller(vendorId)
+    : publicProducts;
+
+  // Extract unique categories from vendor products
+  const categories = Array.from(
+    new Set(
+      vendorProducts
+        .filter(p => p.categoryId)
+        .map(p => JSON.stringify({
+          id: p.categoryId || '',
+          name: p.category?.name || 'Unknown',
+          image: p.images?.[0]?.url || '',
+        }))
+    )
+  ).map(str => JSON.parse(str));
+
+  // Extract unique vendors
+  const allVendors = Array.from(
+    new Set(
+      vendorProducts
+        .filter(p => p.seller?.firstName && p.seller?.lastName)
+        .map(p => {
+          const seller = p.seller!;
+          return seller.businessName || `${seller.firstName} ${seller.lastName}`.trim();
+        })
+    )
+  );
+
+  // Production methods
+  const productionMethods = ["handmade", "machine-made", "sustainable"];
+
+  // Apply filters
+  const filteredProducts = vendorProducts.filter((product) => {
+    if (filters.categories.length > 0 && !filters.categories.includes(product.categoryId || '')) {
+      return false;
+    }
+    if (filters.subCategories.length > 0 && !filters.subCategories.includes(product.subcategoryId || '')) {
+      return false;
+    }
+    if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) {
+      return false;
+    }
+    if (filters.vendors.length > 0) {
+      const seller = product.seller;
+      if (!seller) return false;
+      const sellerName = seller.businessName || `${seller.firstName} ${seller.lastName}`.trim();
+      if (!filters.vendors.includes(sellerName)) {
+        return false;
+      }
+    }
+    if (filters.inStock && !product.variants.some(v => v.isActive && v.stockQuantity > 0)) {
+      return false;
+    }
+    if (filters.minRating > 0 && product.averageRating < filters.minRating) {
+      return false;
+    }
+    return true;
+  });
+
+  // Sort products
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case "price-low-high":
+        return a.price - b.price;
+      case "price-high-low":
+        return b.price - a.price;
+      case "popularity":
+        return (b.viewCount || 0) - (a.viewCount || 0);
+      case "newest":
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      default:
+        return 0;
+    }
+  });
+
+  const updateFilter = (key: keyof typeof filters, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      categories: [],
+      subCategories: [],
+      types: [],
+      priceRange: [0, 1000],
+      productionMethods: [],
+      vendors: [],
+      inStock: false,
+      onSale: false,
+      minRating: 0,
+    });
+  };
+
   const handleSetSortOption = (value: string) => {
     setSortOption(value as SortOption);
   };
 
-  // Handler functions for active filters
   const handleClearCategory = (categoryId: string) => {
     const newCategories = filters.categories.filter(
       (id: string) => id !== categoryId
@@ -122,6 +232,16 @@ export default function VendorProfilePage() {
   const handleClearAll = () => {
     resetFilters();
   };
+
+  const filteredProductsCount = filteredProducts.length;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-lg">Loading vendor profile...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#121212]">
@@ -295,18 +415,21 @@ export default function VendorProfilePage() {
                     </Select>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {products.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        id={product.id}
-                        name={product.name}
-                        rating={product.rating}
-                        reviews={product.reviews}
-                        price={product.price}
-                        vendor={product.vendor}
-                        image={product.image}
-                      />
-                    ))}
+                    {sortedProducts.slice(0, 8).map((product) => {
+                      const normalizedVendor = normalizeVendor(product.seller);
+                      return (
+                        <ProductCard
+                          key={product.id}
+                          id={parseInt(product.id)}
+                          name={product.name}
+                          rating={product.averageRating}
+                          reviews={product.reviewCount || 0}
+                          price={product.price}
+                          vendor={normalizedVendor || 'Unknown Vendor'}
+                          image={product.images?.[0]?.url || ''}
+                        />
+                      );
+                    })}
                   </div>
                 </Card>
 
@@ -431,30 +554,33 @@ export default function VendorProfilePage() {
                     categories={categories}
                     allVendors={allVendors}
                     productionMethods={productionMethods}
-                    products={products}
+                    products={sortedProducts}
                     filters={filters}
                     sortOption={sortOption}
                     filteredProductsCount={filteredProductsCount}
                     updateFilter={updateFilter}
                     resetFilters={resetFilters}
-                    setSortOption={handleSetSortOption} // Use the wrapper function
+                    setSortOption={handleSetSortOption}
                   />
 
                   {/* Products Grid */}
-                  {products.length > 0 ? (
+                  {sortedProducts.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-                      {products.map((product) => (
-                        <ProductCard
-                          key={product.id}
-                          id={parseInt(product.id)}
-                          name={product.name}
-                          rating={product.rating}
-                          reviews={product.reviews}
-                          price={product.price}
-                          vendor={product.vendor}
-                          image={product.image}
-                        />
-                      ))}
+                      {sortedProducts.map((product) => {
+                        const normalizedVendor = normalizeVendor(product.seller);
+                        return (
+                          <ProductCard
+                            key={product.id}
+                            id={parseInt(product.id)}
+                            name={product.name}
+                            rating={product.averageRating}
+                            reviews={product.reviewCount || 0}
+                            price={product.price}
+                            vendor={normalizedVendor || 'Unknown Vendor'}
+                            image={product.images?.[0]?.url || ''}
+                          />
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-12">

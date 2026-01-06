@@ -12,28 +12,128 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { SlidersHorizontal, ChevronDown, X } from "lucide-react";
-import { useProducts } from "@/hooks/useProducts";
-import { useState } from "react";
-import type { SortOption } from "@/types/product";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
+import { normalizeVendor } from "@/utils/productHelpers";
+import { useState, useEffect } from "react";
 
 export default function CategoryPage() {
+  // Use Redux hook instead of useProducts
   const {
-    products,
-    categories,
-    filters,
-    sortOption,
-    setSortOption,
-    updateFilter,
-    resetFilters,
-    filteredProductsCount,
-    allVendors,
-    productionMethods,
-  } = useProducts();
+    publicProducts,
+    loading,
+    getPublicProducts,
+  } = useReduxProducts();
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [sortOption, setSortOption] = useState<string>("most-recent");
+  const [filters, setFilters] = useState({
+    categories: [] as string[],
+    subCategories: [] as string[],
+    types: [] as string[],
+    priceRange: [0, 1000] as [number, number],
+    productionMethods: [] as string[],
+    vendors: [] as string[],
+    inStock: false,
+    onSale: false,
+    minRating: 0,
+  });
   const [priceInput, setPriceInput] = useState({
-    min: filters.priceRange[0],
-    max: filters.priceRange[1],
+    min: 0,
+    max: 1000,
+  });
+
+  // Fetch products on mount
+  useEffect(() => {
+    getPublicProducts();
+  }, [getPublicProducts]);
+
+  // Extract unique categories from products with null checks
+  const categories = Array.from(
+    new Set(
+      publicProducts
+        .filter(p => p.categoryId)
+        .map(p => JSON.stringify({
+          id: p.categoryId || '',
+          name: p.category?.name || 'Unknown',
+          image: p.images?.[0]?.url || '',
+        }))
+    )
+  ).map(str => JSON.parse(str));
+
+  // Extract unique vendors with null checks
+  const allVendors = Array.from(
+    new Set(
+      publicProducts
+        .filter(p => p.seller?.firstName && p.seller?.lastName)
+        .map(p => {
+          const seller = p.seller!;
+          return seller.businessName || `${seller.firstName} ${seller.lastName}`.trim();
+        })
+    )
+  );
+
+  // Extract unique production methods (if available in your product data)
+  const productionMethods = ["handmade", "machine-made", "sustainable"]; // Placeholder
+
+  // Apply filters to products
+  const filteredProducts = publicProducts.filter((product) => {
+    // Category filter
+    if (filters.categories.length > 0 && !filters.categories.includes(product.categoryId || '')) {
+      return false;
+    }
+
+    // Subcategory filter
+    if (filters.subCategories.length > 0 && !filters.subCategories.includes(product.subcategoryId || '')) {
+      return false;
+    }
+
+    // Price filter
+    if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) {
+      return false;
+    }
+
+    // Vendor filter
+    if (filters.vendors.length > 0) {
+      const seller = product.seller;
+      if (!seller) return false;
+      
+      const sellerName = seller.businessName || `${seller.firstName} ${seller.lastName}`.trim();
+      if (!filters.vendors.includes(sellerName)) {
+        return false;
+      }
+    }
+
+    // Stock filter
+    if (filters.inStock && !product.variants.some(v => v.isActive && v.stockQuantity > 0)) {
+      return false;
+    }
+
+    // Rating filter
+    if (filters.minRating > 0 && product.averageRating < filters.minRating) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Sort products
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortOption) {
+      case "price-low-high":
+        return a.price - b.price;
+      case "price-high-low":
+        return b.price - a.price;
+      case "rating":
+        return b.averageRating - a.averageRating;
+      case "popularity":
+        // Since reviews property doesn't exist, use viewCount or default to 0
+        return (b.viewCount || 0) - (a.viewCount || 0);
+      case "newest-arrivals":
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case "most-recent":
+      default:
+        return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+    }
   });
 
   const sortOptions = [
@@ -62,8 +162,11 @@ export default function CategoryPage() {
     );
   };
 
+  const updateFilter = (key: keyof typeof filters, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
   const handlePriceRangeChange = (value: number[]) => {
-    // Ensure we always have exactly 2 values for the tuple
     const priceRange: [number, number] = [value[0] || 0, value[1] || 1000];
     updateFilter("priceRange", priceRange);
     setPriceInput({ min: priceRange[0], max: priceRange[1] });
@@ -90,9 +193,9 @@ export default function CategoryPage() {
 
   const handleProductionMethodToggle = (method: string) => {
     const currentMethods = filters.productionMethods;
-    const newMethods = currentMethods.includes(method as any)
+    const newMethods = currentMethods.includes(method)
       ? currentMethods.filter((m) => m !== method)
-      : [...currentMethods, method as any];
+      : [...currentMethods, method];
 
     updateFilter("productionMethods", newMethods);
   };
@@ -110,9 +213,23 @@ export default function CategoryPage() {
     setIsFilterOpen(false);
   };
 
+  const resetFilters = () => {
+    setFilters({
+      categories: [],
+      subCategories: [],
+      types: [],
+      priceRange: [0, 1000],
+      productionMethods: [],
+      vendors: [],
+      inStock: false,
+      onSale: false,
+      minRating: 0,
+    });
+    setPriceInput({ min: 0, max: 1000 });
+  };
+
   const clearAllFilters = () => {
     resetFilters();
-    setPriceInput({ min: 0, max: 1000 });
   };
 
   const hasActiveFilters =
@@ -126,6 +243,14 @@ export default function CategoryPage() {
     filters.inStock ||
     filters.onSale ||
     filters.minRating > 0;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-lg">Loading products...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex justify-center">
@@ -145,7 +270,7 @@ export default function CategoryPage() {
           {categories.map((category) => (
             <CategoryCard
               key={category.id}
-              id={parseInt(category.id)} // Convert string ID to number for CategoryCard
+              id={parseInt(category.id)}
               name={category.name}
               image={category.image}
             />
@@ -468,8 +593,8 @@ export default function CategoryPage() {
           {/* Results Count and Sort Dropdown */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full sm:w-auto">
             <p className="text-[#303030] text-sm">
-              Showing 1 - {products.length} of{" "}
-              <span className="font-bold">{filteredProductsCount} results</span>
+              Showing 1 - {sortedProducts.length} of{" "}
+              <span className="font-bold">{filteredProducts.length} results</span>
             </p>
 
             {/* Sort Dropdown */}
@@ -483,7 +608,7 @@ export default function CategoryPage() {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuRadioGroup
                   value={sortOption}
-                  onValueChange={(value) => setSortOption(value as SortOption)}
+                  onValueChange={(value) => setSortOption(value)}
                 >
                   {sortOptions.map((option) => (
                     <DropdownMenuRadioItem
@@ -501,20 +626,25 @@ export default function CategoryPage() {
         </div>
 
         {/* Products Grid */}
-        {products.length > 0 ? (
+        {sortedProducts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                id={parseInt(product.id)} // Convert string ID to number for ProductCard
-                name={product.name}
-                rating={product.rating}
-                reviews={product.reviews}
-                price={product.price}
-                vendor={product.vendor}
-                image={product.image}
-              />
-            ))}
+            {sortedProducts.map((product) => {
+              // Normalize vendor with proper null checks
+              const normalizedVendor = normalizeVendor(product.seller);
+              
+              return (
+                <ProductCard
+                  key={product.id}
+                  id={parseInt(product.id)}
+                  name={product.name}
+                  rating={product.averageRating}
+                  reviews={product.reviewCount || 0}
+                  price={product.price}
+                  vendor={normalizedVendor || 'Unknown Vendor'}
+                  image={product.images?.[0]?.url || ''}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-12">

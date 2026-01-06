@@ -6,6 +6,7 @@ import { ActiveFilters } from "@/components/active-filters";
 import { Button } from "@/components/ui/button";
 import { useProducts } from "@/hooks/useProducts";
 import type { SortOption } from "@/types/product";
+import { getProductImageUrl, normalizeVendor } from "@/utils/productHelpers";
 
 export default function ConsumerHomePage() {
   const {
@@ -114,11 +115,11 @@ export default function ConsumerHomePage() {
                 key={product.id}
                 id={parseInt(product.id)}
                 name={product.name}
-                rating={product.rating}
-                reviews={product.reviews}
                 price={product.price}
-                vendor={product.vendor}
-                image={product.image}
+                vendor={normalizeVendor(product.seller) || "Unknown Vendor"}
+                image={getProductImageUrl(product.images)}
+                rating={product.averageRating}
+                reviews={product.reviewCount || 0}
               />
             ))}
           </div>

@@ -50,13 +50,13 @@ export default function AdminCategoriesPage() {
 
   const {
     categories,
-    getCategories,
+    getAdminCategories,
     removeCategory,
   } = useReduxCategories();
 
   useEffect(() => {
-    getCategories();
-  }, [getCategories]);
+    getAdminCategories();
+  }, [getAdminCategories]);
 
   const statusOptions: { value: CategoryStatus; label: string }[] = [
     { value: "active", label: "Active" },

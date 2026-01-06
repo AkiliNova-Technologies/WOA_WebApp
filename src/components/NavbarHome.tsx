@@ -9,12 +9,16 @@ import {
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "../components/ui/avatar";
+import { Badge } from "../components/ui/badge";
 import images from "../assets/images";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useReduxAuth } from "../hooks/useReduxAuth";
 import { useReduxUsers } from "../hooks/useReduxUsers";
+import { useReduxCart } from "../hooks/useReduxCart";
+import { useReduxWishlist } from "../hooks/useReduxWishlists";
 import { SearchInputHome, type Suggestion } from "./ui/search-input-home";
+import { cn } from "../lib/utils";
 
 interface Category {
   id: string;
@@ -25,6 +29,8 @@ export default function NavbarHomeSection() {
   const navigate = useNavigate();
   const { isAuthenticated, user, getAvatar, getFullName } = useReduxAuth();
   const { profile, getUserProfile } = useReduxUsers();
+  const { itemCount: cartCount, getCart } = useReduxCart();
+  const { getWishlistCount, getWishlist } = useReduxWishlist();
   
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -32,24 +38,36 @@ export default function NavbarHomeSection() {
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   const categoriesRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Fetch user profile when authenticated
+  // Fetch user profile and cart/wishlist counts when authenticated
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchUserData = async () => {
       if (isAuthenticated && user) {
         try {
           await getUserProfile();
+          await getCart();
+          await getWishlist();
         } catch (error) {
-          console.error("Failed to fetch user profile:", error);
+          console.error("Failed to fetch user data:", error);
         }
       }
     };
 
-    fetchProfile();
-  }, [isAuthenticated, user, getUserProfile]);
+    fetchUserData();
+  }, [isAuthenticated, user, getUserProfile, getCart, getWishlist]);
+
+  // Update wishlist count
+  useEffect(() => {
+    if (isAuthenticated) {
+      setWishlistCount(getWishlistCount());
+    } else {
+      setWishlistCount(0);
+    }
+  }, [isAuthenticated, getWishlistCount]);
 
   // Check for mobile device
   useEffect(() => {
@@ -158,12 +176,14 @@ export default function NavbarHomeSection() {
     }
   };
 
-  // Check if email is verified from profile
+  // Check if email is verified from profile (most accurate)
   const isEmailVerified = () => {
+    // First check profile data (most reliable)
     if (profile && profile.emailVerified !== undefined) {
       return profile.emailVerified === true;
     }
     
+    // Fallback to auth user data
     if (user && user.emailVerified !== undefined) {
       return user.emailVerified === true;
     }
@@ -191,7 +211,7 @@ export default function NavbarHomeSection() {
   };
 
   return (
-    <nav className="max-w-8xl w-full flex flex-1  px-4 absolute py-2 top-0 z-50">
+    <nav className="max-w-8xl w-full flex flex-1 px-4 absolute py-2 top-0 z-50">
       <div className="text-white bg-white flex items-center justify-between w-full max-w-7xl mx-auto gap-4 px-4 sm:px-12 py-4 sticky top-0 z-50 shadow-lg rounded-xl">
         {/* Left section: Logo + Categories */}
         <div className="flex items-center gap-4 sm:gap-6">
@@ -287,59 +307,85 @@ export default function NavbarHomeSection() {
 
         {/* Right: Icons + Sign In */}
         <div className="flex items-center gap-4 sm:gap-6">
+          {/* Wishlist Button with Badge */}
           <button
-            className="relative p-2 hover:text-[#FFD700] transition-colors duration-200"
+            className="relative p-2 hover:text-[#FFD700] transition-colors duration-200 group"
             onClick={() => navigate("/wishlist")}
           >
-            <Heart className="h-5 w-5 text-primary" />
-            
+            <Heart className="h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
+            {wishlistCount > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-[#C75A00] text-white text-xs rounded-full h-5 min-w-5 flex items-center justify-center font-medium px-1.5 border-2 border-white">
+                {wishlistCount > 99 ? "99+" : wishlistCount}
+              </Badge>
+            )}
           </button>
 
+          {/* Cart Button with Badge */}
           <button
-            className="relative p-2 hover:text-[#FFD700] transition-colors duration-200"
+            className="relative p-2 hover:text-[#FFD700] transition-colors duration-200 group"
             onClick={() => navigate("/cart")}
           >
-            <ShoppingCart className="h-5 w-5 text-primary" />
-            
+            <ShoppingCart className="h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
+            {cartCount > 0 && (
+              <Badge className="absolute -top-1 -right-1 bg-[#C75A00] text-white text-xs rounded-full h-5 min-w-5 flex items-center justify-center font-medium px-1.5 border-2 border-white">
+                {cartCount > 99 ? "99+" : cartCount}
+              </Badge>
+            )}
           </button>
 
+          {/* User Profile or Sign In */}
           {isAuthenticated && isEmailVerified() ? (
-            <button
-              onClick={() => navigate("/profile")}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity duration-200"
-            >
-              <Avatar className="h-10 w-10 rounded-full cursor-pointer ring-2 ring-[#FFD700] hover:ring-[#C75A00] transition-all shadow-md">
-                <AvatarImage
-                  src={getUserAvatar()}
-                  alt={getUserDisplayName() || "User"}
-                  className="object-cover"
-                />
-                <AvatarFallback className="bg-gradient-to-br from-[#FFD700] to-[#C75A00] text-black font-semibold text-lg">
-                  {(() => {
-                    const name = getUserDisplayName();
-                    if (name) {
-                      return name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase()
-                        .slice(0, 2);
-                    }
-                    return user?.email?.[0]?.toUpperCase() || "U";
-                  })()}
-                </AvatarFallback>
-              </Avatar>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate("/profile")}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity duration-200 group relative"
+              >
+                <div className="relative">
+                  <Avatar className="h-10 w-10 rounded-full cursor-pointer ring-2 ring-[#FFD700] hover:ring-[#C75A00] transition-all shadow-md">
+                    <AvatarImage
+                      src={getUserAvatar()}
+                      alt={getUserDisplayName() || "User"}
+                      onError={(e) => {
+                        console.error(
+                          "Avatar image failed to load:",
+                          getUserAvatar()
+                        );
+                        // Hide the broken image
+                        e.currentTarget.style.display = "none";
+                      }}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className={cn(
+                      "bg-gradient-to-br from-[#FFD700] to-[#C75A00] text-black font-semibold text-lg transition-all group-hover:scale-105"
+                    )}>
+                      {(() => {
+                        const name = getUserDisplayName();
+                        if (name) {
+                          return name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .toUpperCase()
+                            .slice(0, 2);
+                        }
+                        return user?.email?.[0]?.toUpperCase() || "U";
+                      })()}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
 
-              <div className="hidden md:block text-left">
-                <p className="text-sm font-medium text-white flex items-center gap-1">
-                  {getUserDisplayName() || user?.email?.split("@")[0] || "User"}
-                  {isEmailVerified() && (
-                    <CheckCircle className="h-3 w-3 text-green-400" />
-                  )}
-                </p>
-                <p className="text-xs text-gray-300">View Profile</p>
-              </div>
-            </button>
+                {/* Show user name on larger screens */}
+                <div className="hidden md:block text-left">
+                  <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                    {getUserDisplayName() || user?.email?.split("@")[0] || "User"}
+                    {isEmailVerified() && (
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500">View Profile</p>
+                </div>
+              </button>
+            </div>
           ) : (
             <Button
               variant="secondary"

@@ -1,40 +1,54 @@
-import { Card } from "./ui/card";
-import { useNavigate } from "react-router-dom";
-import { useCategories } from "@/hooks/useCategories";
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-interface Category {
-    id: number;
-    image: string;
-    name: string;
+interface SubCategory {
+  id: string;
+  name: string;
+  image: string;
 }
 
-export function SubCategoryCard( category: Category ) {
-  const navigate = useNavigate();
-  const { setCategoryBreadcrumbs } = useCategories();
+interface SubCategoryCardProps {
+  subCategory: SubCategory;
+  onRemove: (id: string) => void;
+}
 
-  const handleClick = () => {
-    // Make sure the category ID is properly passed to breadcrumbs
-    setCategoryBreadcrumbs(category.id.toString());
-    // Navigate to the type page for this sub-category
-    navigate(`/category/sub-category/${category.id}/type`);
-  };
-
+export function SubCategoryCard({ subCategory, onRemove }: SubCategoryCardProps) {
   return (
-    <Card 
-      className="w-4xs shadow-none bg-transparent p-0 border-none cursor-pointer hover:opacity-90 transition-opacity"
-      onClick={handleClick}
-    >
-      <div className="relative rounded-sm overflow-hidden w-full">
+    <div className="border rounded-lg overflow-hidden group hover:shadow-md transition-shadow">
+      <div className="relative h-40 bg-gray-100">
         <img
-          src={category.image}
-          alt={category.name}
-          className="object-cover object-center w-full h-50 rounded-sm"
+          src={subCategory.image}
+          alt={subCategory.name}
+          className="w-full h-full object-cover"
         />
+        
+        {/* Desktop hover overlay */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 hidden sm:flex items-center justify-center">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => onRemove(subCategory.id)}
+            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          >
+            <X className="size-4 mr-1" />
+            Remove
+          </Button>
+        </div>
+        
+        {/* Mobile remove button */}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onRemove(subCategory.id)}
+          className="absolute top-2 right-2 sm:hidden bg-white/90 backdrop-blur-sm"
+        >
+          <X className="size-4" />
+        </Button>
       </div>
-
-      <div className="px-2 -mt-3">
-        <p className="line-clamp-1 text-md text-center">{category.name}</p>
+      
+      <div className="p-3">
+        <p className="font-medium text-center">{subCategory.name}</p>
       </div>
-    </Card>
+    </div>
   );
 }

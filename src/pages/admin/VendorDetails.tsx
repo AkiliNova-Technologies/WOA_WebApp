@@ -472,6 +472,8 @@ export default function AdminVendorDetailPage() {
             endpoint = `/api/v1/vendor/activate`;
           } else if (vendorStatus === "pending") {
             endpoint = `/api/v1/vendor/approve`;
+          } else {
+            endpoint = `/api/v1/vendor/reject`;
           }
           break;
 
@@ -498,7 +500,7 @@ export default function AdminVendorDetailPage() {
 
       if (endpoint) {
         // Call the API with vendorId
-        await api.post(endpoint, { vendorId: vendor.id });
+        await api.post(endpoint, { userId: user.id });
 
         // Update local state
         setVendor((prev: any) =>

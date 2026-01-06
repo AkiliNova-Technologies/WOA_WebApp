@@ -45,8 +45,9 @@ api.interceptors.request.use(
         const authData = localStorage.getItem("authData");
         if (authData) {
           const parsedData = JSON.parse(authData);
-          if (parsedData.token) {
-            config.headers.Authorization = `Bearer ${parsedData.token}`;
+          // Use accessToken from the tokens object
+          if (parsedData.tokens?.accessToken) {
+            config.headers.Authorization = `Bearer ${parsedData.tokens.accessToken}`;
             console.log("✅ Added backend token to request");
             return config;
           }
@@ -88,7 +89,7 @@ const refreshBackendToken = async (): Promise<string> => {
     }
 
     const parsedData = JSON.parse(authData);
-    const refreshToken = parsedData.refreshToken;
+    const refreshToken = parsedData.tokens?.refreshToken;
 
     if (!refreshToken) {
       throw new Error("No refresh token available");
@@ -96,18 +97,29 @@ const refreshBackendToken = async (): Promise<string> => {
 
     console.log("🔄 Attempting to refresh backend token...");
 
-    // Call refresh endpoint with refresh token
-    const response = await refreshApi.post("/api/v1/auth/refresh", {
-      refreshToken: refreshToken,
-    });
+    // Call refresh endpoint with refresh token as Authorization header
+    const response = await refreshApi.post(
+      "/api/v1/auth/refresh",
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${refreshToken}`,
+        },
+      }
+    );
 
     if (response.data.tokens?.accessToken) {
-      // Update localStorage with new tokens
+      // Update localStorage with new tokens, preserving user data
       const updatedAuthData = {
         ...parsedData,
-        token: response.data.tokens.accessToken,
-        refreshToken: response.data.tokens.refreshToken || refreshToken,
-        tokenExpiry: Date.now() + (response.data.tokens.expiresIn || 3600000),
+        tokens: {
+          accessToken: response.data.tokens.accessToken,
+          refreshToken: response.data.tokens.refreshToken || refreshToken,
+          tokenType: response.data.tokens.tokenType || "Bearer",
+          expiresInSec: response.data.tokens.expiresInSec || 900,
+          refreshExpiresInSec: response.data.tokens.refreshExpiresInSec || 604800,
+        },
+        tokenExpiry: Date.now() + ((response.data.tokens.expiresInSec || 900) * 1000),
       };
 
       localStorage.setItem("authData", JSON.stringify(updatedAuthData));
@@ -122,40 +134,16 @@ const refreshBackendToken = async (): Promise<string> => {
     throw new Error("Invalid refresh response format");
   } catch (error: any) {
     console.error("❌ Backend token refresh failed:", error);
+    
+    // Log more details about the error
+    if (error.response) {
+      console.error("Response status:", error.response.status);
+      console.error("Response data:", error.response.data);
+    }
 
     throw error;
   }
 };
-
-// Function to refresh Firebase token
-// const refreshFirebaseToken = async (): Promise<string | null> => {
-//   try {
-//     if (!auth.currentUser) {
-//       return null;
-//     }
-
-//     console.log("🔄 Refreshing Firebase token...");
-//     const newToken = await auth.currentUser.getIdToken(true);
-
-//     // Update stored Firebase token
-//     if (typeof window !== "undefined") {
-//       const currentAuthData = localStorage.getItem("authData");
-//       if (currentAuthData) {
-//         const parsed = JSON.parse(currentAuthData);
-//         if (parsed.firebaseToken) {
-//           parsed.firebaseToken = newToken;
-//           localStorage.setItem("authData", JSON.stringify(parsed));
-//         }
-//       }
-//     }
-
-//     console.log("✅ Firebase token refreshed");
-//     return newToken;
-//   } catch (error) {
-//     console.error("❌ Firebase token refresh failed:", error);
-//     return null;
-//   }
-// };
 
 // Function to check if token is expired
 const isTokenExpired = (token: string): boolean => {
@@ -165,7 +153,8 @@ const isTokenExpired = (token: string): boolean => {
     const now = Date.now();
     const buffer = 5 * 60 * 1000; // 5 minutes buffer
     return now >= expiry - buffer;
-  } catch {
+  } catch (error) {
+    console.error("Error checking token expiry:", error);
     return false; // If can't parse, assume not expired
   }
 };
@@ -252,14 +241,18 @@ api.interceptors.response.use(
       // Check if we should retry network errors
       if (originalRequest && !originalRequest._retry) {
         originalRequest._retry = true;
+        originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
 
-        const retryDelay = (originalRequest._retryCount || 0) * 1000;
+        // Only retry up to 3 times
+        if (originalRequest._retryCount <= 3) {
+          const retryDelay = originalRequest._retryCount * 1000;
 
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve(api(originalRequest));
-          }, Math.min(retryDelay, 5000));
-        });
+          return new Promise((resolve) => {
+            setTimeout(() => {
+              resolve(api(originalRequest));
+            }, Math.min(retryDelay, 5000));
+          });
+        }
       }
     }
 
@@ -267,9 +260,21 @@ api.interceptors.response.use(
   }
 );
 
+// Track if scheduler is running
+let schedulerCleanup: (() => void) | null = null;
+
 // Function to proactively refresh token before expiry
 export const startTokenRefreshScheduler = () => {
-  if (typeof window === "undefined") return;
+  // Don't start if already running
+  if (schedulerCleanup) {
+    console.log("⚠️ Token refresh scheduler already running");
+    return schedulerCleanup;
+  }
+
+  if (typeof window === "undefined") {
+    console.log("⚠️ Window not defined, cannot start scheduler");
+    return null;
+  }
 
   const checkAndRefreshToken = async () => {
     try {
@@ -277,10 +282,12 @@ export const startTokenRefreshScheduler = () => {
       if (!authData) return;
 
       const parsedData = JSON.parse(authData);
-      if (!parsedData.token) return;
+      const accessToken = parsedData.tokens?.accessToken;
+      
+      if (!accessToken) return;
 
       // Check if token is about to expire (within 5 minutes)
-      if (isTokenExpired(parsedData.token)) {
+      if (isTokenExpired(accessToken)) {
         console.log("🔄 Token is about to expire, refreshing proactively...");
         await refreshBackendToken();
       }
@@ -292,20 +299,26 @@ export const startTokenRefreshScheduler = () => {
   // Check every minute
   const intervalId = setInterval(checkAndRefreshToken, 60 * 1000);
 
-  // Also check on user activity
-  const handleUserActivity = () => {
-    checkAndRefreshToken();
-  };
+  // Also check on initial load
+  checkAndRefreshToken();
 
-  window.addEventListener("mousemove", handleUserActivity);
-  window.addEventListener("keydown", handleUserActivity);
+  console.log("✅ Token refresh scheduler started");
 
   // Return cleanup function
-  return () => {
+  schedulerCleanup = () => {
     clearInterval(intervalId);
-    window.removeEventListener("mousemove", handleUserActivity);
-    window.removeEventListener("keydown", handleUserActivity);
+    schedulerCleanup = null;
+    console.log("🛑 Token refresh scheduler stopped");
   };
+
+  return schedulerCleanup;
+};
+
+// Function to stop the scheduler
+export const stopTokenRefreshScheduler = () => {
+  if (schedulerCleanup) {
+    schedulerCleanup();
+  }
 };
 
 // Function to manually refresh token
@@ -319,29 +332,61 @@ export const manualTokenRefresh = async (): Promise<boolean> => {
   }
 };
 
+// Interface for auth state
+interface AuthState {
+  hasToken: boolean;
+  accessToken: string | null;
+  refreshToken: string | null;
+  user: any;
+  tokenExpiry?: number;
+  userId?: string;
+  email?: string;
+  role?: string;
+  emailVerified?: boolean;
+}
+
 // Function to get current auth state
-export const getAuthState = () => {
+export const getAuthState = (): AuthState => {
   if (typeof window === "undefined") {
-    return { hasToken: false, token: null, refreshToken: null };
+    return { 
+      hasToken: false, 
+      accessToken: null, 
+      refreshToken: null,
+      user: null 
+    };
   }
 
   try {
     const authData = localStorage.getItem("authData");
     if (!authData) {
-      return { hasToken: false, token: null, refreshToken: null };
+      return { 
+        hasToken: false, 
+        accessToken: null, 
+        refreshToken: null,
+        user: null 
+      };
     }
 
     const parsedData = JSON.parse(authData);
     return {
-      hasToken: !!parsedData.token,
-      token: parsedData.token,
-      refreshToken: parsedData.refreshToken,
+      hasToken: !!parsedData.tokens?.accessToken,
+      accessToken: parsedData.tokens?.accessToken || null,
+      refreshToken: parsedData.tokens?.refreshToken || null,
       tokenExpiry: parsedData.tokenExpiry,
-      user: parsedData.user,
+      userId: parsedData.userId,
+      email: parsedData.email,
+      role: parsedData.role,
+      emailVerified: parsedData.emailVerified,
+      user: parsedData,
     };
   } catch (error) {
     console.error("Error getting auth state:", error);
-    return { hasToken: false, token: null, refreshToken: null };
+    return { 
+      hasToken: false, 
+      accessToken: null, 
+      refreshToken: null,
+      user: null 
+    };
   }
 };
 
@@ -356,28 +401,71 @@ export const checkAuthSession = (): boolean => {
     const parsedData = JSON.parse(authData);
 
     // Check if we have both access and refresh tokens
-    if (!parsedData.token || !parsedData.refreshToken) {
+    if (!parsedData.tokens?.accessToken || !parsedData.tokens?.refreshToken) {
       return false;
     }
 
     // Check if access token is expired
-    if (parsedData.token && isTokenExpired(parsedData.token)) {
+    if (isTokenExpired(parsedData.tokens.accessToken)) {
       console.log("⚠️ Access token expired, attempting refresh...");
-      return false;
+      // Don't return false immediately, let the refresh happen
+      return true; // Still valid session, refresh will happen automatically
     }
 
     return true;
-  } catch {
+  } catch (error) {
+    console.error("Error checking auth session:", error);
     return false;
   }
 };
 
-// Initialize token refresh scheduler
-if (typeof window !== "undefined") {
-  // Start scheduler after a short delay to avoid initial load interference
-  setTimeout(() => {
-    startTokenRefreshScheduler();
-  }, 3000);
-}
+// Helper function to save auth data after login
+export const saveAuthData = (loginResponse: any) => {
+  if (typeof window === "undefined") return;
+
+  try {
+    const authData = {
+      userId: loginResponse.userId,
+      email: loginResponse.email,
+      role: loginResponse.role,
+      emailVerified: loginResponse.emailVerified,
+      forcePasswordChange: loginResponse.forcePasswordChange,
+      tokens: {
+        accessToken: loginResponse.tokens.accessToken,
+        refreshToken: loginResponse.tokens.refreshToken,
+        tokenType: loginResponse.tokens.tokenType,
+        expiresInSec: loginResponse.tokens.expiresInSec,
+        refreshExpiresInSec: loginResponse.tokens.refreshExpiresInSec,
+      },
+      tokenExpiry: Date.now() + (loginResponse.tokens.expiresInSec * 1000),
+    };
+
+    localStorage.setItem("authData", JSON.stringify(authData));
+    
+    // Set default authorization header
+    api.defaults.headers.common.Authorization = `Bearer ${loginResponse.tokens.accessToken}`;
+    
+    console.log("✅ Auth data saved successfully");
+  } catch (error) {
+    console.error("Error saving auth data:", error);
+  }
+};
+
+// Helper function to clear auth data
+export const clearAuthData = () => {
+  if (typeof window === "undefined") return;
+
+  // Stop the scheduler when clearing auth
+  stopTokenRefreshScheduler();
+
+  localStorage.removeItem("authData");
+  localStorage.removeItem("user");
+  delete api.defaults.headers.common.Authorization;
+  
+  console.log("✅ Auth data cleared");
+};
+
+// DON'T auto-initialize the scheduler here!
+// Instead, it should be started by the AuthInitializer component
 
 export default api;

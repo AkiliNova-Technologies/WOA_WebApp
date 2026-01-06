@@ -9,12 +9,15 @@ import {
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "../components/ui/avatar";
+import { Badge } from "../components/ui/badge";
 import images from "../assets/images";
 import { SearchInput, type Suggestion } from "./ui/search-input";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useReduxAuth } from "../hooks/useReduxAuth";
 import { useReduxUsers } from "../hooks/useReduxUsers";
+import { useReduxCart } from "../hooks/useReduxCart";
+import { useReduxWishlist } from "../hooks/useReduxWishlists";
 import { cn } from "../lib/utils";
 
 interface Category {
@@ -24,8 +27,10 @@ interface Category {
 
 export default function NavbarSection() {
   const navigate = useNavigate();
-  const { isAuthenticated, user, getAvatar, getFullName, isUserVerified } = useReduxAuth();
+  const { isAuthenticated, user, getAvatar, getFullName } = useReduxAuth();
   const { profile, getUserProfile } = useReduxUsers();
+  const { itemCount: cartCount, getCart } = useReduxCart();
+  const { getWishlistCount, getWishlist } = useReduxWishlist();
   
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -33,36 +38,36 @@ export default function NavbarSection() {
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   const categoriesRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Debug logging
+  // Fetch user profile and cart/wishlist counts when authenticated
   useEffect(() => {
-    console.log("=== NAVBAR AUTH DEBUG ===");
-    console.log("isAuthenticated:", isAuthenticated);
-    console.log("user object:", user);
-    console.log("profile object:", profile);
-    console.log("isUserVerified():", isUserVerified());
-    console.log("getAvatar() result:", getAvatar());
-    console.log("getFullName() result:", getFullName());
-    console.log("=== END DEBUG ===");
-  }, [isAuthenticated, user, profile, isUserVerified, getAvatar, getFullName]);
-
-  // Fetch user profile when authenticated
-  useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchUserData = async () => {
       if (isAuthenticated && user) {
         try {
           await getUserProfile();
+          await getCart();
+          await getWishlist();
         } catch (error) {
-          console.error("Failed to fetch user profile:", error);
+          console.error("Failed to fetch user data:", error);
         }
       }
     };
 
-    fetchProfile();
-  }, [isAuthenticated, user, getUserProfile]);
+    fetchUserData();
+  }, [isAuthenticated, user, getUserProfile, getCart, getWishlist]);
+
+  // Update wishlist count
+  useEffect(() => {
+    if (isAuthenticated) {
+      setWishlistCount(getWishlistCount());
+    } else {
+      setWishlistCount(0);
+    }
+  }, [isAuthenticated, getWishlistCount]);
 
   // Check for mobile device
   useEffect(() => {
@@ -193,8 +198,6 @@ export default function NavbarSection() {
     }
   };
 
-
-
   // Check if email is verified from profile (most accurate)
   const isEmailVerified = () => {
     // First check profile data (most reliable)
@@ -231,7 +234,6 @@ export default function NavbarSection() {
 
   return (
     <>
-
       {/* Main Navbar */}
       <nav className="w-full bg-[#2D2D2D] px-4 sm:px-12 py-4 relative">
         <div className="text-white flex items-center justify-between max-w-7xl mx-auto gap-4">
@@ -379,9 +381,11 @@ export default function NavbarSection() {
               onClick={() => navigate("/wishlist")}
             >
               <Heart className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs rounded-full h-4 w-4 flex items-center justify-center font-medium">
-                3
-              </span>
+              {wishlistCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs rounded-full h-4 min-w-4 flex items-center justify-center font-medium px-1">
+                  {wishlistCount > 99 ? "99+" : wishlistCount}
+                </Badge>
+              )}
             </button>
 
             <button
@@ -389,12 +393,14 @@ export default function NavbarSection() {
               onClick={() => navigate("/cart")}
             >
               <ShoppingCart className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs rounded-full h-4 w-4 flex items-center justify-center font-medium">
-                2
-              </span>
+              {cartCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 bg-yellow-400 text-black text-xs rounded-full h-4 min-w-4 flex items-center justify-center font-medium px-1">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </Badge>
+              )}
             </button>
 
-            {isAuthenticated && isEmailVerified  ? (
+            {isAuthenticated && isEmailVerified() ? (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => navigate("/profile")}
@@ -410,7 +416,6 @@ export default function NavbarSection() {
                             "Avatar image failed to load:",
                             getUserAvatar()
                           );
-                          // Hide the broken image
                           e.currentTarget.style.display = "none";
                         }}
                         className="object-cover"
@@ -433,18 +438,6 @@ export default function NavbarSection() {
                         })()}
                       </AvatarFallback>
                     </Avatar>
-
-                    {/* Authentication status indicator */}
-                    {/* {isAuthenticated && (
-                      <>
-                        <span className="absolute -top-0.5 -right-0.5 h-3 w-3 bg-green-500 rounded-full border-2 border-[#2D2D2D] animate-ping"></span>
-                        {isEmailVerified() && (
-                          <div className="absolute -bottom-1 -right-1 bg-green-500 text-white rounded-full p-0.5 border-2 border-[#2D2D2D]">
-                            <CheckCircle className="h-3 w-3" />
-                          </div>
-                        )}
-                      </>
-                    )} */}
                   </div>
 
                   {/* Show user name on larger screens */}

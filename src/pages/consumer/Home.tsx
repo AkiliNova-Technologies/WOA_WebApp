@@ -1,11 +1,9 @@
 import { ProductCard } from "@/components/productCard";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import images from "@/assets/images";
 import icons from "@/assets/icons";
 import { FeaturedStories } from "@/components/FeaturedStories";
-
-import { useProducts } from "@/hooks/useProducts";
 import { ClippedButton } from "@/components/clipped-button";
 import { HomeCategoryCard } from "@/components/home-category-card";
 import {
@@ -15,9 +13,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useEffect, useState } from "react";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
+import { useReduxCategories } from "@/hooks/useReduxCategories";
 
 export default function HomePage() {
-  const { products, categories } = useProducts();
+  const { 
+    publicProducts, 
+    loading, 
+    getPublicProducts 
+  } = useReduxProducts();
+  
+  const { 
+    categories, 
+    loading: categoriesLoading, 
+    getCategories 
+  } = useReduxCategories();
+
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [priceSort, setPriceSort] = useState<string>("all");
+  const [reviewSort, setReviewSort] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("newest");
+
+  // Fetch initial data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        await getPublicProducts({ limit: 10 });
+        await getCategories();
+      } catch (error) {
+        console.error("Failed to fetch home page data:", error);
+      }
+    };
+
+    fetchData();
+  }, [getPublicProducts, getCategories]);
 
   // Mock data for featured stories
   const featuredStories = [
@@ -57,6 +87,9 @@ export default function HomePage() {
       isVideo: false,
     },
   ];
+
+  // Filter and sort products
+  const displayProducts = publicProducts.slice(0, 10);
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#121212]">
@@ -112,25 +145,31 @@ export default function HomePage() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
-            {categories.map((category) => (
-              <HomeCategoryCard
-                key={category.id}
-                id={parseInt(category.id)}
-                name={category.name}
-                image={category.image}
-              />
-            ))}
-            <div className="flex flex-col items-center justify-center">
-              <Button
-                variant="secondary"
-                className="h-20 w-20 text-[#3A3A3A] bg-[#F5F6FA] hover:scale-105 transition-all hover:shadow-xs duration-300 hover:bg-[#F5F6FA]/90 flex items-center rounded-full justify-center p-0"
-              >
-                <ArrowRight className="size-8" />
-              </Button>
-              <p className="mt-6 text-sm text-center">View All</p>
+          {categoriesLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-[#CC5500]" />
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
+              {categories.slice(0, 5).map((category) => (
+                <HomeCategoryCard
+                  key={category.id}
+                  id={parseInt(category.id)}
+                  name={category.name}
+                  image={category.icon || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"}
+                />
+              ))}
+              <div className="flex flex-col items-center justify-center">
+                <Button
+                  variant="secondary"
+                  className="h-20 w-20 text-[#3A3A3A] bg-[#F5F6FA] hover:scale-105 transition-all hover:shadow-xs duration-300 hover:bg-[#F5F6FA]/90 flex items-center rounded-full justify-center p-0"
+                >
+                  <ArrowRight className="size-8" />
+                </Button>
+                <p className="mt-6 text-sm text-center">View All</p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -146,39 +185,40 @@ export default function HomePage() {
             </h2>
             <div className="flex items-center justify-between w-full gap-4">
               <div className="flex gap-4">
-                {/* Category Select - Only this one has colored background */}
-                <Select>
-                  <SelectTrigger className="px-4 py-2 bg-[#CC5500] text-white! border-none rounded-lg text-sm dark:bg-[#CC5500] dark:text-white" iconClassName="text-white!">
+                {/* Category Select */}
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="px-4 py-2 bg-[#CC5500] text-white border-none rounded-lg text-sm dark:bg-[#CC5500] dark:text-white">
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all-categories">
-                      All Categories
-                    </SelectItem>
-                    <SelectItem value="fashion">Fashion</SelectItem>
-                    <SelectItem value="art-craft">Art & Craft</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
                 {/* Price Select */}
-                <Select>
+                <Select value={priceSort} onValueChange={setPriceSort}>
                   <SelectTrigger className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700">
                     <SelectValue placeholder="Price" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="price">Price</SelectItem>
+                    <SelectItem value="all">Price</SelectItem>
                     <SelectItem value="low-to-high">Low to High</SelectItem>
                     <SelectItem value="high-to-low">High to Low</SelectItem>
                   </SelectContent>
                 </Select>
 
                 {/* Review Select */}
-                <Select>
-                  <SelectTrigger className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none  dark:bg-[#2D2D2D] dark:border-gray-700">
+                <Select value={reviewSort} onValueChange={setReviewSort}>
+                  <SelectTrigger className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700">
                     <SelectValue placeholder="Review" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="review">Review</SelectItem>
+                    <SelectItem value="all">Review</SelectItem>
                     <SelectItem value="highest-rated">Highest Rated</SelectItem>
                     <SelectItem value="most-reviews">Most Reviews</SelectItem>
                   </SelectContent>
@@ -186,8 +226,8 @@ export default function HomePage() {
               </div>
 
               {/* Sort Select */}
-              <Select>
-                <SelectTrigger className="px-4 py-2 w-40 border border-gray-200 rounded-lg text-sm focus:outline-none  dark:bg-[#2D2D2D] dark:border-gray-700">
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="px-4 py-2 w-40 border border-gray-200 rounded-lg text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700">
                   <SelectValue placeholder="Sort by:" />
                 </SelectTrigger>
                 <SelectContent>
@@ -198,29 +238,42 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                id={parseInt(product.id)}
-                name={product.name}
-                rating={product.rating}
-                reviews={product.reviews}
-                price={product.price}
-                vendor={product.vendor}
-                image={product.image}
-              />
-            ))}
-          </div>
+          {/* Products Grid */}
+          {loading ? (
+            <div className="flex justify-center items-center py-20">
+              <Loader2 className="h-12 w-12 animate-spin text-[#CC5500]" />
+            </div>
+          ) : displayProducts.length > 0 ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+                {displayProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
 
-          <div className="flex justify-center mt-12">
-            <Button
-              variant="secondary"
-              className="rounded-full px-8 py-6 w-3xs text-base hover:bg-gray-50 dark:hover:bg-[#2D2D2D] hover:scale-105 transition-all duration-300"
-            >
-              View more
-            </Button>
-          </div>
+              <div className="flex justify-center mt-12">
+                <Button
+                  variant="secondary"
+                  className="rounded-full px-8 py-6 w-3xs text-base hover:bg-gray-50 dark:hover:bg-[#2D2D2D] hover:scale-105 transition-all duration-300"
+                >
+                  View more
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-20">
+              <p className="text-gray-500 dark:text-gray-400 text-lg">
+                No products available at the moment.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => getPublicProducts({ limit: 10 })}
+              >
+                Refresh
+              </Button>
+            </div>
+          )}
         </div>
       </section>
 

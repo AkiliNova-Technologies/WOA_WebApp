@@ -1,45 +1,43 @@
-import { useState } from "react"; // Removed useEffect since it's not needed
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, X, PenIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import Steps from "@/components/steps";
-import { TextEditor } from "@/components/text-editor";
-import { AddSubCategoryDrawer } from "@/components/add-sub-category-drawer";
-import { AddSubCategoryTypeDrawer } from "@/components/add-sub-category-type-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SubCategoryAttributesSection } from "@/components/sub-category-attribute-section";
-import { Badge } from "@/components/ui/badge";
-import { Search } from "@/components/ui/search";
-import {
-  DataTable,
-  type TableAction,
-  type TableField,
-} from "@/components/data-table";
+import { SubCategoryCard } from "@/components/sub-category-card";
+import { SubCategoryTypeTable } from "@/components/sub-category-type-table";
+import { AttributeTable } from "@/components/attribute-table";
+import { ReviewSubmitSection } from "@/components/review-submit-section";
+import { AddSubCategoryDrawer } from "@/components/add-sub-category-drawer";
+import { AddSubCategoryTypeDrawer } from "@/components/add-sub-category-type-drawer";
 import { AddAttributeDrawer } from "@/components/add-attribute-drawer";
 import { useReduxCategories } from "@/hooks/useReduxCategories";
-import { uploadImage } from "@/utils/upload"; // You'll need to create this utility
+import { toast } from "sonner";
+import { ImageUpload } from "@/components/image-upload";
 
 // Interfaces
 export interface SubCategory {
   id: string;
   name: string;
+  description?: string;
   image: string;
   types: SubCategoryType[];
-  _imageFile?: File;
 }
+
 export interface SubCategoryType {
   id: string;
   name: string;
+  description?: string;
   image: string;
-  _imageFile?: File;
+  appliesTo: string[]; // Array of subcategory IDs
 }
-
 
 export interface Attribute {
   id: string;
   name: string;
+  description?: string;
   inputType:
     | "dropdown"
     | "multiselect"
@@ -52,8 +50,16 @@ export interface Attribute {
   filterStatus: "active" | "inactive";
   isRequired: boolean;
   order: number;
+  appliesTo: string[]; // Array of subcategory type IDs
+  additionalDetails?: string;
   [key: string]: any;
 }
+
+// Constants for validation
+const VALIDATION_RULES = {
+  categoryName: { min: 1, max: 100 },
+  description: { max: 500 },
+};
 
 export default function AdminCreateCategoriesPage() {
   const navigate = useNavigate();
@@ -62,259 +68,288 @@ export default function AdminCreateCategoriesPage() {
   const [isSubCategoryTypeDrawerOpen, setIsSubCategoryTypeDrawerOpen] =
     useState(false);
   const [isAttributeDrawerOpen, setIsAttributeDrawerOpen] = useState(false);
-  const [selectedSubCategory, setSelectedSubCategory] =
-    useState<SubCategory | null>(null);
   const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+  const [subCategoryTypes, setSubCategoryTypes] = useState<SubCategoryType[]>(
+    []
+  );
   const [attributes, setAttributes] = useState<Attribute[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [categoryImage, setCategoryImage] = useState<string[]>([]);
 
   // Form state
   const [categoryName, setCategoryName] = useState("");
-  const [categoryDescription, setCategoryDescription] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
 
   // Use the Redux categories hook
-  const {
-  createNewCategory,
-  createNewAttribute,
-  createLoading,
-  createNewProductType,
-  createNewSubcategory,
-} = useReduxCategories();
+  const { createNewCategory, createNewSubcategory, createNewProductType, createNewAttribute } = useReduxCategories();
 
+  // Steps configuration
   const steps = [
     { title: "Create a category" },
-    { title: "Create types" },
+    { title: "Create sub categories" },
+    { title: "Create sub category types" },
     { title: "Create attributes" },
-    { title: "Assign attributes" },
+    { title: "Review and submit" },
   ];
 
+  // ==================== NAVIGATION ====================
+
   const handleCancel = () => {
-    navigate(-1);
+    if (categoryName || subCategories.length > 0 || attributes.length > 0) {
+      if (
+        window.confirm(
+          "You have unsaved changes. Are you sure you want to leave?"
+        )
+      ) {
+        navigate(-1);
+      }
+    } else {
+      navigate(-1);
+    }
   };
 
   const handleSaveAsDraft = async () => {
-    try {
-      // Save category as draft (isActive: false)
-      const categoryData = {
-        name: categoryName,
-        description: categoryDescription,
-        isActive: false, // Draft categories are inactive
-      };
-
-      await createNewCategory(categoryData);
-      alert("Category saved as draft!");
+    toast.success("Changes saved as draft!");
+    setTimeout(() => {
       navigate("/admin/categories");
-    } catch (error) {
-      console.error("Failed to save as draft:", error);
-      alert(`Failed to save as draft: ${error}`);
-    }
+    }, 1000);
   };
 
-  const handleCreateCategory = async (isDraft: boolean = false) => {
+  // ==================== STEP 0: CREATE CATEGORY ====================
+  
+  const handleCreateCategory = async () => {
+    // Validate inputs
+    if (!categoryName.trim()) {
+      toast.error("Please enter a category name");
+      return;
+    }
+
+    if (!categoryImage || categoryImage.length === 0) {
+      toast.error("Please upload a category image");
+      return;
+    }
+
+    setIsCreating(true);
     try {
-      // Step 1: Create the main category
+      toast.loading("Creating category...", { id: "create-category" });
+
       const categoryData = {
-        name: categoryName,
-        description: categoryDescription,
-        isActive: !isDraft, // Draft categories are inactive
+        name: categoryName.trim(),
+        coverImageUrl: categoryImage[0],
       };
 
       const category = await createNewCategory(categoryData);
+      setCategoryId(category.id);
 
-      // Step 2: Create subcategories with their types
-      await createSubcategoriesForCategory(category.id);
+      toast.success("Category created successfully!", {
+        id: "create-category",
+      });
 
-      // Step 3: Create attributes
-      await createAttributesForCategory(category.id);
-
-      // Show success message and navigate
-      alert(
-        isDraft ? "Category saved as draft!" : "Category created successfully!"
-      );
-      navigate("/admin/categories");
-    } catch (error) {
+      // Move to next step
+      setCurrentStep(1);
+    } catch (error: any) {
       console.error("Failed to create category:", error);
-      alert(`Failed to create category: ${error}`);
+      toast.error(
+        `Failed to create category: ${error.message || "Unknown error"}`,
+        { id: "create-category" }
+      );
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  const createSubcategoriesForCategory = async (categoryId: string) => {
-    for (const subCategory of subCategories) {
-      try {
-        // Upload image first if it's a File object
-        let imageUrl = subCategory.image;
-        if (subCategory._imageFile instanceof File) {
-          const uploadedImage = await uploadImage(subCategory._imageFile);
-          imageUrl = uploadedImage.url;
-        }
-
-        const subCategoryData = {
-          name: subCategory.name,
-          description: "",
-          image: imageUrl,
-          categoryId: categoryId,
-          order: 0,
-          isActive: true,
-        };
-
-        const createdSubcategory = await createNewSubcategory(categoryId, subCategoryData);
-
-        // Create product types for this subcategory
-        await createProductTypesForSubcategory(createdSubcategory.id, subCategory.types);
-      } catch (error) {
-        console.error(`Failed to create subcategory ${subCategory.name}:`, error);
-      }
-    }
-  };
-
-  const createProductTypesForSubcategory = async (
-    subcategoryId: string,
-    types: SubCategoryType[]
-  ) => {
-    for (const type of types) {
-      try {
-        // Upload image first if it's a File object
-        let imageUrl = type.image;
-        if (type._imageFile instanceof File) {
-          const uploadedImage = await uploadImage(type._imageFile);
-          imageUrl = uploadedImage.url;
-        }
-
-        const productTypeData = {
-          name: type.name,
-          description: "",
-          image: imageUrl,
-          subcategoryId: subcategoryId,
-          order: 0,
-          isActive: true,
-        };
-
-        await createNewProductType(subcategoryId, productTypeData);
-      } catch (error) {
-        console.error(`Failed to create product type ${type.name}:`, error);
-      }
-    }
-  };
-
-  const createAttributesForCategory = async (categoryId: string) => {
-    for (const attribute of attributes) {
-      try {
-        const attributeData = {
-          name: attribute.name,
-          description: "",
-          inputType: attribute.inputType,
-          purpose: attribute.purpose,
-          values: attribute.values,
-          isRequired: attribute.isRequired,
-          filterStatus: attribute.filterStatus,
-          order: attribute.order,
-          categoryId: categoryId,
-        };
-
-        await createNewAttribute(categoryId, attributeData);
-      } catch (error) {
-        console.error(`Failed to create attribute ${attribute.name}:`, error);
-      }
-    }
-  };
-
-  const handleNext = () => {
+  const handleNextStep = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
-    } else {
-      // On the last step, create the category
-      handleCreateCategory(false);
     }
   };
 
-  const handleBack = () => {
+  const handleBackStep = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   };
 
-  // Sub Category Functions - Updated to handle File objects
-  const handleAddSubCategory = (subCategoryData: { name: string; image: File | null }) => {
-    if (!subCategoryData.image) return;
-    
-    // Generate a temporary ID and image URL
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const imageUrl = URL.createObjectURL(subCategoryData.image);
-    
-    const newSubCategory: SubCategory = {
-      id: tempId,
-      name: subCategoryData.name,
-      image: imageUrl, // Store the object URL for preview
-      _imageFile: subCategoryData.image, // Store the actual file for later upload
-      types: [],
-    };
-    
-    setSubCategories((prev) => [...prev, newSubCategory]);
-  };
+  // ==================== SUB CATEGORY FUNCTIONS ====================
 
-  // Sub Category Type Functions - Updated to handle File objects
-  const handleAddSubCategoryType = (subCategoryTypeData: { name: string; image: File | null }) => {
-    if (!selectedSubCategory || !subCategoryTypeData.image) return;
-    
-    // Generate a temporary ID and image URL
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const imageUrl = URL.createObjectURL(subCategoryTypeData.image);
-    
-    const newSubCategoryType: SubCategoryType = {
-      id: tempId,
-      name: subCategoryTypeData.name,
-      image: imageUrl, // Store the object URL for preview
-      _imageFile: subCategoryTypeData.image, // Store the actual file for later upload
-    };
-    
-    setSubCategories((prev) =>
-      prev.map((subCat) =>
-        subCat.id === selectedSubCategory.id
-          ? { ...subCat, types: [...subCat.types, newSubCategoryType] }
-          : subCat
-      )
-    );
-    setSelectedSubCategory(null);
-  };
-
-  const handleRemoveSubCategory = (id: string) => {
-    // Clean up object URL
-    const subCategory = subCategories.find(sc => sc.id === id);
-    if (subCategory && subCategory.image.startsWith('blob:')) {
-      URL.revokeObjectURL(subCategory.image);
-    }
-    
-    setSubCategories((prev) => prev.filter((subCat) => subCat.id !== id));
-  };
-
-  const handleRemoveSubCategoryType = (
-    subCategoryId: string,
-    typeId: string
-  ) => {
-    // Clean up object URL
-    const subCategory = subCategories.find(sc => sc.id === subCategoryId);
-    if (subCategory) {
-      const type = subCategory.types.find(t => t.id === typeId);
-      if (type && type.image.startsWith('blob:')) {
-        URL.revokeObjectURL(type.image);
-      }
-    }
-    
-    setSubCategories((prev) =>
-      prev.map((subCat) =>
-        subCat.id === subCategoryId
-          ? {
-              ...subCat,
-              types: subCat.types.filter((type) => type.id !== typeId),
-            }
-          : subCat
-      )
-    );
-  };
-
-  // Attribute Functions
-  const handleAddAttribute = (attributeData: {
+  const handleAddSubCategory = async (subCategoryData: {
     name: string;
+    description?: string;
+    image: string[] | null;
+  }) => {
+    if (!categoryId) {
+      toast.error("Category not created yet. Please complete step 1 first.");
+      return;
+    }
+
+    if (!subCategoryData.image || subCategoryData.image.length === 0) {
+      toast.error("Please upload an image for the subcategory");
+      return;
+    }
+
+    try {
+      toast.loading("Creating subcategory...", { id: "create-subcategory" });
+
+      const subcategoryPayload = {
+        name: subCategoryData.name,
+        description: subCategoryData.description || "",
+        categoryId: categoryId,
+        isActive: true,
+        icon: subCategoryData.image[0],
+      };
+
+      // Call the backend to create subcategory
+      const createdSubcategory = await createNewSubcategory(
+        categoryId,
+        subcategoryPayload
+      );
+
+      // Add to local state with the real ID from backend
+      const newSubCategory: SubCategory = {
+        id: createdSubcategory.id,
+        name: createdSubcategory.name,
+        description: createdSubcategory.description,
+        image: subCategoryData.image[0],
+        types: [],
+      };
+
+      setSubCategories((prev) => [...prev, newSubCategory]);
+      toast.success("Subcategory created successfully", {
+        id: "create-subcategory",
+      });
+    } catch (error: any) {
+      console.error("Failed to create subcategory:", error);
+      toast.error(
+        `Failed to create subcategory: ${error.message || "Unknown error"}`,
+        { id: "create-subcategory" }
+      );
+    }
+  };
+
+  const handleRemoveSubCategory = async (id: string) => {
+    try {
+      // TODO: Add delete API call when endpoint is available
+      // await deleteSubcategory(id);
+
+      setSubCategories((prev) => prev.filter((subCat) => subCat.id !== id));
+      toast.success("Subcategory removed");
+    } catch (error: any) {
+      console.error("Failed to remove subcategory:", error);
+      toast.error(
+        `Failed to remove subcategory: ${error.message || "Unknown error"}`
+      );
+    }
+  };
+
+  // ==================== SUB CATEGORY TYPE FUNCTIONS ====================
+
+  const handleAddSubCategoryType = async (subCategoryTypeData: {
+    name: string;
+    description?: string;
+    image: string[] | null;
+    appliesTo: string[]; // Array of subcategory IDs
+  }) => {
+    if (!categoryId) {
+      toast.error("Category not created yet");
+      return;
+    }
+
+    if (!subCategoryTypeData.image || subCategoryTypeData.image.length === 0) {
+      toast.error("Please upload an image for the subcategory type");
+      return;
+    }
+
+    if (
+      !subCategoryTypeData.appliesTo ||
+      subCategoryTypeData.appliesTo.length === 0
+    ) {
+      toast.error("Please select at least one sub category");
+      return;
+    }
+
+    try {
+      toast.loading("Creating subcategory type...", { id: "create-type" });
+
+      // Create a product type for each selected subcategory
+      const createdTypes: SubCategoryType[] = [];
+
+      for (const subcategoryId of subCategoryTypeData.appliesTo) {
+        const productTypeData = {
+          name: subCategoryTypeData.name,
+          description: subCategoryTypeData.description || "",
+          subcategoryId: subcategoryId,
+          isActive: true,
+          image: subCategoryTypeData.image[0],
+        };
+
+        try {
+          const createdType = await createNewProductType(
+            subcategoryId,
+            productTypeData
+          );
+
+          createdTypes.push({
+            id: createdType.id,
+            name: createdType.name,
+            description: createdType.description,
+            image: subCategoryTypeData.image[0],
+            appliesTo: [subcategoryId],
+          });
+        } catch (error) {
+          console.error(
+            `Failed to create type for subcategory ${subcategoryId}:`,
+            error
+          );
+        }
+      }
+
+      if (createdTypes.length === 0) {
+        toast.error("Failed to create subcategory type", { id: "create-type" });
+        return;
+      }
+
+      // Combine types with same name into one entry with multiple appliesTo
+      const combinedType: SubCategoryType = {
+        id: createdTypes[0].id,
+        name: subCategoryTypeData.name,
+        description: subCategoryTypeData.description,
+        image: subCategoryTypeData.image[0],
+        appliesTo: subCategoryTypeData.appliesTo,
+      };
+
+      setSubCategoryTypes((prev) => [...prev, combinedType]);
+      toast.success("Subcategory type created successfully", {
+        id: "create-type",
+      });
+    } catch (error: any) {
+      console.error("Failed to add subcategory type:", error);
+      toast.error(
+        `Failed to add subcategory type: ${error.message || "Unknown error"}`,
+        { id: "create-type" }
+      );
+    }
+  };
+
+  const handleRemoveSubCategoryType = async (id: string) => {
+    try {
+      // TODO: Add delete API call when endpoint is available
+      // await deleteProductType(id);
+
+      setSubCategoryTypes((prev) => prev.filter((type) => type.id !== id));
+      toast.success("Subcategory type removed");
+    } catch (error: any) {
+      console.error("Failed to remove subcategory type:", error);
+      toast.error(
+        `Failed to remove subcategory type: ${error.message || "Unknown error"}`
+      );
+    }
+  };
+
+  // ==================== ATTRIBUTE FUNCTIONS ====================
+
+  const handleAddAttribute = async (attributeData: {
+    name: string;
+    description?: string;
     inputType:
       | "dropdown"
       | "multiselect"
@@ -327,160 +362,103 @@ export default function AdminCreateCategoriesPage() {
     isRequired: boolean;
     filterStatus: "active" | "inactive";
     order: number;
+    appliesTo: string[];
+    additionalDetails?: string;
   }) => {
-    const newAttribute: Attribute = {
-      id: Date.now().toString(),
-      name: attributeData.name,
-      inputType: attributeData.inputType,
-      purpose: attributeData.purpose,
-      values: attributeData.values,
-      filterStatus: attributeData.filterStatus,
-      isRequired: attributeData.isRequired,
-      order: attributeData.order,
-    };
-    setAttributes((prev) => [...prev, newAttribute]);
-  };
+    if (!categoryId) {
+      toast.error("Category not created yet");
+      return;
+    }
 
-  const handleRemoveAttribute = (id: string) => {
-    setAttributes((prev) => prev.filter((attr) => attr.id !== id));
-  };
+    try {
+      toast.loading("Creating attribute...", { id: "create-attribute" });
 
-  // Update attribute
-  const handleUpdateAttribute = (
-    id: string,
-    updatedData: Partial<Attribute>
-  ) => {
-    setAttributes((prev) =>
-      prev.map((attr) => (attr.id === id ? { ...attr, ...updatedData } : attr))
-    );
-  };
+      const apiData = {
+        name: attributeData.name,
+        description: attributeData.description || "",
+        inputType: attributeData.inputType,
+        purpose: attributeData.purpose,
+        values: attributeData.values,
+        isRequired: attributeData.isRequired,
+        filterStatus: attributeData.filterStatus,
+        order: attributeData.order,
+        categoryId: categoryId,
+      };
 
-  const filteredAttributes = attributes.filter((attribute) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      attribute.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const createdAttribute = await createNewAttribute(categoryId, apiData);
 
-    return matchesSearch;
-  });
+      const newAttribute: Attribute = {
+        id: createdAttribute.id,
+        name: createdAttribute.name,
+        description: createdAttribute.description,
+        inputType: createdAttribute.inputType,
+        purpose: createdAttribute.purpose,
+        values: createdAttribute.values,
+        filterStatus: createdAttribute.filterStatus,
+        isRequired: createdAttribute.isRequired,
+        order: createdAttribute.order,
+        appliesTo: attributeData.appliesTo,
+        additionalDetails: attributeData.additionalDetails,
+      };
 
-  // Table fields for attributes
-  const attributeFields: TableField<Attribute>[] = [
-    {
-      key: "name",
-      header: "Attribute Name",
-      cell: (_, row) => (
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col">
-            <span className="font-medium text-md">{row.name}</span>
-            <span className="text-sm text-muted-foreground">
-              Purpose: {row.purpose}
-            </span>
-          </div>
-        </div>
-      ),
-      align: "left",
-    },
-    {
-      key: "inputType",
-      header: "Input Type",
-      cell: (value) => {
-        const typeLabels = {
-          dropdown: "Dropdown",
-          multiselect: "Multi-Select",
-          boolean: "Boolean",
-          text: "Text",
-          number: "Number",
-          textarea: "Text Area",
-        };
-        return (
-          <span className="font-medium">
-            {typeLabels[value as keyof typeof typeLabels]}
-          </span>
-        );
-      },
-      align: "center",
-      enableSorting: true,
-    },
-    {
-      key: "filterStatus",
-      header: "Filter Status",
-      cell: (value) => (
-        <Badge
-          variant={value === "active" ? "default" : "secondary"}
-          className={value === "active" ? "bg-green-100 text-green-800" : ""}
-        >
-          {(value as string).charAt(0).toUpperCase() +
-            (value as string).slice(1)}
-        </Badge>
-      ),
-      align: "center",
-      enableSorting: true,
-    },
-    {
-      key: "isRequired",
-      header: "Required",
-      cell: (value) => (
-        <Badge
-          variant={value ? "default" : "secondary"}
-          className={value ? "bg-blue-100 text-blue-800" : ""}
-        >
-          {value ? "Yes" : "No"}
-        </Badge>
-      ),
-      align: "center",
-      enableSorting: true,
-    },
-    {
-      key: "values",
-      header: "Attribute Values",
-      cell: (value) => (
-        <div className="flex flex-wrap gap-1 justify-center">
-          {(value as string[]).map((val, index) => (
-            <Badge key={index} variant="outline" className="text-md rounded-sm">
-              {val}
-            </Badge>
-          ))}
-        </div>
-      ),
-      align: "center",
-      enableSorting: true,
-    },
-  ];
-
-  const attributeActions: TableAction<Attribute>[] = [
-    {
-      type: "edit",
-      label: "Edit Attribute",
-      icon: <PenIcon className="size-5" />,
-      onClick: (attribute) => {
-        // Open edit drawer or modal for the attribute
-        setIsAttributeDrawerOpen(true);
-        // You might want to pass the attribute data to the drawer for editing
-        console.log("Edit attribute:", attribute.id);
-      },
-    },
-    {
-      type: "delete",
-      label: "Delete Attribute",
-      icon: <Trash2Icon className="size-5" />,
-      onClick: (attribute) => {
-        handleRemoveAttribute(attribute.id);
-      },
-    },
-  ];
-
-  // Update AddAttributeDrawer to support editing
-  const handleAddOrUpdateAttribute = (
-    attributeData: any,
-    isEditing: boolean = false,
-    attributeId?: string
-  ) => {
-    if (isEditing && attributeId) {
-      handleUpdateAttribute(attributeId, attributeData);
-    } else {
-      handleAddAttribute(attributeData);
+      setAttributes((prev) => [...prev, newAttribute]);
+      toast.success("Attribute created successfully", { id: "create-attribute" });
+    } catch (error: any) {
+      console.error("Failed to create attribute:", error);
+      toast.error(
+        `Failed to create attribute: ${error.message || "Unknown error"}`,
+        { id: "create-attribute" }
+      );
     }
   };
+
+  const handleRemoveAttribute = async (id: string) => {
+    try {
+      // TODO: Add delete API call when endpoint is available
+      // await deleteAttribute(id);
+
+      setAttributes((prev) => prev.filter((attr) => attr.id !== id));
+      toast.success("Attribute removed");
+    } catch (error: any) {
+      console.error("Failed to remove attribute:", error);
+      toast.error(
+        `Failed to remove attribute: ${error.message || "Unknown error"}`
+      );
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!categoryId) {
+      toast.error("Category not created yet");
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      toast.loading("Finalizing category...", { id: "submit-category" });
+
+      // TODO: Update category to set isActive = true
+      // await updateCategory(categoryId, { isActive: true });
+
+      toast.success("Category submitted successfully!", {
+        id: "submit-category",
+      });
+
+      setTimeout(() => {
+        navigate("/admin/categories");
+      }, 1000);
+    } catch (error: any) {
+      console.error("Failed to submit category:", error);
+      toast.error(
+        `Failed to submit category: ${error.message || "Unknown error"}`,
+        { id: "submit-category" }
+      );
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // ==================== RENDER ====================
 
   return (
     <div className="min-h-screen">
@@ -514,529 +492,286 @@ export default function AdminCreateCategoriesPage() {
                     <ArrowLeft className="w-5 h-5" />
                   </Button>
                   <span className="font-medium text-gray-700 dark:text-gray-200">
-                    Back to Categories
+                    Back
                   </span>
                 </div>
                 <div className="flex gap-3">
                   <button
                     onClick={handleCancel}
                     className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    disabled={isCreating}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveAsDraft}
-                    className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                    disabled={createLoading}
+                    className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isCreating || !categoryName}
                   >
-                    {createLoading ? "Saving..." : "Save as draft"}
+                    Save as draft
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Form Content */}
-            <div className="flex-1">
-              {/* Step 1: Create Category and Sub Categories */}
+            <div className="bg-white rounded-lg dark:bg-[#303030]">
+              {/* Step 0: Create Category */}
               {currentStep === 0 && (
-                <div className="">
-                  <div className="bg-white rounded-lg p-6 dark:bg-[#303030]">
-                    <h2 className="text-2xl font-semibold mb-6">
-                      Create New Category
-                    </h2>
-                    <div className="space-y-6">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">
-                          Category Name *
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full p-3 border border-gray-300 rounded-lg"
-                          placeholder="Enter category name"
-                          value={categoryName}
-                          onChange={(e) => setCategoryName(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">
-                          Description
-                        </label>
-                        <TextEditor
-                          value={categoryDescription}
-                          onChange={setCategoryDescription}
-                        />
-                      </div>
+                <div className="p-8 pb-16 relative">
+                  <h2 className="text-2xl font-semibold mb-2">
+                    Create a category
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">
+                    Clear categories help customers browse easily and ensure
+                    your items show up where shoppers expect to find them.
+                  </p>
+
+                  <div className="space-y-6 mb-8">
+                    {/* Category Name */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">
+                        Category name *
+                      </Label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Fashion & Apparel"
+                        value={categoryName}
+                        onChange={(e) => setCategoryName(e.target.value)}
+                        className="h-11"
+                        maxLength={VALIDATION_RULES.categoryName.max}
+                        required
+                      />
+                      <p className="text-xs text-gray-500">
+                        {categoryName.length}/
+                        {VALIDATION_RULES.categoryName.max} characters
+                      </p>
+                    </div>
+
+                    {/* Category Image */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">
+                        Category image *
+                      </Label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Upload a representative image for this category. This
+                        will be displayed in category listings.
+                      </p>
+                      <ImageUpload
+                        onImageChange={(urls) => setCategoryImage(urls)}
+                        initialUrls={categoryImage}
+                        maxImages={1}
+                        maxSize={5}
+                        acceptedFormats="image/jpeg,image/jpg,image/png,image/webp"
+                        description="Upload category image"
+                        bucket="World_of_Africa"
+                        folder="categories"
+                        disabled={isCreating}
+                      />
                     </div>
                   </div>
 
-                  {/* Manage Sub Categories container */}
-                  <div className="bg-white rounded-lg p-6 mt-6 dark:bg-[#303030]">
-                    <div className="flex flex-row flex-1 justify-between items-center mb-6">
-                      <div>
-                        <h2 className="text-[#262626] font-semibold dark:text-white">
-                          Manage Sub Categories (Optional)
-                        </h2>
-                        <p className="text-[#737373] text-sm">
-                          Add or remove sub categories from this category
-                        </p>
-                      </div>
-                      <div>
-                        <Button
-                          variant={"secondary"}
-                          className="h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white font-semibold"
-                          onClick={() => setIsSubCategoryDrawerOpen(true)}
-                        >
-                          Add Sub Category
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Sub Categories List */}
-                    {subCategories.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {subCategories.map((subCategory) => (
-                          <div
-                            key={subCategory.id}
-                            className="border rounded-lg flex flex-col items-center gap-3 max-w-3xs relative p-2 group transition-all duration-200"
-                          >
-                            {/* Image Container */}
-                            <div className="w-full h-56 rounded-md overflow-hidden relative">
-                              <img
-                                src={subCategory.image}
-                                alt={subCategory.name}
-                                className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                              />
-
-                              {/* Hover Overlay */}
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center">
-                                {/* Remove Button - Hidden by default, visible on hover */}
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleRemoveSubCategory(subCategory.id)
-                                  }
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 transform scale-95 group-hover:scale-100 bg-red-500 hover:bg-red-600 text-white border-0"
-                                >
-                                  <X className="size-4 mr-1" />
-                                  Remove
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Category Name */}
-                            <div className="flex-1 pb-3">
-                              <h2 className="font-medium text-lg text-center">
-                                {subCategory.name}
-                              </h2>
-                            </div>
-
-                            {/* Remove Button for mobile/fallback */}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                handleRemoveSubCategory(subCategory.id)
-                              }
-                              className="rounded-full bg-white/90 backdrop-blur-sm border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 sm:hidden absolute top-3 right-3"
-                            >
-                              <X className="size-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
+                  <Button
+                    onClick={handleCreateCategory}
+                    className="px-8 py-3 bg-[#0A0A0A] hover:bg-[#262626] text-white h-12 w-full sm:w-auto float-right"
+                    disabled={
+                      !categoryName.trim() ||
+                      !categoryImage ||
+                      categoryImage.length === 0 ||
+                      isCreating
+                    }
+                  >
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating category...
+                      </>
                     ) : (
-                      <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                        <p className="text-gray-500 dark:text-gray-200">
-                          No sub categories added yet
-                        </p>
-                        <p className="text-sm text-gray-400 mt-1">
-                          Click "Add Sub Category" to get started (optional)
-                        </p>
-                      </div>
+                      "Save and continue"
                     )}
+                  </Button>
+                </div>
+              )}
+
+              {/* Step 1: Create Sub Categories */}
+              {currentStep === 1 && (
+                <div className="p-8">
+                  <h2 className="text-2xl font-semibold mb-2">
+                    Create sub categories
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">
+                    Subcategories make it easier for customers to filter,
+                    compare, and quickly find exactly what they're looking for.
+                  </p>
+
+                  <div className="flex items-center justify-between mb-6">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsSubCategoryDrawerOpen(true)}
+                      className="h-11"
+                    >
+                      + Add sub category
+                    </Button>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex justify-end mt-8">
+                  {subCategories.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+                      {subCategories.map((subCategory) => (
+                        <SubCategoryCard
+                          key={subCategory.id}
+                          subCategory={subCategory}
+                          onRemove={handleRemoveSubCategory}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg mb-8">
+                      <p className="text-gray-500">
+                        No sub categories added yet
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3">
                     <Button
-                      onClick={handleNext}
-                      className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12 text-white text-md font-semibold"
-                      disabled={!categoryName || createLoading}
+                      onClick={handleNextStep}
+                      className="px-8 bg-[#0A0A0A] hover:bg-[#262626] text-white h-12"
                     >
-                      {createLoading ? "Loading..." : "Next"}
+                      Save and continue
                     </Button>
                   </div>
                 </div>
               )}
 
               {/* Step 2: Create Sub Category Types */}
-              {currentStep === 1 && (
-                <div className="">
-                  <div className="bg-white rounded-lg p-8 dark:bg-[#303030]">
-                    <h2 className="text-2xl font-semibold">
-                      Create Sub Category Types (Optional)
-                    </h2>
+              {currentStep === 2 && (
+                <div className="p-8">
+                  <h2 className="text-2xl font-semibold mb-2">
+                    Create sub category types
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">
+                    Allow sellers to break down a subcategory into finer product
+                    groupings.
+                  </p>
+
+                  <div className="flex items-center justify-between mb-6">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsSubCategoryTypeDrawerOpen(true)}
+                      className="h-11"
+                      disabled={subCategories.length === 0}
+                    >
+                      + Add sub category type
+                    </Button>
                   </div>
-                  <div className="space-y-6">
-                    {subCategories.map((subCategory) => (
-                      <div
-                        key={subCategory.id}
-                        className="bg-white rounded-lg p-6 mt-6 space-y-6 dark:bg-[#303030]"
-                      >
-                        <div className="">
-                          <Label className="block text-md font-medium mb-2 dark:text-white">
-                            Sub Category
-                          </Label>
-                          <Input
-                            value={subCategory.name}
-                            className="h-11"
-                            disabled
-                          />
-                        </div>
 
-                        {/* Manage Sub Category Types */}
-                        <div className="flex flex-row flex-1 justify-between items-center mb-6">
-                          <div>
-                            <h2 className="text-[#262626] font-semibold mb-1 dark:text-white">
-                              Add Sub Category Types
-                            </h2>
-                            <p className="text-[#737373] text-sm">
-                              Add or remove sub category types from this sub
-                              category (optional)
-                            </p>
-                          </div>
-                          <div>
-                            <Button
-                              variant={"secondary"}
-                              className="h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white font-semibold"
-                              onClick={() => {
-                                setSelectedSubCategory(subCategory);
-                                setIsSubCategoryTypeDrawerOpen(true);
-                              }}
-                            >
-                              Add Sub Category Type
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Sub Category Types List */}
-                        {subCategory.types.length > 0 ? (
-                          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {subCategory.types.map((type) => (
-                              <div
-                                key={type.id}
-                                className="border rounded-lg flex flex-col items-center gap-3 max-w-3xs relative p-2 group transition-all duration-200"
-                              >
-                                {/* Image Container */}
-                                <div className="w-full h-56 rounded-md overflow-hidden relative">
-                                  <img
-                                    src={type.image}
-                                    alt={type.name}
-                                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                                  />
-
-                                  {/* Hover Overlay */}
-                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center">
-                                    <Button
-                                      variant="destructive"
-                                      size="sm"
-                                      onClick={() =>
-                                        handleRemoveSubCategoryType(
-                                          subCategory.id,
-                                          type.id
-                                        )
-                                      }
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 transform scale-95 group-hover:scale-100 bg-red-500 hover:bg-red-600 text-white border-0"
-                                    >
-                                      <X className="size-4 mr-1" />
-                                      Remove
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                {/* Type Name */}
-                                <div className="flex-1 pb-3">
-                                  <h2 className="font-medium text-lg text-center">
-                                    {type.name}
-                                  </h2>
-                                </div>
-
-                                {/* Remove Button for mobile */}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleRemoveSubCategoryType(
-                                      subCategory.id,
-                                      type.id
-                                    )
-                                  }
-                                  className="rounded-full bg-white/90 backdrop-blur-sm border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 sm:hidden absolute top-3 right-3"
-                                >
-                                  <X className="size-4" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                            <p className="text-gray-500 dark:text-gray-200">
-                              No sub category types added yet
-                            </p>
-                            <p className="text-sm text-gray-400 mt-1">
-                              Click "Add Sub Category Type" to get started
-                              (optional)
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    {subCategories.length === 0 && (
-                      <div className="bg-white rounded-lg p-6 text-left mt-6 dark:bg-[#303030]">
-                        <div className="bg-white rounded-lg p-6 pt-0 space-y-6 dark:bg-[#303030]">
-                          <div className="">
-                            <Label className="block text-md font-medium mb-2 dark:text-white">
-                              Sub Category
-                            </Label>
-                            <Input
-                              value="No Sub Categories Available"
-                              className="h-11"
-                              disabled
-                            />
-                          </div>
-
-                          {/* Manage Sub Category Types */}
-                          <div className="flex flex-row flex-1 justify-between items-center mb-6">
-                            <div>
-                              <h2 className="text-[#262626] font-semibold mb-1 dark:text-white">
-                                Add Sub Category Types
-                              </h2>
-                              <p className="text-[#737373] text-sm">
-                                Add or remove sub category types from this sub
-                                category
-                              </p>
-                            </div>
-                            <div>
-                              <Button
-                                variant={"secondary"}
-                                className="h-11 bg-gray-200 hover:bg-gray-200 text-gray-600 font-medium"
-                                onClick={() => {}}
-                              >
-                                Add Sub Category Type
-                              </Button>
-                            </div>
-                          </div>
-
-                          {/* Sub Category Types List */}
-                          <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                            <p className="text-gray-500 dark:text-gray-200">
-                              No sub category types added yet
-                            </p>
-                            <p className="text-sm text-gray-400 mt-1">
-                              Click "Add Sub Category Type" to get started
-                            </p>
-                          </div>
-                        </div>
-
-                        <p className="text-gray-500 px-6 dark:text-gray-300">
-                          No sub categories found. Please add sub categories in
-                          the previous step (optional).
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div className="flex justify-between">
-                      <Button
-                        variant="outline"
-                        onClick={handleBack}
-                        className="px-8 py-3 w-xs h-12"
-                      >
-                        Back
-                      </Button>
-                      <Button
-                        onClick={handleNext}
-                        className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12 text-white text-md font-semibold"
-                        disabled={createLoading}
-                      >
-                        {createLoading ? "Loading..." : "Next"}
-                      </Button>
+                  {subCategoryTypes.length > 0 ? (
+                    <SubCategoryTypeTable
+                      types={subCategoryTypes}
+                      subCategories={subCategories}
+                      onRemove={handleRemoveSubCategoryType}
+                    />
+                  ) : (
+                    <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg mb-8">
+                      <p className="text-gray-500">
+                        No sub category types added yet
+                      </p>
                     </div>
+                  )}
+
+                  <div className="flex justify-end gap-3 mt-8">
+                    <Button
+                      onClick={handleNextStep}
+                      className="px-8 bg-[#0A0A0A] hover:bg-[#262626] text-white h-12"
+                    >
+                      Save and continue
+                    </Button>
                   </div>
                 </div>
               )}
 
               {/* Step 3: Create Attributes */}
-              {currentStep === 2 && (
-                <div>
-                  <div className="bg-white rounded-lg p-8 dark:bg-[#303030]">
-                    <h2 className="text-2xl font-semibold mb-6">
-                      Create Attributes (Optional)
-                    </h2>
+              {currentStep === 3 && (
+                <div className="p-8">
+                  <h2 className="text-2xl font-semibold mb-2">
+                    Create attributes
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">
+                    Attributes are the specific product details sellers must
+                    provide so that customers can filter, compare, and make
+                    confident purchase decisions.
+                  </p>
 
-                    <div>
-                      {/* Search and Filter Section */}
-                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-2">
-                        <div className="w-full sm:w-auto sm:flex-1">
-                          <Search
-                            placeholder="Search for an attribute..."
-                            value={searchQuery}
-                            onSearchChange={setSearchQuery}
-                            className="rounded-full"
-                          />
-                        </div>
-
-                        <div className="flex flex-row items-center gap-4 w-full sm:w-auto">
-                          <div className="flex gap-2 items-center">
-                            <Button
-                              className="bg-[#CC5500] h-11 hover:bg-[#CC5500]/90 font-semibold text-white"
-                              onClick={() => setIsAttributeDrawerOpen(true)}
-                            >
-                              Add attribute
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        {filteredAttributes.length === 0 ? (
-                          <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
-                            <p className="text-gray-500 dark:text-gray-200">
-                              No attributes created yet
-                            </p>
-                            <p className="text-sm text-gray-400 mt-1">
-                              Click "Add attribute" to create your first
-                              attribute (optional)
-                            </p>
-                          </div>
-                        ) : (
-                          <DataTable<Attribute>
-                            data={filteredAttributes}
-                            fields={attributeFields}
-                            actions={attributeActions}
-                            enableSelection={true}
-                            enablePagination={true}
-                            pageSize={10}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Action Buttons */}
-                  <div className="flex justify-between mt-8">
+                  <div className="flex items-center justify-between mb-6">
                     <Button
                       variant="outline"
-                      onClick={handleBack}
-                      className="px-8 py-3 w-xs h-12"
+                      onClick={() => setIsAttributeDrawerOpen(true)}
+                      className="h-11"
                     >
-                      Back
+                      + Add attributes
                     </Button>
+                  </div>
+
+                  {attributes.length > 0 ? (
+                    <AttributeTable
+                      attributes={attributes}
+                      subCategoryTypes={subCategoryTypes}
+                      onRemove={handleRemoveAttribute}
+                    />
+                  ) : (
+                    <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg mb-8">
+                      <p className="text-gray-500">No attributes added yet</p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3 mt-8">
                     <Button
-                      onClick={handleNext}
-                      className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12 text-white text-md font-semibold"
-                      disabled={createLoading}
+                      onClick={handleNextStep}
+                      className="px-8 bg-[#0A0A0A] hover:bg-[#262626] text-white h-12"
                     >
-                      {createLoading ? "Loading..." : "Next"}
+                      Save and continue
                     </Button>
                   </div>
                 </div>
               )}
 
-              {/* Step 4: Review and Assign Attributes */}
-              {currentStep === 3 && (
-                <div>
-                  <div className="bg-white rounded-lg p-8 dark:bg-[#303030]">
-                    <h2 className="text-2xl font-semibold">
-                      Assign Attributes (Optional)
-                    </h2>
-                  </div>
-
-                  <div className="bg-white p-6 rounded-md mt-6 dark:bg-[#303030]">
-                    {subCategories.length > 0 ? (
-                      <div className="space-y-4">
-                        {subCategories.map((subCategory) => (
-                          <SubCategoryAttributesSection
-                            key={subCategory.id}
-                            subCategory={subCategory}
-                            attributes={attributes}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 dark:bg-[#303030]">
-                        <div className="text-gray-400 mb-4">
-                          <svg
-                            className="w-16 h-16 mx-auto"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1}
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
-                        </div>
-                        <p className="text-gray-500 text-lg font-medium dark:text-gray-300">
-                          No sub-categories found
-                        </p>
-                        <p className="text-gray-400 mt-1">
-                          Sub-categories are optional. You can skip this step.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  {/* Action Buttons */}
-                  <div className="flex justify-between mt-8 pt-6">
-                    <Button
-                      variant="outline"
-                      onClick={handleBack}
-                      className="px-8 py-3 w-xs h-12"
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      onClick={handleNext}
-                      className="px-8 py-3 bg-[#CC5500] hover:bg-[#B34D00] w-xs h-12 text-white text-md font-semibold"
-                      disabled={createLoading}
-                    >
-                      {createLoading ? "Creating..." : "Create Category"}
-                    </Button>
-                  </div>
-                </div>
+              {/* Step 4: Review and Submit */}
+              {currentStep === 4 && (
+                <ReviewSubmitSection
+                  categoryName={categoryName}
+                  subCategories={subCategories}
+                  subCategoryTypes={subCategoryTypes}
+                  attributes={attributes}
+                  onBack={handleBackStep}
+                  onSubmit={handleSubmit}
+                  isSubmitting={isCreating}
+                />
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Add Sub Category Drawer */}
+      {/* Drawers */}
       <AddSubCategoryDrawer
         isOpen={isSubCategoryDrawerOpen}
         onClose={() => setIsSubCategoryDrawerOpen(false)}
         onAddSubCategory={handleAddSubCategory}
       />
 
-      {/* Add Sub Category Type Drawer */}
       <AddSubCategoryTypeDrawer
         isOpen={isSubCategoryTypeDrawerOpen}
-        onClose={() => {
-          setIsSubCategoryTypeDrawerOpen(false);
-          setSelectedSubCategory(null);
-        }}
+        onClose={() => setIsSubCategoryTypeDrawerOpen(false)}
         onAddSubCategoryType={handleAddSubCategoryType}
+        subCategories={subCategories}
       />
 
-      {/* Add Attribute Drawer */}
       <AddAttributeDrawer
         isOpen={isAttributeDrawerOpen}
         onClose={() => setIsAttributeDrawerOpen(false)}
-        onAddAttribute={handleAddOrUpdateAttribute}
+        onAddAttribute={handleAddAttribute}
+        subCategoryTypes={subCategoryTypes}
       />
     </div>
-  )};
+  );
+}

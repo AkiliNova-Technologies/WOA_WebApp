@@ -486,9 +486,6 @@ const AddProductPage = () => {
                     onImageChange={(file) => {
                       console.log("Main image:", file);
                     }}
-                    aspectRatio="video"
-                    height="h-64"
-                    maxHeight="max-h-64" // Added max height
                     maxSize={10}
                   />
                 </div>
@@ -501,9 +498,6 @@ const AddProductPage = () => {
                       onImageChange={(file) => {
                         console.log(`Additional image ${index}:`, file);
                       }}
-                      aspectRatio="square"
-                      height="h-48"
-                      maxHeight="max-h-48" // Added max height
                       maxSize={10}
                     />
                   ))}
@@ -1246,7 +1240,11 @@ const AddProductPage = () => {
                       <CardContent className="text-center">
                         <div className="w-48 h-48 mb-6 mx-auto">
                           <div className="w-full h-full flex items-center justify-center">
-                            <img src={images.EmptyMessages} alt="Empty Message Fallback image" className=""/>
+                            <img
+                              src={images.EmptyMessages}
+                              alt="Empty Message Fallback image"
+                              className=""
+                            />
                           </div>
                         </div>
                       </CardContent>

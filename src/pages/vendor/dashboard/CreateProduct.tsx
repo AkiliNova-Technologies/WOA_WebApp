@@ -445,7 +445,6 @@ export default function ProductAddPage() {
                       initialUrls={formData.imageUrls}
                       maxSize={10}
                       folder="products"
-                      aspectRatio="square"
                       footer={true}
                     />
                   </div>

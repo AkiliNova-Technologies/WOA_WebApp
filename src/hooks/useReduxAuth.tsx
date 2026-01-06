@@ -137,12 +137,20 @@ export function useReduxAuth() {
       try {
         const result = await dispatch(login({ email, password })).unwrap();
 
-        // Only show success toast if user is authenticated
+        if (result.tokens) {
+          const { saveAuthData } = await import("@/utils/api");
+          saveAuthData({
+            userId: result.user.id,
+            email: result.user.email,
+            role: result.user.userType,
+            emailVerified: result.user.emailVerified,
+            forcePasswordChange: result.user.forcePasswordChange || false,
+            tokens: result.tokens,
+          });
+        }
+
         if (result.user && result.user.isActive) {
           toast.success("Login successful!");
-        } else if (result.user && !result.user.emailVerified) {
-          // Set verification pending state
-          dispatch(setVerificationPending({ email: result.user.email }));
         }
 
         return result;

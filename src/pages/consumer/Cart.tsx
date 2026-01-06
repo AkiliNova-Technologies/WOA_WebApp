@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Minus, Plus, Heart, Edit2, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Minus, Plus, Heart, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,71 +7,9 @@ import { Separator } from "@/components/ui/separator";
 import { ProductCard } from "@/components/productCard";
 import images from "@/assets/images";
 import { useNavigate } from "react-router-dom";
-
-// Mock cart data
-const initialCartItems = [
-  {
-    id: 1,
-    name: "Heritage Stitch African Print Shirt",
-    size: "XL",
-    price: 20,
-    quantity: 1,
-    limitedUnits: true,
-    image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=300",
-    inStock: true,
-  },
-  {
-    id: 2,
-    name: "African Shorts",
-    size: "XL",
-    price: 20,
-    quantity: 1,
-    limitedUnits: true,
-    image: "https://images.unsplash.com/photo-1591195853828-11db59a44f6b?w=300",
-    inStock: true,
-  },
-];
-
-const recentlyViewed = [
-  {
-    id: 1,
-    name: "Authentic African Headwrap, Stylish Pr...",
-    price: 35,
-    rating: 4.5,
-    reviews: 17,
-    vendor: "African Chic Boutique",
-    image: "https://images.unsplash.com/photo-1602810318660-67b3db9c7c7f?w=300",
-  },
-  {
-    id: 2,
-    name: "Vibrant Kente Cloth Headwrap, Handm...",
-    price: 40,
-    rating: 4.5,
-    reviews: 48,
-    vendor: "Heritage Styles",
-    image: "https://images.unsplash.com/photo-1602810319428-019690571b5b?w=300",
-  },
-  {
-    id: 3,
-    name: "Handcrafted African Leather Sandals f...",
-    price: 45,
-    originalPrice: 50,
-    discount: 10,
-    rating: 4,
-    reviews: 45,
-    vendor: "Nairobi Footwear",
-    image: "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=300",
-  },
-  {
-    id: 4,
-    name: "Exquisite Beaded African Slippers, Eth...",
-    price: 30,
-    rating: 5,
-    reviews: 8,
-    vendor: "Accra Accessories",
-    image: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=300",
-  },
-];
+import { useReduxCart } from "@/hooks/useReduxCart";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
+import { toast } from "sonner";
 
 const shippingOptions = [
   {
@@ -84,37 +22,83 @@ const shippingOptions = [
     id: "express",
     name: "DHL EXPRESS",
     price: 40.0,
-    description: "Estimated delivery: 3-5 business days",
+    description: "Estimated delivery: 1-2 business days",
   },
 ];
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const [cartItems, setCartItems] = useState(initialCartItems);
+  const { 
+    items: cartItems, 
+    loading, 
+    getCart, 
+    updateQuantity, 
+    removeItem,
+    moveItemToWishlist,
+    calculateSubtotal 
+  } = useReduxCart();
+  
+  const { recentlyViewedProducts, getRecentlyViewedProducts } = useReduxProducts();
+  
   const [selectedShipping, setSelectedShipping] = useState("standard");
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
-  const updateQuantity = (id: number, delta: number) => {
-    setCartItems(
-      cartItems.map((item) =>
-        item.id === id
-          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
-          : item
-      )
-    );
+  // Fetch cart and recently viewed on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        await getCart();
+        await getRecentlyViewedProducts({ limit: 4 });
+      } catch (error) {
+        console.error("Failed to fetch cart data:", error);
+      }
+    };
+
+    fetchData();
+  }, [getCart, getRecentlyViewedProducts]);
+
+  const handleUpdateQuantity = async (itemId: string, delta: number, currentQuantity: number) => {
+    const newQuantity = Math.max(1, currentQuantity + delta);
+    
+    setIsUpdating(itemId);
+    try {
+      await updateQuantity(itemId, newQuantity);
+    } catch (error) {
+      toast.error("Failed to update quantity", {
+        description: "Please try again",
+      });
+    } finally {
+      setIsUpdating(null);
+    }
   };
 
-  const removeItem = (id: number) => {
-    setCartItems(cartItems.filter((item) => item.id !== id));
+  const handleRemoveItem = async (itemId: string, productName: string) => {
+    try {
+      await removeItem(itemId);
+      toast.success("Item removed from cart", {
+        description: productName,
+      });
+    } catch (error) {
+      toast.error("Failed to remove item", {
+        description: "Please try again",
+      });
+    }
   };
 
-  const saveForLater = (id: number) => {
-    console.log("Save for later:", id);
+  const handleSaveForLater = async (itemId: string, productName: string) => {
+    try {
+      await moveItemToWishlist(itemId);
+      toast.success("Moved to wishlist", {
+        description: productName,
+      });
+    } catch (error) {
+      toast.error("Failed to move to wishlist", {
+        description: "Please try again",
+      });
+    }
   };
 
-  const subtotal = cartItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  const subtotal = calculateSubtotal();
   const selectedShippingOption = shippingOptions.find(
     (opt) => opt.id === selectedShipping
   );
@@ -122,6 +106,19 @@ export default function CartPage() {
   const discount = 0;
   const total = subtotal + shipping - discount;
 
+  // Loading state
+  if (loading && cartItems.length === 0) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-[#CC5500]" />
+          <p className="text-gray-600">Loading your cart...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty cart state
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-white">
@@ -131,12 +128,12 @@ export default function CartPage() {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 py-16 ">
+        <div className="max-w-7xl mx-auto px-4 py-16">
           <div className="bg-white flex flex-col justify-center items-center">
             <img
               src={images.EmptyCart}
               alt="Empty Cart Image"
-              className="h-full w-full max-h-sm max-w-sm "
+              className="h-full w-full max-h-sm max-w-sm"
             />
             <h2 className="text-xl font-semibold mb-2">Empty Cart</h2>
             <p className="text-gray-600 mb-6">You have nothing in your cart</p>
@@ -149,32 +146,26 @@ export default function CartPage() {
           </div>
 
           {/* Recently Viewed */}
-          <div className="mt-12">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">Recently viewed</h2>
-              <Button
-                variant="ghost"
-                className="text-[#CC5500] hover:text-[#CC5500]/80"
-              >
-                View more
-              </Button>
-            </div>
+          {recentlyViewedProducts.length > 0 && (
+            <div className="mt-12">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">Recently viewed</h2>
+                <Button
+                  variant="ghost"
+                  className="text-[#CC5500] hover:text-[#CC5500]/80"
+                  onClick={() => navigate("/products")}
+                >
+                  View more
+                </Button>
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {recentlyViewed.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  id={product.id}
-                  name={product.name}
-                  rating={product.rating}
-                  reviews={product.reviews}
-                  price={product.price}
-                  vendor={product.vendor}
-                  image={product.image}
-                />
-              ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {recentlyViewedProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -200,111 +191,118 @@ export default function CartPage() {
             </div>
 
             <div className="space-y-4">
-              {cartItems.map((item) => (
-                <Card key={item.id} className="p-4 shadow-none">
-                  <div className="flex gap-4">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-24 h-24 md:w-38 md:h-44 object-cover rounded-lg shrink-0"
-                    />
+              {cartItems.map((item) => {
+                // Get stock quantity - use product.stock as fallback
+                const stockQuantity = item.product.stock || 0;
+                
+                return (
+                  <Card key={item.id} className="p-4 shadow-none">
+                    <div className="flex gap-4">
+                      <img
+                        src={item.product.images?.[0]?.url || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"}
+                        alt={item.product.name}
+                        className="w-24 h-24 md:w-38 md:h-44 object-cover rounded-lg shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400";
+                        }}
+                      />
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg mb-1 line-clamp-2">
-                            {item.name}
-                          </h3>
-                          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                            <span>Size: {item.size}</span>
-                            {/* <Badge
-                              variant={item.inStock ? "default" : "secondary"}
-                              className={
-                                item.inStock
-                                  ? "bg-green-100 text-green-800"
-                                  : ""
-                              }
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg mb-1 line-clamp-2">
+                              {item.product.name}
+                            </h3>
+                            
+                            {/* SKU if available */}
+                            {item.product.sku && (
+                              <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                                <span>SKU: {item.product.sku}</span>
+                              </div>
+                            )}
+
+                            {/* Stock indicator */}
+                            {stockQuantity < 5 && stockQuantity > 0 && (
+                              <Badge
+                                variant="secondary"
+                                className="bg-transparent p-0 text-orange-800 mb-2"
+                              >
+                                Only {stockQuantity} left in stock
+                              </Badge>
+                            )}
+
+                            <p className="text-xl font-bold text-[#303030]">
+                              ${(item.salePrice || item.price).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-1 flex-row justify-between items-center mt-4">
+                          {/* Action Buttons */}
+                          <div className="flex flex-wrap gap-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-3 text-gray-600 hover:text-gray-900"
+                              onClick={() => handleRemoveItem(item.id, item.product.name)}
                             >
-                              {item.inStock ? "In Stock" : "Out of Stock"}
-                            </Badge> */}
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Remove
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-3 text-gray-600 hover:text-gray-900"
+                              onClick={() => handleSaveForLater(item.id, item.product.name)}
+                            >
+                              <Heart className="h-3 w-3 mr-1" />
+                              Save for later
+                            </Button>
                           </div>
 
-                          {item.limitedUnits && (
-                            <Badge
-                              variant="secondary"
-                              className="bg-transparent p-0 text-orange-800 mb-2"
-                            >
-                              Limited units left
-                            </Badge>
-                          )}
-
-                          <p className="text-xl font-bold text-[#303030]">
-                            ${item.price}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-1 flex-row justify-between items-center mt-4">
-                        {/* Action Buttons */}
-                        <div className="flex flex-wrap gap-4">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-3 text-gray-600 hover:text-gray-900"
-                            onClick={() => removeItem(item.id)}
-                          >
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Remove
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-3 text-gray-600 hover:text-gray-900"
-                            onClick={() => saveForLater(item.id)}
-                          >
-                            <Heart className="h-3 w-3 mr-1" />
-                            Save for later
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-3 text-gray-600 hover:text-gray-900"
-                          >
-                            <Edit2 className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
-                        </div>
-
-                        {/* Quantity Controls */}
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1 border border-gray-300 rounded-full p-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-full"
-                              onClick={() => updateQuantity(item.id, -1)}
-                              disabled={item.quantity <= 1}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="w-8 text-center text-sm font-medium">
-                              {item.quantity}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-full bg-[#CC5500] text-white hover:bg-[#CC5500]/80 hover:text-white"
-                              onClick={() => updateQuantity(item.id, 1)}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                          {/* Quantity Controls */}
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1 border border-gray-300 rounded-full p-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-full"
+                                onClick={() => handleUpdateQuantity(item.id, -1, item.quantity)}
+                                disabled={item.quantity <= 1 || isUpdating === item.id}
+                              >
+                                {isUpdating === item.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Minus className="h-3 w-3" />
+                                )}
+                              </Button>
+                              <span className="w-8 text-center text-sm font-medium">
+                                {item.quantity}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-full bg-[#CC5500] text-white hover:bg-[#CC5500]/80 hover:text-white"
+                                onClick={() => handleUpdateQuantity(item.id, 1, item.quantity)}
+                                disabled={
+                                  isUpdating === item.id || 
+                                  (stockQuantity > 0 && item.quantity >= stockQuantity)
+                                }
+                              >
+                                {isUpdating === item.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Plus className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           </div>
 
@@ -359,7 +357,7 @@ export default function CartPage() {
 
               {/* Order Summary */}
               <h3 className="font-semibold mb-4">
-                Items <span className="font-normal text-gray-600">(a)</span> total
+                Items <span className="font-normal text-gray-600">({cartItems.length})</span> total
               </h3>
 
               <div className="space-y-3">
@@ -386,7 +384,10 @@ export default function CartPage() {
                 </div>
               </div>
 
-              <Button className="w-full h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 rounded-full text-white font-semibold mt-6" onClick={()=> navigate("/cart/checkout")}>
+              <Button 
+                className="w-full h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 rounded-full text-white font-semibold mt-6" 
+                onClick={() => navigate("/cart/checkout")}
+              >
                 Proceed to Checkout
               </Button>
             </Card>
@@ -394,32 +395,26 @@ export default function CartPage() {
         </div>
 
         {/* Recently Viewed */}
-        <div className="mt-12">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Recently viewed</h2>
-            <Button
-              variant="ghost"
-              className="text-[#CC5500] hover:text-[#CC5500]/80"
-            >
-              View more
-            </Button>
-          </div>
+        {recentlyViewedProducts.length > 0 && (
+          <div className="mt-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Recently viewed</h2>
+              <Button
+                variant="ghost"
+                className="text-[#CC5500] hover:text-[#CC5500]/80"
+                onClick={() => navigate("/products")}
+              >
+                View more
+              </Button>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {recentlyViewed.map((product) => (
-              <ProductCard
-                key={product.id}
-                id={product.id}
-                name={product.name}
-                rating={product.rating}
-                reviews={product.reviews}
-                price={product.price}
-                vendor={product.vendor}
-                image={product.image}
-              />
-            ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {recentlyViewedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

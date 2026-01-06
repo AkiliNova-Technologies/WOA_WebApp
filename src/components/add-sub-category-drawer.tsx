@@ -3,13 +3,16 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ImageUpload} from "@/components/image-upload";
-
+import { ImageUpload } from "@/components/image-upload";
 
 interface AddSubCategoryDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddSubCategory: (subCategory: { name: string; image: File | null }) => void;
+  onAddSubCategory: (subCategory: {
+    name: string;
+    description?: string;
+    image: string[] | null;
+  }) => void;
 }
 
 export function AddSubCategoryDrawer({
@@ -18,19 +21,10 @@ export function AddSubCategoryDrawer({
   onAddSubCategory,
 }: AddSubCategoryDrawerProps) {
   const [subCategoryName, setSubCategoryName] = useState("");
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>("");
-
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
 
   const handleImageChange = (urls: string[]) => {
-    if (urls.length > 0) {
-      setUploadedUrls(urls);
-      setImagePreview(urls[0]);
-    } else {
-      setUploadedUrls([]);
-      setImagePreview("");
-    }
+    setUploadedUrls(urls);
   };
 
   const handleAddSubCategory = () => {
@@ -39,32 +33,28 @@ export function AddSubCategoryDrawer({
       return;
     }
 
-    if (!selectedImage) {
-      alert("Please select an image for the sub-category");
+    if (uploadedUrls.length === 0) {
+      alert("Please upload an image for the sub-category");
       return;
     }
 
-    // Call the parent function with the data
     onAddSubCategory({
       name: subCategoryName.trim(),
-      image: selectedImage,
+      image: uploadedUrls,
     });
-
     handleClose();
   };
 
   const handleClose = () => {
     setSubCategoryName("");
-    setSelectedImage(null);
-    setImagePreview("");
-
+    setUploadedUrls([]);
     onClose();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       {/* Overlay */}
       <div
         className="fixed inset-0 bg-black/50 transition-opacity"
@@ -72,11 +62,11 @@ export function AddSubCategoryDrawer({
       />
 
       {/* Drawer Content */}
-      <div className="relative bg-white w-full max-w-3xl rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto dark:bg-[#1A1A1A]">
+      <div className="relative bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto dark:bg-[#1A1A1A]">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b dark:border-[#333333]">
           <h2 className="text-xl font-semibold dark:text-white">
-            Add Sub Category
+            Create Sub category
           </h2>
           <Button
             variant="ghost"
@@ -96,12 +86,12 @@ export function AddSubCategoryDrawer({
               htmlFor="subCategoryName"
               className="text-sm font-medium dark:text-white"
             >
-              Sub Category Name *
+              Name *
             </Label>
             <Input
               id="subCategoryName"
               type="text"
-              placeholder="Enter sub category name"
+              placeholder="e.g. Women's fashion"
               value={subCategoryName}
               onChange={(e) => setSubCategoryName(e.target.value)}
               className="h-11 dark:bg-[#303030] dark:border-[#444444] dark:text-white"
@@ -111,33 +101,19 @@ export function AddSubCategoryDrawer({
 
           {/* Image Upload */}
           <div className="space-y-2">
-            <Label
-              htmlFor="subCategoryImage"
-              className="text-sm font-medium dark:text-white"
-            >
-              Sub Category Image *
+            <Label className="text-sm font-medium dark:text-white">
+              Upload cover image *
             </Label>
             <ImageUpload
               onImageChange={handleImageChange}
-              aspectRatio="square"
-              height="h-48"
-              maxHeight="max-h-48"
+              
+              
+              
+              bucket="World_of_Africa"
               maxSize={10}
               className="w-full"
               initialUrls={uploadedUrls}
             />
-            {imagePreview && (
-              <div className="mt-2">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Preview:
-                </p>
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="mt-1 w-24 h-24 object-cover rounded-md border dark:border-[#444444]"
-                />
-              </div>
-            )}
           </div>
         </div>
 
@@ -152,10 +128,10 @@ export function AddSubCategoryDrawer({
           </Button>
           <Button
             onClick={handleAddSubCategory}
-            className="flex-1 h-11 bg-[#CC5500] hover:bg-[#B34D00] text-white"
-            disabled={!subCategoryName.trim() || !selectedImage}
+            className="flex-1 h-11 bg-[#0A0A0A] hover:bg-[#262626] text-white"
+            disabled={!subCategoryName.trim() || uploadedUrls.length === 0}
           >
-            Add Sub Category
+            Save
           </Button>
         </div>
       </div>
