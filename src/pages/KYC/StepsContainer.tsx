@@ -184,6 +184,16 @@ export default function StepsContainer() {
     }
   }, []);
 
+  // Auto-advance to Step 2 after email verification
+  useEffect(() => {
+    if (formData.emailVerified && formData.step1Completed && current === 0) {
+      setCurrent(1);
+      if (!completedSteps.includes(1)) {
+        setCompletedSteps((prev) => [...prev, 1]);
+      }
+    }
+  }, [formData.emailVerified, formData.step1Completed, current, completedSteps]);
+
   // const handleAuthRequired = () => {
   //   // Store current KYC data before redirecting
   //   localStorage.setItem('kycDraftData', JSON.stringify(formData));
@@ -201,7 +211,7 @@ export default function StepsContainer() {
     setFormData((prev) => {
       const updated = { ...prev, ...newData };
 
-      // Update step 1 completion
+      // Update step 1 completion - only check basic fields, completion is set manually
       if (
         newData.firstName !== undefined ||
         newData.lastName !== undefined ||
@@ -219,61 +229,25 @@ export default function StepsContainer() {
             updated.identityDocumentUrls &&
             updated.identityDocumentUrls.length >= 2
         );
-        updated.step1Completed = step1Complete;
-        if (step1Complete && !completedSteps.includes(1)) {
-          setCompletedSteps((prev) => [...prev, 1]);
+        // Only update if explicitly set or if all conditions are met
+        if (newData.step1Completed !== undefined || step1Complete) {
+          updated.step1Completed = newData.step1Completed !== undefined ? newData.step1Completed : step1Complete;
         }
       }
 
-      // Update step 2 completion
-      if (
-        newData.storeName !== undefined ||
-        newData.country !== undefined ||
-        newData.city !== undefined ||
-        newData.district !== undefined ||
-        newData.locationVerified !== undefined
-      ) {
-        const step2Complete = Boolean(
-          updated.storeName &&
-            updated.country &&
-            updated.city &&
-            updated.district &&
-            updated.locationVerified
-        );
-        updated.step2Completed = step2Complete;
-        if (step2Complete && !completedSteps.includes(2)) {
-          setCompletedSteps((prev) => [...prev, 2]);
-        }
+      // Update step 2 completion - only when explicitly set
+      if (newData.step2Completed !== undefined) {
+        updated.step2Completed = newData.step2Completed;
       }
 
-      // Update step 3 completion
-      if (newData.storeDescription !== undefined && newData.step3Completed === undefined) {
-        const step3Complete = Boolean(
-          updated.storeDescription.trim().length > 0
-        );
-        updated.step3Completed = step3Complete;
-        if (step3Complete && !completedSteps.includes(3)) {
-          setCompletedSteps((prev) => [...prev, 3]);
-        }
+      // Update step 3 completion - only when explicitly set
+      if (newData.step3Completed !== undefined) {
+        updated.step3Completed = newData.step3Completed;
       }
 
-      // Update step 4 completion
-      if (
-        (newData.accountHolderName !== undefined ||
-        newData.accountNumber !== undefined ||
-        newData.confirmAccountNumber !== undefined) &&
-        newData.step4Completed === undefined
-      ) {
-        const step4Complete = Boolean(
-          updated.accountHolderName &&
-            updated.accountNumber &&
-            updated.confirmAccountNumber &&
-            updated.accountNumber === updated.confirmAccountNumber
-        );
-        updated.step4Completed = step4Complete;
-        if (step4Complete && !completedSteps.includes(4)) {
-          setCompletedSteps((prev) => [...prev, 4]);
-        }
+      // Update step 4 completion - only when explicitly set
+      if (newData.step4Completed !== undefined) {
+        updated.step4Completed = newData.step4Completed;
       }
 
       return updated;
@@ -319,9 +293,10 @@ export default function StepsContainer() {
 
   const handleEmailVerified = () => {
     console.log("Email verified successfully!");
-    updateFormData({ emailVerified: true });
+    updateFormData({ emailVerified: true, step1Completed: true });
     setKycStatus("email_verified");
     toast.success("Email verified successfully!");
+    // Step will auto-advance via useEffect
   };
 
   const handleLocationVerified = (coordinates: {
@@ -651,15 +626,34 @@ export default function StepsContainer() {
             ) || isStartingKYC
           );
         } else {
-          // After email verification
-          return false;
+          // After email verification - button should not be shown
+          return true;
         }
       case 1:
-        return !formData.step2Completed || !formData.emailVerified;
+        // Step 2 requires all fields and location verification
+        return !(
+          formData.storeName &&
+          formData.country &&
+          formData.city &&
+          formData.district &&
+          formData.locationVerified &&
+          formData.emailVerified
+        );
       case 2:
-        return !formData.step3Completed || !formData.emailVerified;
+        // Step 3 requires store description
+        return !(
+          formData.storeDescription.trim().length > 0 &&
+          formData.emailVerified
+        );
       case 3:
-        return !formData.step4Completed || !formData.emailVerified;
+        // Step 4 requires bank details
+        return !(
+          formData.accountHolderName &&
+          formData.accountNumber &&
+          formData.confirmAccountNumber &&
+          formData.accountNumber === formData.confirmAccountNumber &&
+          formData.emailVerified
+        );
       case 4:
         return !formData.emailVerified; // Can't submit without email verification
       default:

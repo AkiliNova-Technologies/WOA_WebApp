@@ -52,22 +52,7 @@ export default function Step4({ formData, updateFormData }: Step4Props) {
       });
     }
     
-    // Auto-mark step as completed when all required fields are filled
-    if (field === 'accountHolderName' || field === 'accountNumber' || field === 'confirmAccountNumber') {
-      const isStepComplete = Boolean(
-        formData.accountHolderName && 
-        formData.accountNumber && 
-        formData.confirmAccountNumber && 
-        formData.accountNumber === formData.confirmAccountNumber
-      );
-      
-      // Only update if it's not already set to true to avoid infinite loops
-      if (isStepComplete && !formData.step4Completed) {
-        updateFormData({ step4Completed: true });
-      } else if (!isStepComplete && formData.step4Completed) {
-        updateFormData({ step4Completed: false });
-      }
-    }
+    // Removed auto-completion logic - user must click "Save and continue"
   };
 
   const validateAccountNumber = (accountNumber: string) => {

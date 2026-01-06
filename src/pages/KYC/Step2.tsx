@@ -315,9 +315,6 @@ export default function Step2({
       onLocationVerified(formData.gpsCoordinates);
     }
     setShowAddressConfirmation(false);
-
-    // Automatically mark step as completed when location is verified
-    updateFormData({ step2Completed: true });
   };
 
   const handleReverifyLocation = () => {
@@ -334,17 +331,13 @@ export default function Step2({
       !showLocationVerification &&
       !showAddressConfirmation
     ) {
-      // Automatically mark step as completed when location is verified
-      if (!formData.step2Completed) {
-        updateFormData({ step2Completed: true });
-      }
+      // Don't automatically mark step as completed
+      // User must click "Save and continue" to proceed
     }
   }, [
     formData.locationVerified,
-    formData.step2Completed,
     showLocationVerification,
     showAddressConfirmation,
-    updateFormData,
   ]);
 
   // Don't allow proceeding without email verification
@@ -649,7 +642,7 @@ export default function Step2({
           )}
         </div>
       ) : (
-        // Address Confirmation Screen
+        // Address Confirmation Screen - REMOVED "Save and continue" button
         <div className="flex flex-col items-center justify-center min-h-[600px] py-12">
           {/* Illustration */}
           <div className="mb-8">
@@ -675,7 +668,7 @@ export default function Step2({
             <div className="flex items-start gap-2">
               <span>•</span>
               <span>
-                If everything looks correct, click Continue to proceed.
+                If everything looks correct, click the main "Save and continue" button below to proceed.
               </span>
             </div>
             <div className="flex items-start gap-2">
@@ -705,7 +698,7 @@ export default function Step2({
             )}
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons - ONLY Re-verify button here */}
           <div className="flex gap-4">
             <Button
               onClick={handleReverifyLocation}
@@ -718,7 +711,7 @@ export default function Step2({
               onClick={handleConfirmAddress}
               className="bg-black hover:bg-black/90 text-white h-11 px-12 rounded-full"
             >
-              Save and continue
+              Confirm Address
             </Button>
           </div>
         </div>

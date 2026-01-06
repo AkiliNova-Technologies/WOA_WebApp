@@ -11,11 +11,7 @@ interface Step3Props {
 export default function Step3({ formData, updateFormData }: Step3Props) {
   const handleStoreDescriptionChange = (value: string) => {
     updateFormData({ storeDescription: value });
-
-    // Auto-mark step as completed when description is provided
-    if (value.trim().length > 0 && !formData.step3Completed) {
-      updateFormData({ step3Completed: true });
-    }
+    // Removed auto-completion logic - user must click "Save and continue"
   };
 
   const handleVideoChange = (url: string | null) => {
@@ -177,5 +173,3 @@ export default function Step3({ formData, updateFormData }: Step3Props) {
     </div>
   );
 }
-
-
