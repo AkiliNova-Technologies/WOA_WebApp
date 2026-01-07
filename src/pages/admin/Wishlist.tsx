@@ -20,25 +20,23 @@ import { SiteHeader } from "@/components/site-header";
 import { Filter, Download } from "lucide-react";
 import { Eye } from "lucide-react";
 import { useReduxWishlist } from "@/hooks/useReduxWishlists";
+import type { AdminWishlistProduct } from "@/redux/slices/wishlistSlice";
 import images from "@/assets/images";
 
-type WishlistStatus = "in-stock" | "limited-stock" | "out-of-stock" | "suspended";
-type TabFilter = "all" | "in-stock" | "limited-stock" | "out-of-stock" | "suspended";
+type WishlistStatus =
+  | "in-stock"
+  | "limited-stock"
+  | "out-of-stock"
+  | "suspended";
+type TabFilter =
+  | "all"
+  | "in-stock"
+  | "limited-stock"
+  | "out-of-stock"
+  | "suspended";
 
-interface WishlistItemWithId {
+interface WishlistItemWithId extends AdminWishlistProduct {
   id: string;
-  productId: string;
-  product: {
-    id: string;
-    name: string;
-    price: number;
-    salePrice?: number;
-    images: { url: string; isPrimary: boolean }[];
-    vendor: { id: string; businessName: string };
-    category?: string; // Added category property
-  };
-  addedAt: string;
-  wishlists: number;
   status: WishlistStatus;
   [key: string]: any;
 }
@@ -46,17 +44,27 @@ interface WishlistItemWithId {
 export default function AdminWishlistPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatuses, setSelectedStatuses] = useState<WishlistStatus[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<WishlistStatus[]>(
+    []
+  );
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const {
-    items,
-    getWishlist,
+    adminStats,
+    adminProducts,
+    adminPagination,
+    adminLoading,
+    getAdminWishlist,
   } = useReduxWishlist();
 
   useEffect(() => {
-    getWishlist();
-  }, [getWishlist]);
+    const params = {
+      search: searchQuery || undefined,
+      page: currentPage,
+    };
+    getAdminWishlist(params);
+  }, [searchQuery, currentPage, getAdminWishlist]);
 
   const statusOptions: { value: WishlistStatus; label: string }[] = [
     { value: "in-stock", label: "In stock" },
@@ -77,97 +85,77 @@ export default function AdminWishlistPage() {
     setSelectedStatuses([]);
     setSearchQuery("");
     setActiveTab("all");
+    setCurrentPage(1);
   };
 
-  // Transform wishlist items for table display
-  const transformWishlistItemForTable = (item: any, index: number): WishlistItemWithId => ({
-    id: item.id || `wishlist-${index}`,
-    productId: item.productId || item.product?.id || `product-${index}`,
-    product: {
-      id: item.product?.id || `product-${index}`,
-      name: item.product?.name || "Unknown Product",
-      price: item.product?.price || 0,
-      salePrice: item.product?.salePrice,
-      images: item.product?.images || [],
-      vendor: item.product?.vendor || { id: "unknown", businessName: "Unknown Vendor" },
-      category: item.product?.category?.name || "Uncategorized", // Fixed category access
-    },
-    addedAt: item.addedAt || new Date().toISOString(),
-    wishlists: 10, // Placeholder
-    status: index === 0 ? "in-stock" : 
-            index === 1 ? "limited-stock" : 
-            index === 2 ? "out-of-stock" : 
-            "suspended",
-  });
+  // Transform admin products to include status based on stock
+  const transformAdminProduct = (
+    product: AdminWishlistProduct
+  ): WishlistItemWithId => {
+    let status: WishlistStatus;
 
-  const tableWishlistItems: WishlistItemWithId[] = items.map(transformWishlistItemForTable);
+    if (product.stock === 0) {
+      status = "out-of-stock";
+    } else if (product.stock <= 10) {
+      status = "limited-stock";
+    } else {
+      status = "in-stock";
+    }
+
+    return {
+      ...product,
+      id: product.productId,
+      status,
+    };
+  };
+
+  const tableWishlistItems: WishlistItemWithId[] = adminProducts.map(
+    transformAdminProduct
+  );
 
   // Filter wishlist items
   const filteredWishlistItems = tableWishlistItems.filter((item) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      item.product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.product.vendor.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.product.category && item.product.category.toLowerCase().includes(searchQuery.toLowerCase()));
-
     const matchesStatusFilter =
-      selectedStatuses.length === 0 ||
-      selectedStatuses.includes(item.status);
+      selectedStatuses.length === 0 || selectedStatuses.includes(item.status);
 
-    const matchesTabFilter = 
-      activeTab === "all" ||
-      activeTab === item.status;
+    const matchesTabFilter = activeTab === "all" || activeTab === item.status;
 
-    return matchesSearch && matchesStatusFilter && matchesTabFilter;
+    return matchesStatusFilter && matchesTabFilter;
   });
 
-  // Calculate statistics for cards
-  const totalItems = items.length;
-  const inStockItems = tableWishlistItems.filter(item => item.status === "in-stock").length;
-  const limitedStockItems = tableWishlistItems.filter(item => item.status === "limited-stock").length;
-  
-  const wishlistToCartRate = totalItems > 0 
-    ? Math.round((inStockItems / totalItems) * 100).toString()
-    : "0";
-    
-  const wishlistAbandonmentRate = totalItems > 0 
-    ? Math.round((limitedStockItems / totalItems) * 100).toString()
-    : "0";
-
+  // Calculate statistics for cards using admin stats
   const statsCards: CardData[] = [
     {
       title: "Total wishlisted products",
-      value: totalItems.toString(),
+      value: adminStats?.totalWishlistItems.toString() || "0",
       change: {
-        value: "10%",
-        trend: "up",
-        description: "",
+        value: `${adminStats?.wishlistChangePct.toFixed(1) || 0}%`,
+        trend: (adminStats?.wishlistChangePct || 0) >= 0 ? "up" : "down",
+        description: "vs last month",
       },
     },
     {
       title: "Wishlist to Cart",
-      value: `${wishlistToCartRate}%`,
+      value: adminStats?.totalConversions.toString() || "0",
       change: {
-        value: "5%",
-        trend: "down",
-        description: "",
+        value: `${Math.abs(adminStats?.conversionsChangePct || 0).toFixed(1)}%`,
+        trend: (adminStats?.conversionsChangePct || 0) >= 0 ? "up" : "down",
+        description: "vs last month",
       },
     },
     {
-      title: "Wishlist Abandonment",
-      value: `${wishlistAbandonmentRate}%`,
+      title: "This Month",
+      value: adminStats?.thisMonth.wishlistAdds.toString() || "0",
       change: {
-        value: "5%",
-        trend: "down",
+        value: `${adminStats?.thisMonth.conversions || 0} conversions`,
+        trend: undefined,
         description: "",
       },
     },
   ];
 
   const handleViewProduct = (productId: string) => {
-    if (window.confirm("View product details?")) {
-      navigate(`/admin/products/${productId}/details`);
-    }
+    navigate(`/admin/products/${productId}/details`);
   };
 
   const getInitials = (name: string): string => {
@@ -185,20 +173,17 @@ export default function AdminWishlistPage() {
       cell: (_, row) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12 rounded-md">
-            <AvatarImage 
-              src={row.product.images.find(img => img.isPrimary)?.url || row.product.images[0]?.url} 
-              alt={row.product.name} 
-              className="object-cover" 
+            <AvatarImage
+              src={row.image}
+              alt={row.name}
+              className="object-cover"
             />
             <AvatarFallback className="bg-muted text-muted-foreground font-medium rounded-md">
-              {getInitials(row.product.name)}
+              {getInitials(row.name)}
             </AvatarFallback>
           </Avatar>
           <div>
-            <span className="font-medium text-md">{row.product.name}</span>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {row.product.vendor.businessName}
-            </p>
+            <span className="font-medium text-md">{row.name}</span>
           </div>
         </div>
       ),
@@ -207,31 +192,29 @@ export default function AdminWishlistPage() {
     {
       key: "category",
       header: "Category",
-      cell: (_, row) => <span className="font-medium">{row.product.category || "Uncategorized"}</span>,
-      align: "center",
-      enableSorting: true,
-    },
-    {
-      key: "price",
-      header: "Price (USD)",
       cell: (_, row) => (
-        <div className="text-center">
-          {row.product.salePrice ? (
-            <>
-              <span className="line-through text-gray-400">${row.product.price.toFixed(2)}</span>
-              <span className="ml-2 font-medium text-green-600">${row.product.salePrice.toFixed(2)}</span>
-            </>
-          ) : (
-            <span className="font-medium">${row.product.price.toFixed(2)}</span>
-          )}
+        <div>
+          <span className="font-medium block">{row.category.name}</span>
+          {/* {row.subcategory && (
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {row.subcategory.name}
+            </span>
+          )} */}
         </div>
       ),
       align: "center",
       enableSorting: true,
     },
     {
-      key: "wishlists",
+      key: "wishlistCount",
       header: "Wishlists",
+      cell: (value) => <span className="font-medium">{value as number}</span>,
+      align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "stock",
+      header: "Stock",
       cell: (value) => <span className="font-medium">{value as number}</span>,
       align: "center",
       enableSorting: true,
@@ -239,7 +222,7 @@ export default function AdminWishlistPage() {
     {
       key: "status",
       header: "Status",
-      cell: (value) => {
+      cell: (_, row) => {
         const statusConfig = {
           "in-stock": {
             label: "In stock",
@@ -253,13 +236,13 @@ export default function AdminWishlistPage() {
             label: "Out of stock",
             className: "bg-red-50 text-red-700 border-red-200",
           },
-          "suspended": {
+          suspended: {
             label: "Suspended",
             className: "bg-gray-100 text-gray-700 border-gray-300",
           },
         };
 
-        const config = statusConfig[value as keyof typeof statusConfig] || statusConfig.suspended;
+        const config = statusConfig[row.status] || statusConfig.suspended;
 
         return (
           <Badge
@@ -268,6 +251,24 @@ export default function AdminWishlistPage() {
           >
             {config.label}
           </Badge>
+        );
+      },
+      align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "lastWishlistedAt",
+      header: "Last Wishlisted",
+      cell: (value) => {
+        const date = new Date(value as string);
+        return (
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            {date.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </span>
         );
       },
       align: "center",
@@ -288,7 +289,6 @@ export default function AdminWishlistPage() {
 
   const handleTabClick = (tab: TabFilter) => {
     setActiveTab(tab);
-    // Clear status filters when switching tabs (optional)
     if (tab !== "all") {
       setSelectedStatuses([]);
     }
@@ -296,19 +296,22 @@ export default function AdminWishlistPage() {
 
   const getTabButtonClass = (tab: TabFilter) => {
     const baseClass = "px-4 py-4 text-sm font-medium whitespace-nowrap";
-    
+
     if (activeTab === tab) {
       return `${baseClass} text-gray-900 dark:text-white border-b-2 border-gray-900 dark:border-white font-semibold`;
     }
-    
+
     return `${baseClass} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white`;
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page on search
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#1a1a1a]">
-      <SiteHeader
-        label="Wishlist Management"
-      />
+      <SiteHeader label="Wishlist Management" />
       <div className="p-6 space-y-6">
         <SectionCards cards={statsCards} layout="1x3" />
 
@@ -316,7 +319,9 @@ export default function AdminWishlistPage() {
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">All Wishlists</h2>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                  All Wishlists
+                </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   Manage and monitor all wishlisted products on the platform
                 </p>
@@ -326,9 +331,9 @@ export default function AdminWishlistPage() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="w-full sm:w-96">
                 <Search
-                  placeholder="Search"
+                  placeholder="Search by product name"
                   value={searchQuery}
-                  onSearchChange={setSearchQuery}
+                  onSearchChange={handleSearchChange}
                   className="h-10"
                 />
               </div>
@@ -381,7 +386,9 @@ export default function AdminWishlistPage() {
                   Export
                 </Button>
 
-                {(selectedStatuses.length > 0 || searchQuery || activeTab !== "all") && (
+                {(selectedStatuses.length > 0 ||
+                  searchQuery ||
+                  activeTab !== "all") && (
                   <Button
                     variant="ghost"
                     onClick={clearAllFilters}
@@ -396,51 +403,56 @@ export default function AdminWishlistPage() {
 
           <div className="border-b border-gray-200 dark:border-gray-700">
             <div className="flex gap-0 px-6 overflow-x-auto">
-              <button 
+              <button
                 className={getTabButtonClass("all")}
                 onClick={() => handleTabClick("all")}
               >
                 All Wishlists
               </button>
-              <button 
+              <button
                 className={getTabButtonClass("in-stock")}
                 onClick={() => handleTabClick("in-stock")}
               >
                 In Stock
               </button>
-              <button 
+              <button
                 className={getTabButtonClass("limited-stock")}
                 onClick={() => handleTabClick("limited-stock")}
               >
                 Limited Stock
               </button>
-              <button 
+              <button
                 className={getTabButtonClass("out-of-stock")}
                 onClick={() => handleTabClick("out-of-stock")}
               >
                 Out of Stock
               </button>
-              <button 
-                className={getTabButtonClass("suspended")}
-                onClick={() => handleTabClick("suspended")}
-              >
-                Suspended
-              </button>
             </div>
           </div>
 
           <div className="p-6">
-            {filteredWishlistItems.length === 0 ? (
+            {adminLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
+                  <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                    Loading wishlist data...
+                  </p>
+                </div>
+              </div>
+            ) : filteredWishlistItems.length === 0 ? (
               <div className="flex flex-col items-center text-center py-12">
-                <img src={images.EmptyFallback} alt="" className="h-60 mb-6"/>
+                <img src={images.EmptyFallback} alt="" className="h-60 mb-6" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                   No Wishlist Items Found
                 </h3>
-                {items.length === 0 && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    No products have been wishlisted yet.
-                  </p>
-                )}
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {searchQuery ||
+                  selectedStatuses.length > 0 ||
+                  activeTab !== "all"
+                    ? "Try adjusting your filters"
+                    : "No products have been wishlisted yet."}
+                </p>
               </div>
             ) : (
               <DataTable<WishlistItemWithId>
@@ -449,10 +461,36 @@ export default function AdminWishlistPage() {
                 actions={wishlistActions}
                 enableSelection={true}
                 enablePagination={true}
-                pageSize={10}
+                pageSize={adminPagination?.pageSize || 25}
               />
             )}
           </div>
+
+          {/* {adminPagination && adminPagination.total > 1 && (
+            <div className="px-6 pb-6 flex items-center justify-between">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Showing page {adminPagination.page} of {adminPagination.total}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  disabled={currentPage >= adminPagination.total}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )} */}
         </div>
       </div>
     </div>

@@ -63,7 +63,7 @@ export interface CombinedVendor {
   reviewCount: number;
   followerCount: number;
   productCount: number;
-  vendorStatus: 'pending' | 'active' | 'suspended' | 'deactivated' | 'deleted';
+  vendorStatus: 'pending' | 'active' | 'suspended' | 'deactivated' | 'deleted' | 'rejected';
   isVerified: boolean;
   joinedAt: string;
   lastActiveAt: string;
@@ -78,7 +78,7 @@ export interface CombinedVendor {
   joinDate: string;
   signedUpOn: string;
   lastActive: string;
-  status: 'pending' | 'active' | 'suspended' | 'deactivated' | 'deleted';
+  status: 'pending' | 'active' | 'suspended' | 'deactivated' | 'deleted' | 'rejected';
   totalProducts: number;
   totalSales: number;
   tier: 'basic' | 'premium' | 'enterprise';

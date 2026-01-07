@@ -20,12 +20,13 @@ import {
 import { useReduxVendors, type CombinedVendor } from "@/hooks/useReduxVendors";
 import images from "@/assets/images";
 
-// Types
-type VendorStatus =
+// Types - Add rejected to VendorStatus
+type VendorStatus = 
   | "pending"
-  | "active"
+  | "active" 
   | "suspended"
   | "deactivated"
+  | "rejected" 
   | "deleted";
 type DateRange = "last-7-days" | "last-30-days" | "all-time";
 type VendorTab =
@@ -34,9 +35,10 @@ type VendorTab =
   | "active"
   | "suspended"
   | "deactivated"
+  | "rejected"
   | "deleted";
 
-// Status configuration
+// Status configuration - Add rejected status
 const statusConfig = {
   pending: {
     label: "Pending Approval",
@@ -57,6 +59,11 @@ const statusConfig = {
     label: "Deactivated",
     className:
       "bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700",
+  },
+  rejected: {
+    label: "Rejected",
+    className:
+      "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800",
   },
   deleted: {
     label: "Deleted",
@@ -246,6 +253,11 @@ export default function AdminVendorsPage() {
     return calculateCombinedStats(combinedVendors);
   }, [combinedVendors, calculateCombinedStats]);
 
+  // Calculate rejected vendors count
+  const rejectedVendorsCount = useMemo(() => {
+    return combinedVendors.filter(v => v.status === 'rejected').length;
+  }, [combinedVendors]);
+
   // Filter vendors based on tab, search and status filters using useMemo for optimization
   const filteredVendors = useMemo(() => {
     return filterVendors(combinedVendors, searchQuery, selectedStatuses, activeTab);
@@ -349,12 +361,13 @@ export default function AdminVendorsPage() {
     },
   ];
 
-  // Available status options for filter
+  // Available status options for filter - Add rejected
   const statusOptions: { value: VendorStatus; label: string }[] = [
     { value: "pending", label: "Pending Approval" },
     { value: "active", label: "Active" },
     { value: "suspended", label: "Suspended" },
     { value: "deactivated", label: "Deactivated" },
+    { value: "rejected", label: "Rejected" },
     { value: "deleted", label: "Deleted" },
   ];
 
@@ -415,7 +428,7 @@ export default function AdminVendorsPage() {
       key: "status",
       header: "Status",
       cell: (_, row) => {
-        const config = statusConfig[row.status] || statusConfig.active;
+        const config = statusConfig[row.status] || statusConfig.pending;
 
         return (
           <Badge
@@ -449,8 +462,6 @@ export default function AdminVendorsPage() {
       label: "View Seller Details",
       icon: <EyeIcon className="size-5" />,
       onClick: (vendor) => {
-        // CRITICAL FIX: Use userId instead of id
-        // The API endpoint /api/v1/vendor/{id} expects userId, not vendor id
         console.log("🔍 Navigating to vendor:", { id: vendor.id, userId: vendor.userId });
         navigate(`/admin/users/vendors/${vendor.userId}/details`);
       },
@@ -601,7 +612,7 @@ export default function AdminVendorsPage() {
             )}
           </div>
 
-          {/* Tab Navigation */}
+          {/* Tab Navigation - Add rejected tab */}
           <div className="border-b border-gray-200 dark:border-gray-700">
             <div className="flex gap-0 px-6 overflow-x-auto">
               <button
@@ -631,6 +642,13 @@ export default function AdminVendorsPage() {
                 disabled={loading}
               >
                 Suspended ({vendorStats.suspendedVendors})
+              </button>
+              <button
+                className={getTabButtonClass("rejected")}
+                onClick={() => handleTabClick("rejected")}
+                disabled={loading}
+              >
+                Rejected ({rejectedVendorsCount})
               </button>
               <button
                 className={getTabButtonClass("deactivated")}

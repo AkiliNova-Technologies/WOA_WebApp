@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useReduxUsers } from "@/hooks/useReduxUsers";
 import { useReduxAddresses } from "@/hooks/useReduxAddresses";
 import type { Address } from "@/redux/slices/addressesSlice";
-import { type Customer, type CustomerStatus } from "./Customers";
+import { type Customer } from "./Customers";
 import images from "@/assets/images";
 import { DataTable } from "@/components/data-table";
 import { SiteHeader } from "@/components/site-header";
@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/select";
 import {
   StatusUpdateModal,
-  type UserStatus,
+  type BackendStatus,
 } from "@/components/status-update-modal";
 import api from "@/utils/api";
 import { toast } from "sonner";
@@ -153,6 +153,34 @@ const getInitials = (name: string): string => {
     .slice(0, 2);
 };
 
+// Helper function to map CustomerStatus to BackendStatus
+const mapCustomerStatusToBackend = (status: string): BackendStatus => {
+  const statusMap: Record<string, BackendStatus> = {
+    "active": "active",
+    "suspended": "suspended",
+    "pending_deletion": "deactivated",
+    "disabled": "deactivated",
+    "deleted": "deactivated",
+    "inactive": "deactivated",
+  };
+  
+  return statusMap[status] || "active";
+};
+
+// Helper function to map BackendStatus to CustomerStatus
+const mapBackendToCustomerStatus = (status: BackendStatus): string => {
+  const statusMap: Record<BackendStatus, string> = {
+    "active": "active",
+    "suspended": "suspended",
+    "rejected": "deleted",
+    "deactivated": "deactivated",
+    "pending": "active", 
+    "deleted": "deleted",
+  };
+  
+  return statusMap[status] || "active";
+};
+
 export default function AdminCustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -199,7 +227,6 @@ export default function AdminCustomerDetailPage() {
       setAddressError(null);
       
       try {
-        // First, get all addresses to filter by userId
         await getAddresses();
       } catch (error) {
         console.error("Failed to fetch addresses:", error);
@@ -241,7 +268,7 @@ export default function AdminCustomerDetailPage() {
         ];
         const colorIndex = (parseInt(user.id || "0", 10) || 0) % colors.length;
 
-        let status: CustomerStatus = "active";
+        let status: string = "active";
         const accountStatus = user.accountStatus?.toLowerCase();
 
         if (accountStatus === "active") {
@@ -276,7 +303,7 @@ export default function AdminCustomerDetailPage() {
           address,
           joinDate: user.createdAt,
           lastActive: user.updatedAt || user.createdAt,
-          status,
+          status: status as any, // Cast to any to bypass type issues
           totalOrders,
           totalSpent,
           tier: "bronze",
@@ -312,11 +339,10 @@ export default function AdminCustomerDetailPage() {
     }
   };
 
-  // View specific address in detail (example usage)
+  // View specific address in detail
   const handleViewAddressDetails = async (addressId: string) => {
     try {
       await getAddressById(addressId);
-      // You can open a modal or navigate to details page here
       toast.success("Address details loaded");
     } catch (error) {
       console.error("Failed to load address details:", error);
@@ -500,51 +526,76 @@ export default function AdminCustomerDetailPage() {
     },
   ];
 
-  const handleStatusUpdate = async (newStatus: CustomerStatus) => {
+  const handleStatusUpdate = async (newStatus: BackendStatus, reason?: string) => {
     if (!customerData || !id) return;
 
     setStatusUpdateLoading(true);
 
     try {
       let endpoint = "";
+      let method: "post" | "put" = "post";
 
-      if (newStatus === "active") {
-        if (
-          customerData.status === "deleted" ||
-          customerData.status === "pending_deletion" ||
-          customerData.status === "suspended"
-        ) {
-          endpoint = `/api/v1/clients/admin/reactivate/${id}`;
-        } else {
-          console.warn(
-            "Activation endpoint for non-deleted clients may not exist"
-          );
-        }
-      } else if (newStatus === "pending_deletion") {
-        console.warn("Admin delete endpoint for clients may not exist");
-      } else if (newStatus === "suspended") {
-        endpoint = `/api/v1/clients/admin/suspend/${id}`;
-        console.warn("Suspend endpoint for clients may not exist");
+      // Map BackendStatus to API endpoints
+      switch (newStatus) {
+        case "active":
+          // For customers, reactivate if they were suspended or deactivated
+          if (customerData.status === "suspended" || 
+              customerData.status === "deactivated" || 
+              customerData.status === "pending_deletion") {
+            endpoint = `/api/v1/clients/admin/reactivate/${id}`;
+          } else {
+            // If already active, just return success
+            toast.info("Customer is already active");
+            return;
+          }
+          break;
+
+        case "suspended":
+          endpoint = `/api/v1/clients/admin/suspend/${id}`;
+          break;
+
+        case "deactivated":
+          // For customers, deactivate means mark for deletion
+          endpoint = `/api/v1/clients/admin/deactivate/${id}`;
+          break;
+
+        case "rejected":
+          // Customers don't have "rejected" status, treat as deactivation
+          endpoint = `/api/v1/clients/admin/deactivate/${id}`;
+          break;
+
+        default:
+          console.warn(`No API endpoint defined for status: ${newStatus}`);
+          toast.error(`Cannot change to ${newStatus} status`);
+          return;
       }
 
       if (endpoint) {
-        await api.post(endpoint);
+        const requestBody: any = { userId: id };
+        
+        // Add reason if provided
+        if (reason && (newStatus === "suspended" || newStatus === "deactivated" || newStatus === "rejected")) {
+          requestBody.reason = reason;
+        }
 
+        await api[method](endpoint, requestBody);
+
+        // Update local state with mapped status
+        const newCustomerStatus = mapBackendToCustomerStatus(newStatus);
         setCustomerData((prev) =>
-          prev ? { ...prev, status: newStatus } : null
+          prev ? { ...prev, status: newCustomerStatus as any } : null
         );
 
-        toast.success("Customer status updated successfully");
-        console.log(`Status updated to ${newStatus}`);
-
+        toast.success(`Customer status updated to ${newStatus}`);
+        
+        // Refresh customer data
         await getUsers({ role: "client" });
-      } else {
-        console.warn(
-          `No API endpoint defined for status change to ${newStatus}`
-        );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update status:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to update customer status"
+      );
     } finally {
       setStatusUpdateLoading(false);
       setIsStatusModalOpen(false);
@@ -993,7 +1044,7 @@ export default function AdminCustomerDetailPage() {
                         isOpen={isStatusModalOpen}
                         onClose={() => setIsStatusModalOpen(false)}
                         onConfirm={handleStatusUpdate}
-                        currentStatus={customerData.status as UserStatus}
+                        currentStatus={mapCustomerStatusToBackend(customerData.status)}
                         userType="client"
                         title="Update Customer Status"
                         description="Select a new status for this customer"

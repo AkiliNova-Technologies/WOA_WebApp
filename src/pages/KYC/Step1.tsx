@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import images from "@/assets/images";
 import { toast } from "sonner";
 import { debounce } from "lodash";
+import { useReduxAuth } from "@/hooks/useReduxAuth"; // Import your auth hook
 
 // Helper function to format email for display
 const formatEmailForDisplay = (email: string): string => {
@@ -59,6 +60,9 @@ export default function Step1({
   const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
   const [emailError, setEmailError] = useState("");
 
+  // Use the auth hook
+  const { checkEmailAvailability } = useReduxAuth();
+
   // Auto-show verification if KYC is in email_pending status
   useEffect(() => {
     if (kycStatus === 'email_pending' && !showVerification) {
@@ -98,8 +102,8 @@ export default function Step1({
     }
   }, [verificationCode, showVerification, isVerifying, isAutoVerifying]);
 
-  // Debounced email availability check
-  const checkEmailAvailability = useCallback(
+  // Debounced email availability check using auth hook
+  const checkEmailAvailabilityDebounced = useCallback(
     debounce(async (email: string) => {
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         setEmailAvailable(null);
@@ -116,12 +120,11 @@ export default function Step1({
       setEmailError("");
       
       try {
-        // Check email availability using the KYC endpoint or auth endpoint
-        const response = await api.post("/api/v1/auth/check-email", {
-          email: email,
-        });
-
-        const available = response.data.available;
+        // Use the auth hook to check email availability
+        const result = await checkEmailAvailability(email);
+        
+        // Assuming the API returns { available: boolean }
+        const available = result.available || false;
         setEmailAvailable(available);
 
         if (!available) {
@@ -131,18 +134,30 @@ export default function Step1({
         console.error("Email check failed:", error);
         setEmailAvailable(null);
         
-        // If the endpoint doesn't exist, we'll skip validation
+        // Handle specific error cases
         if (error.response?.status === 404) {
           console.log("Email availability check endpoint not available");
-          setEmailAvailable(null);
+          // Fallback to direct API call if needed
+          try {
+            const fallbackResponse = await api.post("/api/v1/auth/email-availability", {
+              email: email,
+            });
+            setEmailAvailable(fallbackResponse.data.available);
+            if (!fallbackResponse.data.available) {
+              setEmailError("This email is already registered");
+            }
+          } catch (fallbackError) {
+            console.error("Fallback email check failed:", fallbackError);
+            setEmailError("Could not verify email availability");
+          }
         } else {
-          setEmailError("Could not verify email availability");
+          setEmailError(error.message || "Could not verify email availability");
         }
       } finally {
         setCheckingEmail(false);
       }
     }, 500),
-    [formData.emailVerified]
+    [formData.emailVerified, checkEmailAvailability]
   );
 
   const handleInputChange = (field: keyof FormData, value: string) => {
@@ -152,7 +167,16 @@ export default function Step1({
     if (field === "email") {
       setEmailError("");
       setEmailAvailable(null);
-      checkEmailAvailability(value);
+      
+      // Cancel any pending debounced check
+      checkEmailAvailabilityDebounced.cancel?.();
+      
+      // Check immediately if email is empty or invalid
+      if (!value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        return;
+      }
+      
+      checkEmailAvailabilityDebounced(value);
     }
   };
 
@@ -170,6 +194,12 @@ export default function Step1({
   const sendVerificationCode = async () => {
     if (isSendingCode) return;
 
+    // Validate email format
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
     // Check if email is available before sending verification
     if (emailAvailable === false) {
       toast.error("This email is already registered. Please use a different email.");
@@ -180,6 +210,27 @@ export default function Step1({
     if (checkingEmail) {
       toast.error("Please wait while we verify your email availability");
       return;
+    }
+
+    // If email availability is null (not checked yet), check it now
+    if (emailAvailable === null) {
+      try {
+        setCheckingEmail(true);
+        const result = await checkEmailAvailability(formData.email);
+        const available = result.available || false;
+        setEmailAvailable(available);
+        
+        if (!available) {
+          toast.error("This email is already registered. Please use a different email.");
+          return;
+        }
+      } catch (error: any) {
+        console.error("Email check failed:", error);
+        toast.error("Could not verify email availability. Please try again.");
+        return;
+      } finally {
+        setCheckingEmail(false);
+      }
     }
 
     try {
@@ -410,11 +461,6 @@ export default function Step1({
                     <span className="text-xs text-green-600 flex items-center gap-1">
                       <CheckCircle className="h-3 w-3" />
                       Available
-                    </span>
-                  )}
-                  {emailAvailable === false && !checkingEmail && (
-                    <span className="text-xs text-red-600">
-                      Already registered
                     </span>
                   )}
                 </div>

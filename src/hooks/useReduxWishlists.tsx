@@ -6,27 +6,45 @@ import {
   addToWishlist,
   removeFromWishlist,
   moveToCart,
+  fetchAdminWishlist,
   selectWishlistItems,
   selectWishlistLoading,
   selectWishlistError,
   selectAddingToWishlist,
   selectRemovingFromWishlist,
+  selectAdminWishlistStats,
+  selectAdminWishlistProducts,
+  selectAdminWishlistPagination,
+  selectAdminWishlistLoading,
+  selectAdminWishlistError,
   clearWishlist,
   clearError as clearWishlistError,
+  clearAdminError,
+  clearAdminData,
   type WishlistItem,
+  type AdminWishlistParams,
+  type AdminWishlistStats,
+  type AdminWishlistProduct,
 } from '@/redux/slices/wishlistSlice';
 
 export function useReduxWishlist() {
   const dispatch = useAppDispatch();
 
-  // Selectors
+  // User wishlist selectors
   const items = useAppSelector(selectWishlistItems);
   const loading = useAppSelector(selectWishlistLoading);
   const error = useAppSelector(selectWishlistError);
   const adding = useAppSelector(selectAddingToWishlist);
   const removing = useAppSelector(selectRemovingFromWishlist);
 
-  // Wishlist actions
+  // Admin wishlist selectors
+  const adminStats = useAppSelector(selectAdminWishlistStats);
+  const adminProducts = useAppSelector(selectAdminWishlistProducts);
+  const adminPagination = useAppSelector(selectAdminWishlistPagination);
+  const adminLoading = useAppSelector(selectAdminWishlistLoading);
+  const adminError = useAppSelector(selectAdminWishlistError);
+
+  // User wishlist actions
   const getWishlist = useCallback(async () => {
     try {
       return await dispatch(fetchWishlist()).unwrap();
@@ -64,6 +82,16 @@ export function useReduxWishlist() {
     }
   }, [dispatch]);
 
+  // Admin wishlist actions
+  const getAdminWishlist = useCallback(async (params?: AdminWishlistParams) => {
+    try {
+      return await dispatch(fetchAdminWishlist(params || {})).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch admin wishlist:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
   // Helper functions
   const isInWishlist = useCallback((productId: string): boolean => {
     return items.some(item => item.productId === productId);
@@ -79,7 +107,6 @@ export function useReduxWishlist() {
 
   const toggleWishlistItem = useCallback(async (productId: string): Promise<boolean> => {
     const existingItem = getWishlistItem(productId);
-    
     if (existingItem) {
       await removeItem(existingItem.id);
       return false; // Item removed
@@ -98,28 +125,56 @@ export function useReduxWishlist() {
     dispatch(clearWishlistError());
   }, [dispatch]);
 
+  const clearAdminWishlistError = useCallback(() => {
+    dispatch(clearAdminError());
+  }, [dispatch]);
+
+  const clearAdminWishlistData = useCallback(() => {
+    dispatch(clearAdminData());
+  }, [dispatch]);
+
   return {
-    // State
+    // User wishlist state
     items,
     loading,
     error,
     adding,
     removing,
-    
-    // Wishlist actions
+
+    // User wishlist actions
     getWishlist,
     addItem,
     removeItem,
     moveItemToCart,
-    
+
     // Helper functions
     isInWishlist,
     getWishlistItem,
     getWishlistCount,
     toggleWishlistItem,
-    
-    // Utility actions
+
+    // User utility actions
     clearAllItems,
     clearWishlistErrors,
+
+    // Admin wishlist state
+    adminStats,
+    adminProducts,
+    adminPagination,
+    adminLoading,
+    adminError,
+
+    // Admin wishlist actions
+    getAdminWishlist,
+    clearAdminWishlistError,
+    clearAdminWishlistData,
   };
 }
+
+// Export types for convenience
+export type {
+  WishlistItem,
+  AdminWishlistParams,
+  AdminWishlistStats,
+  AdminWishlistProduct,
+};

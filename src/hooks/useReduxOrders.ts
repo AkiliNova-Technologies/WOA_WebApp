@@ -4,6 +4,7 @@ import {
   createOrder,
   fetchOrders,
   fetchOrder,
+  fetchAdminOrders,
   updateOrderStatus,
   updateShippingInfo,
   cancelOrder,
@@ -17,6 +18,8 @@ import {
   setFilters,
   clearFilters,
   clearError,
+  clearAdminError,
+  clearAdminData,
   updateOrderInList,
   selectOrders,
   selectSelectedOrder,
@@ -29,6 +32,11 @@ import {
   selectCreateOrderError,
   selectUpdateOrderLoading,
   selectUpdateOrderError,
+  selectAdminOrderStats,
+  selectAdminOrderLineItems,
+  selectAdminOrderPagination,
+  selectAdminOrdersLoading,
+  selectAdminOrdersError,
   type Order,
   type OrderFilters,
   type OrderStats,
@@ -36,12 +44,15 @@ import {
   type ShippingAddress,
   type BillingAddress,
   type PaymentInfo,
+  type AdminOrdersParams,
+  type AdminOrderStats,
+  type AdminOrderLineItem,
 } from '@/redux/slices/ordersSlice';
 
 export function useReduxOrders() {
   const dispatch = useAppDispatch();
 
-  // Selectors
+  // User order selectors
   const orders = useAppSelector(selectOrders);
   const selectedOrder = useAppSelector(selectSelectedOrder);
   const lowStockProducts = useAppSelector(selectLowStockProducts);
@@ -53,6 +64,13 @@ export function useReduxOrders() {
   const createError = useAppSelector(selectCreateOrderError);
   const updateLoading = useAppSelector(selectUpdateOrderLoading);
   const updateError = useAppSelector(selectUpdateOrderError);
+
+  // Admin order selectors
+  const adminStats = useAppSelector(selectAdminOrderStats);
+  const adminLineItems = useAppSelector(selectAdminOrderLineItems);
+  const adminPagination = useAppSelector(selectAdminOrderPagination);
+  const adminLoading = useAppSelector(selectAdminOrdersLoading);
+  const adminError = useAppSelector(selectAdminOrdersError);
 
   // Create new order
   const createNewOrder = useCallback(async (orderData: {
@@ -90,6 +108,16 @@ export function useReduxOrders() {
       return await dispatch(fetchOrder(orderId)).unwrap();
     } catch (error) {
       console.error('Failed to fetch order:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  // Get admin orders
+  const getAdminOrders = useCallback(async (params?: AdminOrdersParams) => {
+    try {
+      return await dispatch(fetchAdminOrders(params || {})).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch admin orders:', error);
       throw error;
     }
   }, [dispatch]);
@@ -307,12 +335,20 @@ export function useReduxOrders() {
     dispatch(clearError());
   }, [dispatch]);
 
+  const clearAdminOrdersError = useCallback(() => {
+    dispatch(clearAdminError());
+  }, [dispatch]);
+
+  const clearAdminOrdersData = useCallback(() => {
+    dispatch(clearAdminData());
+  }, [dispatch]);
+
   const updateExistingOrder = useCallback((orderData: Order) => {
     dispatch(updateOrderInList(orderData));
   }, [dispatch]);
 
   return {
-    // State
+    // User orders state
     orders,
     selectedOrder,
     lowStockProducts,
@@ -325,7 +361,7 @@ export function useReduxOrders() {
     updateLoading,
     updateError,
     
-    // Order actions
+    // User order actions
     createNewOrder,
     getOrders,
     getOrder,
@@ -367,5 +403,31 @@ export function useReduxOrders() {
     clearAllFilters,
     clearOrdersErrors,
     updateExistingOrder,
+
+    // Admin orders state
+    adminStats,
+    adminLineItems,
+    adminPagination,
+    adminLoading,
+    adminError,
+
+    // Admin orders actions
+    getAdminOrders,
+    clearAdminOrdersError,
+    clearAdminOrdersData,
   };
 }
+
+// Export types for convenience
+export type {
+  Order,
+  OrderFilters,
+  OrderStats,
+  LowStockProduct,
+  ShippingAddress,
+  BillingAddress,
+  PaymentInfo,
+  AdminOrdersParams,
+  AdminOrderStats,
+  AdminOrderLineItem,
+};

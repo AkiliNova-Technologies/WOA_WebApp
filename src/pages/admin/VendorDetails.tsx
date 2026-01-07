@@ -318,6 +318,10 @@ export default function AdminVendorDetailPage() {
       label: "Store Deactivated",
       className: "bg-gray-600 text-white",
     },
+    rejected: {
+      label: "Store Rejected",
+      className: "bg-red-700 text-white",
+    },
     deleted: {
       label: "Store Deleted",
       className: "bg-red-800 text-white",
@@ -437,9 +441,10 @@ export default function AdminVendorDetailPage() {
 
   // Extract data safely from the API response
   const user = vendor.user || {};
-  const firstName = user.firstName || "";
-  const lastName = user.lastName || "";
-  const email = user.email || "";
+  const firstName = user.firstName || vendor.firstName || "";
+  const lastName = user.lastName || vendor.lastName || "";
+  const email = user.email || vendor.email || "";
+  const phoneNumber = vendor.phoneNumber || "Not provided";
   const storeName = vendor.storeName || "Unknown Store";
   const city = vendor.city || "Unknown";
   const country = vendor.country || "Unknown";
@@ -449,6 +454,18 @@ export default function AdminVendorDetailPage() {
     "pending") as keyof typeof vendorStatusConfig;
   const vendorStatusDisplay =
     vendorStatusConfig[vendorStatus] || vendorStatusConfig.pending;
+
+  // Bank details from API
+  const bankName = vendor.bankName || "Not provided";
+  const accountName = vendor.accountName || "Not provided";
+  const accountNumber = vendor.accountNumber || "Not provided";
+  const swiftCode = vendor.swiftCode || "Not provided";
+
+  // Identity documents and media
+  const idDocs = vendor.idDocs || [];
+  const videoStory = vendor.videoStory || null;
+  const logoUrl = vendor.logoUrl || null;
+  const businessBanner = logoUrl || images.Placeholder;
 
   // Safe initials generation
   const getInitials = () => {
@@ -483,7 +500,6 @@ export default function AdminVendorDetailPage() {
           break;
 
         case "pending":
-          // Reactivation to pending might not be needed
           endpoint = `/api/v1/vendor/admin/reset-pending`;
           break;
 
@@ -500,10 +516,8 @@ export default function AdminVendorDetailPage() {
       }
 
       if (endpoint) {
-        // Call the API with vendorId
         await api.post(endpoint, { userId: user.id });
 
-        // Update local state
         setVendor((prev: any) =>
           prev ? { ...prev, vendorStatus: newStatus } : null
         );
@@ -511,7 +525,6 @@ export default function AdminVendorDetailPage() {
         toast.success(successMessage);
         console.log(`Vendor status updated to ${newStatus}`);
 
-        // Refresh vendor data if needed
         const updatedVendor = await getVendor(id, false);
         setVendor(updatedVendor);
       } else {
@@ -535,7 +548,6 @@ export default function AdminVendorDetailPage() {
       <SiteHeader label="Seller Management" />
       <div className="min-h-screen">
         <div className="p-6 mx-auto">
-          {/* Back Button */}
           <Button
             variant="ghost"
             onClick={() => navigate("/admin/users/vendors")}
@@ -545,18 +557,17 @@ export default function AdminVendorDetailPage() {
             Back to Vendors
           </Button>
 
-          {/* ================= COVER IMAGE ================= */}
+          {/* COVER IMAGE */}
           <div className="relative w-full h-[380px] overflow-hidden rounded-2xl">
             <img
-              src={vendor.businessBanner || images.Placeholder}
+              src={businessBanner}
               alt="Cover"
               className="object-cover w-full h-full"
             />
-
             <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3"></div>
           </div>
 
-          {/* ================= STORE SUMMARY ================= */}
+          {/* STORE SUMMARY */}
           <div className="relative mx-6 -mt-12 shadow-none border-none">
             <Card className="flex flex-col md:flex-row md:items-center gap-6 border mx-6 p-6 shadow-none rounded-b-none border-none">
               <div
@@ -586,7 +597,6 @@ export default function AdminVendorDetailPage() {
                 </p>
               </div>
 
-              {/* Stats */}
               <div className="flex flex-col gap-6 text-md">
                 <div
                   className={`h-11 rounded-md px-6 flex flex-col justify-center items-center ${vendorStatusDisplay.className} text-md`}
@@ -641,7 +651,7 @@ export default function AdminVendorDetailPage() {
                     </TabsTrigger>
                   </TabsList>
 
-                  {/* ================= OVERVIEW TAB ================= */}
+                  {/* OVERVIEW TAB */}
                   <TabsContent value="overview" className="space-y-8">
                     <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
                       <CardContent className="px-6 py-8">
@@ -718,7 +728,7 @@ export default function AdminVendorDetailPage() {
                             </div>
                           </div>
 
-                          {/* Reviews and ratings */}
+                          {/* Reviews */}
                           <div className="border-2 border-gray-200 dark:border-gray-700 rounded-lg p-6">
                             <h3 className="text-lg font-semibold mb-6">
                               Reviews and ratings
@@ -902,7 +912,7 @@ export default function AdminVendorDetailPage() {
                     </Card>
                   </TabsContent>
 
-                  {/* ================= SHOP DETAILS TAB ================= */}
+                  {/* SHOP DETAILS TAB */}
                   <TabsContent value="shop-details" className="space-y-8">
                     <div>
                       <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
@@ -927,13 +937,13 @@ export default function AdminVendorDetailPage() {
                             />
                             <Info
                               label="Account Name"
-                              value={storeName}
+                              value={accountName}
                               icon={<Building className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-teal-100 text-teal-600 flex items-center justify-center"
                             />
                             <Info
                               label="Bank Name"
-                              value={vendor.bankName || "Not provided"}
+                              value={bankName}
                               icon={<Banknote className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center"
                             />
@@ -947,19 +957,19 @@ export default function AdminVendorDetailPage() {
                             />
                             <Info
                               label="Last Active"
-                              value={getTimeAgo(vendor.createdAt)}
+                              value={getTimeAgo(vendor.updatedAt || vendor.createdAt)}
                               icon={<Clock className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-green-100 text-green-600 flex items-center justify-center"
                             />
                             <Info
                               label="Account Number"
-                              value={vendor.accNumber || "Not provided"}
+                              value={accountNumber}
                               icon={<CreditCard className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-red-100 text-red-600 flex items-center justify-center"
                             />
                             <Info
                               label="Swift Code"
-                              value={vendor.swiftCode || "Not provided"}
+                              value={swiftCode}
                               icon={<Code className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-amber-100 text-amber-600 flex items-center justify-center"
                             />
@@ -979,7 +989,7 @@ export default function AdminVendorDetailPage() {
                             />
                             <Info
                               label="Phone Number"
-                              value={vendor.phoneNumber || "Not provided"}
+                              value={phoneNumber}
                               icon={<Phone className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-green-100 text-green-600 flex items-center justify-center"
                             />
@@ -1015,14 +1025,11 @@ export default function AdminVendorDetailPage() {
                             Seller story
                           </h2>
                           <div className="w-full overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800 h-[450px] flex items-center justify-center">
-                            {vendor.videoUrl ? (
+                            {videoStory ? (
                               <video
                                 controls
                                 className="w-full h-full aspect-video"
-                                src={vendor.videoUrl}
-                                // poster={
-                                //   vendor.businessBanner || images.Placeholder
-                                // }
+                                src={videoStory}
                               >
                                 Your browser does not support the video tag.
                               </video>
@@ -1043,44 +1050,36 @@ export default function AdminVendorDetailPage() {
                             Identity verification
                           </h2>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {vendor.galleryUrls &&
-                            vendor.galleryUrls.length > 0 ? (
-                              vendor.galleryUrls.map(
-                                (imageUrl: string, index: number) => (
-                                  <div key={index} className="space-y-2">
-                                    <p className="text-sm font-medium">
-                                      Identity Image {index + 1}
-                                    </p>
-                                    <div className="border rounded-lg overflow-hidden h-64">
-                                      <img
-                                        src={imageUrl}
-                                        alt={`Identity verification ${
-                                          index + 1
-                                        }`}
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => {
-                                          e.currentTarget.src =
-                                            images.Placeholder;
-                                        }}
-                                      />
-                                    </div>
+                            {idDocs && idDocs.length > 0 ? (
+                              idDocs.map((imageUrl: string, index: number) => (
+                                <div key={index} className="space-y-2">
+                                  <p className="text-sm font-medium">
+                                    Identity Image {index + 1}
+                                  </p>
+                                  <div className="border rounded-lg overflow-hidden h-64">
+                                    <img
+                                      src={imageUrl}
+                                      alt={`Identity verification ${index + 1}`}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.currentTarget.src = images.Placeholder;
+                                      }}
+                                    />
                                   </div>
-                                )
-                              )
+                                </div>
+                              ))
                             ) : (
                               <>
-                                <ImageUpload onImageChange={() => {}} disabled/>
-                                <ImageUpload onImageChange={() => {}} disabled/>
+                                <ImageUpload onImageChange={() => {}} disabled />
+                                <ImageUpload onImageChange={() => {}} disabled />
                               </>
                             )}
                           </div>
-                          {vendor.galleryUrls &&
-                            vendor.galleryUrls.length > 0 && (
-                              <p className="text-sm text-gray-500 mt-4">
-                                {vendor.galleryUrls.length} identity image(s)
-                                uploaded
-                              </p>
-                            )}
+                          {idDocs && idDocs.length > 0 && (
+                            <p className="text-sm text-gray-500 mt-4">
+                              {idDocs.length} identity image(s) uploaded
+                            </p>
+                          )}
                         </CardContent>
                       </Card>
 
@@ -1158,12 +1157,11 @@ export default function AdminVendorDetailPage() {
                     />
                   </TabsContent>
 
-                  {/* ================= ORDERS TAB ================= */}
+                  {/* ORDERS TAB */}
                   <TabsContent value="orders" className="space-y-8 mt-6">
                     <Card className="shadow-none border-none">
                       <CardContent className="px-6">
                         <div className="rounded-lg">
-                          {/* Search and Filter Section */}
                           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                             <div className="w-full">
                               <Search
@@ -1257,7 +1255,6 @@ export default function AdminVendorDetailPage() {
                             </div>
                           </div>
 
-                          {/* Orders Display */}
                           <div className="">
                             {viewMode === "list" ? (
                               <DataTable<Order>
@@ -1309,9 +1306,7 @@ export default function AdminVendorDetailPage() {
                                           size="sm"
                                           className="w-full mt-2"
                                           onClick={() =>
-                                            navigate(
-                                              `/admin/orders/${order.id}`
-                                            )
+                                            navigate(`/admin/orders/${order.id}`)
                                           }
                                         >
                                           <EyeIcon className="h-4 w-4 mr-2" />
@@ -1345,7 +1340,7 @@ export default function AdminVendorDetailPage() {
                     </Card>
                   </TabsContent>
 
-                  {/* Product Listings, Wishlists, Compliance Tabs - Placeholder */}
+                  {/* Product Listings, Wishlists, Compliance Tabs */}
                   {(activeTab === "product-listings" ||
                     activeTab === "wishlists" ||
                     activeTab === "compliance") && (

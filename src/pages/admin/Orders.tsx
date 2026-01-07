@@ -15,137 +15,49 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
-import {
-  Eye,
-  Download,
-  SlidersHorizontal,
-  Loader2,
-} from "lucide-react";
+import { Eye, Download, SlidersHorizontal, Loader2 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { useReduxOrders } from "@/hooks/useReduxOrders";
+import type { AdminOrderLineItem } from "@/redux/slices/ordersSlice";
 import images from "@/assets/images";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type OrderTab =
   | "all"
-  | "open"
-  | "ongoing"
-  | "completed"
-  | "returned"
-  | "unfulfilled";
-type OrderStatus =
-  | "open"
-  | "ongoing"
-  | "completed"
-  | "returned"
-  | "unfulfilled";
+  | "paid"
+  | "pending"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+type OrderStatus = AdminOrderLineItem["status"];
+
+interface OrderLineItemWithId extends AdminOrderLineItem {
+  id: string;
+  [key: string]: any;
+}
 
 export default function AdminOrdersPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<OrderStatus[]>([]);
   const [activeTab, setActiveTab] = useState<OrderTab>("all");
-  const [timePeriod, setTimePeriod] = useState<"7days" | "30days" | "alltime">(
-    "7days"
-  );
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const { orders, loading, getOrders } = useReduxOrders();
+  const {
+    adminStats,
+    adminLineItems,
+    adminPagination,
+    adminLoading,
+    getAdminOrders,
+  } = useReduxOrders();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await getOrders();
-      } catch (error) {
-        console.error("Failed to fetch orders:", error);
-      }
+    const params = {
+      search: searchQuery || undefined,
+      page: currentPage,
     };
-
-    fetchData();
-  }, [getOrders]);
-
-  // Map Redux order status to UI status
-  const mapOrderStatus = (status: string): OrderStatus => {
-    const statusMap: Record<string, OrderStatus> = {
-      pending: "open",
-      confirmed: "open",
-      processing: "ongoing",
-      shipped: "ongoing",
-      delivered: "completed",
-      cancelled: "returned",
-      refunded: "returned",
-    };
-    return statusMap[status] || "unfulfilled";
-  };
-
-  // Calculate order statistics - with null/undefined checks
-  const calculateOrderStats = () => {
-    // Ensure orders is an array
-    const ordersArray = Array.isArray(orders) ? orders : [];
-    const totalOrders = ordersArray.length;
-    
-    if (totalOrders === 0) {
-      return {
-        totalOrders: 0,
-        openOrders: 0,
-        ongoingOrders: 0,
-        completedOrders: 0,
-        returnedOrders: 0,
-        unfulfilledOrders: 0,
-        totalRevenue: 0,
-        processingOrders: 0,
-        deliveredOrders: 0,
-      };
-    }
-    
-    // Count orders by mapped status
-    const statusCounts = ordersArray.reduce((acc, order) => {
-      if (!order || !order.status) return acc;
-      
-      const status = mapOrderStatus(order.status);
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {} as Record<OrderStatus, number>);
-
-    const totalRevenue = ordersArray.reduce((sum, order) => {
-      return sum + (order?.total || 0);
-    }, 0);
-
-    return {
-      totalOrders,
-      openOrders: statusCounts.open || 0,
-      ongoingOrders: statusCounts.ongoing || 0,
-      completedOrders: statusCounts.completed || 0,
-      returnedOrders: statusCounts.returned || 0,
-      unfulfilledOrders: statusCounts.unfulfilled || 0,
-      totalRevenue,
-      processingOrders: statusCounts.ongoing || 0, // For backward compatibility
-      deliveredOrders: statusCounts.completed || 0, // For backward compatibility
-    };
-  };
-
-  const orderStats = calculateOrderStats();
-
-  // Ensure orders is an array before filtering
-  const ordersArray = Array.isArray(orders) ? orders : [];
-  
-  const filteredOrders = ordersArray.filter((order) => {
-    if (!order || !order.status) return false;
-    
-    const orderStatus = mapOrderStatus(order.status);
-
-    const matchesTab = activeTab === "all" || orderStatus === activeTab;
-
-    const matchesSearch =
-      searchQuery === "" ||
-      (order.orderNumber && order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (order.customer?.firstName && order.customer.firstName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (order.customer?.lastName && order.customer.lastName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (order.customer?.email && order.customer.email.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesStatus =
-      selectedStatuses.length === 0 || selectedStatuses.includes(orderStatus);
-
-    return matchesTab && matchesSearch && matchesStatus;
-  });
+    getAdminOrders(params);
+  }, [searchQuery, currentPage, getAdminOrders]);
 
   const handleStatusFilterChange = (status: OrderStatus) => {
     setSelectedStatuses((prev) =>
@@ -159,15 +71,36 @@ export default function AdminOrdersPage() {
     setSelectedStatuses([]);
     setSearchQuery("");
     setActiveTab("all");
+    setCurrentPage(1);
   };
 
   const handleTabClick = (tab: OrderTab) => {
     setActiveTab(tab);
-    // Clear status filters when switching tabs (optional)
     if (tab !== "all") {
       setSelectedStatuses([]);
     }
   };
+
+  // Transform line items to include id
+  const transformLineItem = (
+    item: AdminOrderLineItem
+  ): OrderLineItemWithId => ({
+    ...item,
+    id: item.subOrderId,
+  });
+
+  const tableLineItems: OrderLineItemWithId[] =
+    adminLineItems.map(transformLineItem);
+
+  // Filter line items
+  const filteredLineItems = tableLineItems.filter((item) => {
+    const matchesStatusFilter =
+      selectedStatuses.length === 0 || selectedStatuses.includes(item.status);
+
+    const matchesTabFilter = activeTab === "all" || activeTab === item.status;
+
+    return matchesStatusFilter && matchesTabFilter;
+  });
 
   const getTabButtonClass = (tab: OrderTab) => {
     const baseClass = "px-4 py-4 text-sm font-medium whitespace-nowrap";
@@ -210,158 +143,172 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // Order cards with correct values matching titles
+  // Order cards with admin stats
   const orderCards: CardData[] = [
     {
-      title: "Total Orders",
-      value: formatNumberShort(orderStats.totalOrders),
+      title: "Total Items Ordered",
+      value: formatNumberShort(adminStats?.totalItemsOrdered || 0),
       change: {
-        trend: "up",
-        value: "12%",
+        trend: (adminStats?.itemsChangePct || 0) >= 0 ? "up" : "down",
+        value: `${Math.abs(adminStats?.itemsChangePct || 0).toFixed(1)}%`,
+        description: "vs last month",
+      },
+    },
+    {
+      title: "Pending Orders",
+      value: formatNumberShort(adminStats?.pendingOrders || 0),
+      change: {
+        value: `${adminStats?.pendingItems || 0} items`,
+        trend: undefined,
         description: "",
       },
     },
     {
-      title: "Ongoing Orders",
-      value: formatNumberShort(orderStats.ongoingOrders),
+      title: "This Month",
+      value: formatNumberShort(adminStats?.thisMonth.items || 0),
       change: {
-        trend: "up",
-        value: "18%",
+        value: `vs ${adminStats?.previousMonth.items || 0} last month`,
+        trend: undefined,
         description: "",
       },
     },
     {
-      title: "Completed Orders",
-      value: formatNumberShort(orderStats.completedOrders),
+      title: "Pending Revenue",
+      value: formatAmount(adminStats?.pendingRevenue || 0),
       change: {
         trend: "up",
-        value: "8%",
-        description: "",
-      },
-    },
-    {
-      title: "Returns",
-      value: formatNumberShort(orderStats.returnedOrders),
-      change: {
-        trend: "up",
-        value: "15%",
+        value: "Awaiting fulfillment",
         description: "",
       },
     },
   ];
 
   const statusOptions: { value: OrderStatus; label: string }[] = [
-    { value: "open", label: "Open" },
-    { value: "ongoing", label: "Ongoing" },
-    { value: "completed", label: "Completed" },
-    { value: "returned", label: "Returned" },
-    { value: "unfulfilled", label: "Unfulfilled" },
+    { value: "paid", label: "Paid" },
+    { value: "pending", label: "Pending" },
+    { value: "shipped", label: "Shipped" },
+    { value: "delivered", label: "Delivered" },
+    { value: "cancelled", label: "Cancelled" },
+    { value: "refunded", label: "Refunded" },
   ];
 
   const statusConfig = {
-    open: {
-      label: "Open",
-      textColor: "text-blue-700",
-      bgColor: "bg-blue-100",
-      borderColor: "border-blue-200",
-      dotColor: "bg-blue-500",
-    },
-    ongoing: {
-      label: "Ongoing",
-      textColor: "text-yellow-700",
-      bgColor: "bg-yellow-100",
-      borderColor: "border-yellow-200",
-      dotColor: "bg-yellow-500",
-    },
-    completed: {
-      label: "Completed",
+    paid: {
+      label: "Paid",
       textColor: "text-green-700",
       bgColor: "bg-green-100",
       borderColor: "border-green-200",
       dotColor: "bg-green-500",
     },
-    returned: {
-      label: "Returned",
+    pending: {
+      label: "Pending",
+      textColor: "text-yellow-700",
+      bgColor: "bg-yellow-100",
+      borderColor: "border-yellow-200",
+      dotColor: "bg-yellow-500",
+    },
+    shipped: {
+      label: "Shipped",
+      textColor: "text-blue-700",
+      bgColor: "bg-blue-100",
+      borderColor: "border-blue-200",
+      dotColor: "bg-blue-500",
+    },
+    delivered: {
+      label: "Delivered",
+      textColor: "text-teal-700",
+      bgColor: "bg-teal-100",
+      borderColor: "border-teal-200",
+      dotColor: "bg-teal-500",
+    },
+    cancelled: {
+      label: "Cancelled",
       textColor: "text-red-700",
       bgColor: "bg-red-100",
       borderColor: "border-red-200",
       dotColor: "bg-red-500",
     },
-    unfulfilled: {
-      label: "Unfulfilled",
-      textColor: "text-gray-700",
-      bgColor: "bg-gray-100",
-      borderColor: "border-gray-200",
-      dotColor: "bg-gray-500",
+    refunded: {
+      label: "Refunded",
+      textColor: "text-purple-700",
+      bgColor: "bg-purple-100",
+      borderColor: "border-purple-200",
+      dotColor: "bg-purple-500",
     },
   } as const;
 
-  const orderFields: TableField<any>[] = [
+  const getInitials = (name: string): string => {
+    return name
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase())
+      .join("")
+      .slice(0, 2);
+  };
+
+  const orderFields: TableField<OrderLineItemWithId>[] = [
     {
-      key: "orderNumber",
-      header: "Order ID",
+      key: "name",
+      header: "Product Name",
       cell: (_, row) => (
-        <span className="font-medium text-md">
-          #{row?.orderNumber || "N/A"}
-        </span>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-12 w-12 rounded-md">
+            <AvatarImage
+              src={row.image}
+              alt={row.name}
+              className="object-cover"
+            />
+            <AvatarFallback className="bg-muted text-muted-foreground font-medium rounded-md">
+              {getInitials(row.name)}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <span className="font-medium text-md">{row.name}</span>
+          </div>
+        </div>
       ),
+      align: "left",
     },
     {
-      key: "createdAt",
-      header: "Ordered on",
+      key: "orderDate",
+      header: "Order Date",
       cell: (_, row) => (
-        <span className="text-gray-600">
-          {row?.createdAt ? formatDate(row.createdAt) : "N/A"}
-        </span>
-      ),
-    },
-    {
-      key: "customer",
-      header: "Customer name",
-      cell: (_, row) => (
-        <span className="font-medium">
-          {row?.customer?.firstName || ""} {row?.customer?.lastName || ""}
-        </span>
-      ),
-    },
-    {
-      key: "items",
-      header: "No of items",
-      cell: (_, row) => (
-        <span className="font-medium">
-          {Array.isArray(row?.items) ? row.items.length : 0}
+        <span className="text-gray-600 dark:text-gray-400">
+          {formatDate(row.orderDate)}
         </span>
       ),
       align: "center",
+      enableSorting: true,
     },
     {
-      key: "total",
-      header: "Order Value (USD)",
+      key: "quantity",
+      header: "Quantity",
+      cell: (value) => <span className="font-medium">{value as number}</span>,
+      align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "lineTotal",
+      header: "Line Total (USD)",
       cell: (_, row) => (
-        <span className="font-medium">
-          {formatAmount(row?.total || 0, row?.currency)}
-        </span>
+        <span className="font-medium">{formatAmount(row.lineTotal)}</span>
       ),
       align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "orderTotal",
+      header: "Order Total (USD)",
+      cell: (_, row) => (
+        <span className="font-medium">{formatAmount(row.orderTotal)}</span>
+      ),
+      align: "center",
+      enableSorting: true,
     },
     {
       key: "status",
       header: "Status",
       cell: (_, row) => {
-        if (!row?.status) {
-          return (
-            <Badge
-              variant="outline"
-              className="flex flex-row items-center py-2 px-3 gap-2 rounded-md bg-gray-100 border-gray-200"
-            >
-              <div className="size-2 rounded-full bg-gray-500" />
-              <span className="text-gray-700">Unknown</span>
-            </Badge>
-          );
-        }
-        
-        const orderStatus = mapOrderStatus(row.status);
-        const config = statusConfig[orderStatus] || statusConfig.unfulfilled;
+        const config = statusConfig[row.status] || statusConfig.pending;
         return (
           <Badge
             variant="outline"
@@ -376,35 +323,32 @@ export default function AdminOrdersPage() {
       enableSorting: true,
     },
     {
-      key: "actions",
-      header: "Actions",
+      key: "shipBy",
+      header: "Ship By",
       cell: (_, row) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate(`/admin/orders/${row.id}`)}
-          className="h-8"
-          disabled={!row?.id}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
+        <span className="text-gray-600 dark:text-gray-400">
+          {row.shipBy ? formatDate(row.shipBy) : "—"}
+        </span>
       ),
       align: "center",
     },
   ];
 
-  const orderActions: TableAction<any>[] = [
+  const orderActions: TableAction<OrderLineItemWithId>[] = [
     {
       type: "view",
       label: "View Order Details",
       icon: <Eye className="size-4" />,
-      onClick: (order) => {
-        if (order?.id) {
-          navigate(`/admin/orders/${order.id}`);
-        }
+      onClick: (item) => {
+        navigate(`/admin/orders/${item.subOrderId}`);
       },
     },
   ];
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page on search
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#1a1a1a]">
@@ -420,7 +364,7 @@ export default function AdminOrdersPage() {
                   All Orders
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Manage and monitor all orders on the platform
+                  Manage and monitor all order line items on the platform
                 </p>
               </div>
             </div>
@@ -428,45 +372,24 @@ export default function AdminOrdersPage() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="w-full sm:w-96">
                 <Search
-                  placeholder="Search"
+                  placeholder="Search by product name"
                   value={searchQuery}
-                  onSearchChange={setSearchQuery}
+                  onSearchChange={handleSearchChange}
                   className="h-10"
-                  disabled={loading}
+                  disabled={adminLoading}
                 />
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {/* Time Period Buttons - Updated to match cart page style */}
+                {/* Time Period Buttons */}
                 <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]">
-                  <button
-                    className={`px-4 py-2 text-sm font-medium ${
-                      timePeriod === "7days"
-                        ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
-                        : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
-                    } rounded-l-lg`}
-                    onClick={() => setTimePeriod("7days")}
-                  >
+                  <button className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050] rounded-l-lg">
                     Last 7 days
                   </button>
-                  <button
-                    className={`px-4 py-2 text-sm ${
-                      timePeriod === "30days"
-                        ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
-                        : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
-                    }`}
-                    onClick={() => setTimePeriod("30days")}
-                  >
+                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]">
                     Last 30 days
                   </button>
-                  <button
-                    className={`px-4 py-2 text-sm ${
-                      timePeriod === "alltime"
-                        ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
-                        : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
-                    } rounded-r-lg`}
-                    onClick={() => setTimePeriod("alltime")}
-                  >
+                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848] rounded-r-lg">
                     All time
                   </button>
                 </div>
@@ -477,7 +400,7 @@ export default function AdminOrdersPage() {
                     <Button
                       variant="outline"
                       className="flex items-center gap-2 h-10"
-                      disabled={loading}
+                      disabled={adminLoading}
                     >
                       <SlidersHorizontal className="w-4 h-4" />
                       Filter
@@ -517,7 +440,7 @@ export default function AdminOrdersPage() {
                     variant="ghost"
                     onClick={clearAllFilters}
                     className="text-sm h-10"
-                    disabled={loading}
+                    disabled={adminLoading}
                   >
                     Clear Filters
                   </Button>
@@ -526,7 +449,7 @@ export default function AdminOrdersPage() {
             </div>
           </div>
 
-          {/* Tab Navigation - Updated to use buttons like cart page */}
+          {/* Tab Navigation */}
           <div className="border-b border-gray-200 dark:border-gray-700">
             <div className="flex gap-0 px-6 overflow-x-auto">
               <button
@@ -536,66 +459,75 @@ export default function AdminOrdersPage() {
                 All Orders
               </button>
               <button
-                className={getTabButtonClass("open")}
-                onClick={() => handleTabClick("open")}
+                className={getTabButtonClass("paid")}
+                onClick={() => handleTabClick("paid")}
               >
-                Open
+                Paid
               </button>
               <button
-                className={getTabButtonClass("ongoing")}
-                onClick={() => handleTabClick("ongoing")}
+                className={getTabButtonClass("pending")}
+                onClick={() => handleTabClick("pending")}
               >
-                Ongoing
+                Pending
               </button>
               <button
-                className={getTabButtonClass("completed")}
-                onClick={() => handleTabClick("completed")}
+                className={getTabButtonClass("shipped")}
+                onClick={() => handleTabClick("shipped")}
               >
-                Completed
+                Shipped
               </button>
               <button
-                className={getTabButtonClass("returned")}
-                onClick={() => handleTabClick("returned")}
+                className={getTabButtonClass("delivered")}
+                onClick={() => handleTabClick("delivered")}
               >
-                Returned
+                Delivered
               </button>
               <button
-                className={getTabButtonClass("unfulfilled")}
-                onClick={() => handleTabClick("unfulfilled")}
+                className={getTabButtonClass("cancelled")}
+                onClick={() => handleTabClick("cancelled")}
               >
-                Unfulfilled
+                Cancelled
               </button>
             </div>
           </div>
 
           {/* Orders Table */}
           <div className="p-6">
-            {loading ? (
+            {adminLoading ? (
               <div className="flex justify-center items-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin" />
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+                  <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                    Loading orders...
+                  </p>
+                </div>
               </div>
-            ) : filteredOrders.length === 0 ? (
+            ) : filteredLineItems.length === 0 ? (
               <div className="flex flex-col items-center text-center py-12">
                 <img src={images.EmptyFallback} alt="" className="h-60 mb-6" />
-                <p className="text-muted-foreground">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  No Orders Found
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   {searchQuery ||
                   selectedStatuses.length > 0 ||
                   activeTab !== "all"
-                    ? "No orders found matching your criteria"
-                    : "No orders yet"}
+                    ? "Try adjusting your filters"
+                    : "No orders have been placed yet."}
                 </p>
               </div>
             ) : (
-              <DataTable
-                data={filteredOrders}
+              <DataTable<OrderLineItemWithId>
+                data={filteredLineItems}
                 fields={orderFields}
                 actions={orderActions}
                 enableSelection={true}
                 enablePagination={true}
-                pageSize={10}
+                pageSize={adminPagination?.pageSize || 25}
               />
             )}
           </div>
+
         </div>
       </div>
     </div>

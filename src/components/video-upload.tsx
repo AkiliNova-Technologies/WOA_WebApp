@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { X, Play, Pause, FolderUp, Loader2 } from "lucide-react";
+import { X, Play, Pause, FolderUp, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { uploadToStorage, deleteFromStorage } from "@/config/superbase/storage";
+import { toast } from "sonner"; // Added for better error notifications
 
 export interface VideoUploadProps {
-  onVideoChange: (url: string | null) => void; // Now returns URL instead of file
+  onVideoChange: (url: string | null) => void; 
   className?: string;
   maxSize?: number;
   acceptedFormats?: string;
@@ -21,7 +22,7 @@ export interface VideoUploadProps {
 export function VideoUpload({
   onVideoChange,
   className,
-  maxSize = 50,
+  maxSize = 10, // Changed default from 50 to 10MB
   description,
   acceptedFormats = "video/mp4,video/avi,video/mov,video/wmv,video/flv,video/webm",
   footer = true,
@@ -38,8 +39,12 @@ export function VideoUpload({
   const [uploadProgress, setUploadProgress] = React.useState(0);
   const [currentTime, setCurrentTime] = React.useState(0);
   const [duration, setDuration] = React.useState(0);
+  const [fileError, setFileError] = React.useState<string | null>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const progressInterval = React.useRef<NodeJS.Timeout | null>(null);
+  
+  const MAX_SIZE_MB = maxSize; // 10MB limit
+  const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
   // Initialize with URL if provided
   React.useEffect(() => {
@@ -48,21 +53,47 @@ export function VideoUpload({
     }
   }, [initialUrl]);
 
-  const handleFileChange = async (file: File) => {
-    // Validate file type
-    if (!acceptedFormats.split(",").includes(file.type)) {
-      alert(
-        `Please upload a video file. Supported formats: ${acceptedFormats
-          .replace(/video\//g, "")
-          .split(",")
-          .join(", ")}`
-      );
-      return;
+  // Validate file before upload
+  const validateVideoFile = (file: File): { isValid: boolean; error?: string } => {
+    // Reset any previous error
+    setFileError(null);
+
+    // 1. Check file type
+    const acceptedTypes = acceptedFormats.split(",");
+    if (!acceptedTypes.includes(file.type)) {
+      const errorMsg = `Unsupported video format. Supported formats: ${acceptedTypes
+        .map(format => format.replace("video/", "").toUpperCase())
+        .join(", ")}`;
+      return { isValid: false, error: errorMsg };
     }
 
-    // Validate file size
-    if (file.size > maxSize * 1024 * 1024) {
-      alert(`File size must be less than ${maxSize}MB`);
+    // 2. Check file size
+    if (file.size > MAX_SIZE_BYTES) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      const errorMsg = `File size (${fileSizeMB}MB) exceeds the ${MAX_SIZE_MB}MB limit. Please upload a smaller video.`;
+      return { isValid: false, error: errorMsg };
+    }
+
+    // 3. Optional: Check file extension for extra safety
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    const validExtensions = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'];
+    if (extension && !validExtensions.includes(extension)) {
+      const errorMsg = `Invalid file extension (.${extension}). Supported extensions: ${validExtensions.join(", ").toUpperCase()}`;
+      return { isValid: false, error: errorMsg };
+    }
+
+    return { isValid: true };
+  };
+
+  const handleFileChange = async (file: File) => {
+    // Validate file first
+    const validation = validateVideoFile(file);
+    if (!validation.isValid) {
+      setFileError(validation.error || "Invalid video file");
+      toast.error(validation.error || "Invalid video file", {
+        duration: 5000,
+        icon: <AlertCircle className="w-4 h-4" />
+      });
       return;
     }
 
@@ -72,6 +103,12 @@ export function VideoUpload({
     setVideoUrl(previewUrl);
     setUploading(true);
     setUploadProgress(0);
+
+    // Show file info in toast
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    toast.info(`Uploading video: ${file.name} (${fileSizeMB}MB / ${MAX_SIZE_MB}MB limit)`, {
+      duration: 3000,
+    });
 
     // Simulate upload progress
     const interval = setInterval(() => {
@@ -91,7 +128,11 @@ export function VideoUpload({
       clearInterval(interval);
 
       if (result.error) {
-        alert(`Upload failed: ${result.error}`);
+        const errorMsg = `Upload failed: ${result.error}`;
+        setFileError(errorMsg);
+        toast.error(errorMsg, {
+          duration: 5000,
+        });
         setUploadProgress(0);
         setUploading(false);
         // Clean up preview URL
@@ -113,14 +154,24 @@ export function VideoUpload({
       // Notify parent with the URL
       onVideoChange(result.url!);
 
+      toast.success("Video uploaded successfully!", {
+        duration: 3000,
+      });
+
       console.log("Video uploaded successfully:", {
         url: result.url,
         path: result.path,
+        size: fileSizeMB,
+        maxSize: MAX_SIZE_MB,
       });
     } catch (error) {
       clearInterval(interval);
       console.error("Upload error:", error);
-      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMsg = `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      setFileError(errorMsg);
+      toast.error(errorMsg, {
+        duration: 5000,
+      });
       setUploadProgress(0);
       setUploading(false);
       URL.revokeObjectURL(previewUrl);
@@ -161,8 +212,14 @@ export function VideoUpload({
   const handleRemoveVideo = async () => {
     // Delete from Supabase if it exists
     if (storagePath) {
-      await deleteFromStorage(bucket, storagePath);
-      console.log("Deleted video from storage:", storagePath);
+      try {
+        await deleteFromStorage(bucket, storagePath);
+        console.log("Deleted video from storage:", storagePath);
+        toast.info("Video removed successfully", { duration: 3000 });
+      } catch (error) {
+        console.error("Failed to delete video from storage:", error);
+        toast.error("Failed to delete video from storage", { duration: 3000 });
+      }
     }
 
     // Stop video playback
@@ -177,6 +234,7 @@ export function VideoUpload({
     setStoragePath(null);
     setCurrentTime(0);
     setDuration(0);
+    setFileError(null);
     
     // Notify parent
     onVideoChange(null);
@@ -258,7 +316,8 @@ export function VideoUpload({
             "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
             isDragging
               ? "border-[#CC5500] bg-orange-50 dark:bg-orange-950/20"
-              : "border-gray-300 bg-gray-50 hover:border-[#CC5500] dark:border-gray-600 dark:bg-[#303030] dark:hover:border-[#CC5500]"
+              : "border-gray-300 bg-gray-50 hover:border-[#CC5500] dark:border-gray-600 dark:bg-[#303030] dark:hover:border-[#CC5500]",
+            fileError && "border-red-300 dark:border-red-500 bg-red-50 dark:bg-red-950/20"
           )}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -266,12 +325,25 @@ export function VideoUpload({
           onClick={() => document.getElementById("video-upload-input")?.click()}
         >
           <div className="flex justify-center">
-            <div className="p-3 bg-white dark:bg-gray-700 rounded-full">
-              <FolderUp className="w-6 h-6 text-[#CC5500]" />
+            <div className={cn(
+              "p-3 rounded-full",
+              fileError 
+                ? "bg-red-100 dark:bg-red-900/30" 
+                : "bg-white dark:bg-gray-700"
+            )}>
+              <FolderUp className={cn(
+                "w-6 h-6",
+                fileError ? "text-red-500 dark:text-red-400" : "text-[#CC5500]"
+              )} />
             </div>
           </div>
           <div className="space-y-2 mt-3">
-            <p className="text-lg font-medium text-gray-900 dark:text-white">
+            <p className={cn(
+              "text-lg font-medium",
+              fileError 
+                ? "text-red-600 dark:text-red-400" 
+                : "text-gray-900 dark:text-white"
+            )}>
               Upload a Short Story
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">or</p>
@@ -279,6 +351,17 @@ export function VideoUpload({
               Drag and Drop Intro Video
             </p>
           </div>
+          
+          {/* Error message display */}
+          {fileError && (
+            <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/30 rounded-md">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <p className="text-sm font-medium">{fileError}</p>
+              </div>
+            </div>
+          )}
+          
           <input
             id="video-upload-input"
             type="file"
@@ -291,10 +374,28 @@ export function VideoUpload({
 
       {/* Footer with description */}
       {footer && !videoUrl && !uploading && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          {description ||
-            `Recommended size: 1920x1080px • Format: MP4, AVI, MOV, WMV, FLV, WebM • Max ${maxSize}MB`}
-        </p>
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {description ||
+              `Recommended size: 1920x1080px • Format: MP4, AVI, MOV, WMV, FLV, WebM • Max ${MAX_SIZE_MB}MB`}
+          </p>
+          
+          {/* Size limit indicator */}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-400 dark:text-gray-500">
+              Maximum file size: <strong>{MAX_SIZE_MB}MB</strong>
+            </span>
+            {fileError && (
+              <button
+                type="button"
+                onClick={() => setFileError(null)}
+                className="text-[#CC5500] hover:underline"
+              >
+                Clear error
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Uploading State */}
@@ -310,9 +411,16 @@ export function VideoUpload({
                   <p className="font-medium text-gray-900 dark:text-white">
                     {videoFile?.name}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Uploading... {uploadProgress}%
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Uploading... {uploadProgress}%
+                    </p>
+                    {videoFile && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        ({(videoFile.size / (1024 * 1024)).toFixed(2)}MB / {MAX_SIZE_MB}MB)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -340,9 +448,20 @@ export function VideoUpload({
                   {videoFile?.name || "Video"}
                 </p>
                 {videoFile && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {(videoFile.size / (1024 * 1024)).toFixed(2)} MB
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {(videoFile.size / (1024 * 1024)).toFixed(2)} MB
+                    </p>
+                    {/* Size validation indicator */}
+                    <span className={cn(
+                      "text-xs px-2 py-0.5 rounded-full",
+                      videoFile.size <= MAX_SIZE_BYTES
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                    )}>
+                      {videoFile.size <= MAX_SIZE_BYTES ? "✓ Within limit" : "✗ Exceeds limit"}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

@@ -134,6 +134,58 @@ export interface OrderStats {
   itemsSold: number;
 }
 
+export interface AdminOrderStats {
+  totalItemsOrdered: number;
+  itemsChangePct: number;
+  thisMonth: {
+    items: number;
+  };
+  previousMonth: {
+    items: number;
+  };
+  pendingOrders: number;
+  pendingItems: number;
+  pendingRevenue: number;
+}
+
+export interface AdminOrderLineItem {
+  subOrderId: string;
+  productId: string;
+  name: string;
+  image: string;
+  orderDate: string;
+  quantity: number;
+  orderTotal: number;
+  lineTotal: number;
+  shipBy: string | null;
+  status: 'paid' | 'pending' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+  category: {
+    id: string;
+    name: string;
+  };
+  subcategory: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface AdminOrdersResponse {
+  stats: AdminOrderStats;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+  data: AdminOrderLineItem[];
+}
+
+export interface AdminOrdersParams {
+  search?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  page?: number;
+}
+
 export interface LowStockProduct {
   id: string;
   productId: string;
@@ -158,6 +210,18 @@ interface OrdersState {
   createError: string | null;
   updateLoading: boolean;
   updateError: string | null;
+  // Admin state
+  adminData: {
+    stats: AdminOrderStats | null;
+    lineItems: AdminOrderLineItem[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+    } | null;
+    loading: boolean;
+    error: string | null;
+  };
 }
 
 const initialState: OrdersState = {
@@ -177,6 +241,13 @@ const initialState: OrdersState = {
   createError: null,
   updateLoading: false,
   updateError: null,
+  adminData: {
+    stats: null,
+    lineItems: [],
+    pagination: null,
+    loading: false,
+    error: null,
+  },
 };
 
 // Create new order with payment processing
@@ -229,6 +300,30 @@ export const fetchOrder = createAsyncThunk(
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || 'Failed to fetch order'
+      );
+    }
+  }
+);
+
+// Fetch admin orders
+export const fetchAdminOrders = createAsyncThunk(
+  'orders/fetchAdmin',
+  async (params: AdminOrdersParams | undefined = {}, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.categoryId) queryParams.append('categoryId', params.categoryId);
+      if (params?.subcategoryId) queryParams.append('subcategoryId', params.subcategoryId);
+      if (params?.page) queryParams.append('page', params.page.toString());
+
+      const queryString = queryParams.toString();
+      const url = `/api/v1/admin/orders${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await api.get(url);
+      return response.data as AdminOrdersResponse;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to fetch admin orders'
       );
     }
   }
@@ -411,6 +506,18 @@ const ordersSlice = createSlice({
       state.createError = null;
       state.updateError = null;
     },
+    clearAdminError: (state) => {
+      state.adminData.error = null;
+    },
+    clearAdminData: (state) => {
+      state.adminData = {
+        stats: null,
+        lineItems: [],
+        pagination: null,
+        loading: false,
+        error: null,
+      };
+    },
     updateOrderInList: (state, action: PayloadAction<Order>) => {
       const index = state.orders.findIndex(order => order.id === action.payload.id);
       if (index !== -1) {
@@ -469,6 +576,22 @@ const ordersSlice = createSlice({
       .addCase(fetchOrder.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
+      })
+
+      // Fetch admin orders
+      .addCase(fetchAdminOrders.pending, (state) => {
+        state.adminData.loading = true;
+        state.adminData.error = null;
+      })
+      .addCase(fetchAdminOrders.fulfilled, (state, action) => {
+        state.adminData.loading = false;
+        state.adminData.stats = action.payload.stats;
+        state.adminData.lineItems = action.payload.data;
+        state.adminData.pagination = action.payload.pagination;
+      })
+      .addCase(fetchAdminOrders.rejected, (state, action) => {
+        state.adminData.loading = false;
+        state.adminData.error = action.payload as string;
       })
       
       // Update order status
@@ -588,6 +711,8 @@ export const {
   setFilters,
   clearFilters,
   clearError,
+  clearAdminError,
+  clearAdminData,
   updateOrderInList,
 } = ordersSlice.actions;
 
@@ -603,5 +728,12 @@ export const selectCreateOrderLoading = (state: { orders: OrdersState }) => stat
 export const selectCreateOrderError = (state: { orders: OrdersState }) => state.orders.createError;
 export const selectUpdateOrderLoading = (state: { orders: OrdersState }) => state.orders.updateLoading;
 export const selectUpdateOrderError = (state: { orders: OrdersState }) => state.orders.updateError;
+
+// Admin selectors
+export const selectAdminOrderStats = (state: { orders: OrdersState }) => state.orders.adminData.stats;
+export const selectAdminOrderLineItems = (state: { orders: OrdersState }) => state.orders.adminData.lineItems;
+export const selectAdminOrderPagination = (state: { orders: OrdersState }) => state.orders.adminData.pagination;
+export const selectAdminOrdersLoading = (state: { orders: OrdersState }) => state.orders.adminData.loading;
+export const selectAdminOrdersError = (state: { orders: OrdersState }) => state.orders.adminData.error;
 
 export default ordersSlice.reducer;

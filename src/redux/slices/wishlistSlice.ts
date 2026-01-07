@@ -26,12 +26,73 @@ export interface WishlistItem {
   };
 }
 
+export interface AdminWishlistStats {
+  totalWishlistItems: number;
+  totalConversions: number;
+  wishlistChangePct: number;
+  conversionsChangePct: number;
+  thisMonth: {
+    wishlistAdds: number;
+    conversions: number;
+  };
+  previousMonth: {
+    wishlistAdds: number;
+    conversions: number;
+  };
+}
+
+export interface AdminWishlistProduct {
+  productId: string;
+  name: string;
+  image: string;
+  category: {
+    id: string;
+    name: string;
+  };
+  subcategory: {
+    id: string;
+    name: string;
+  };
+  wishlistCount: number;
+  stock: number;
+  lastWishlistedAt: string;
+}
+
+export interface AdminWishlistResponse {
+  stats: AdminWishlistStats;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+  data: AdminWishlistProduct[];
+}
+
+export interface AdminWishlistParams {
+  search?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  page?: number;
+}
+
 interface WishlistState {
   items: WishlistItem[];
   loading: boolean;
   error: string | null;
   adding: boolean;
   removing: boolean;
+  // Admin state
+  adminData: {
+    stats: AdminWishlistStats | null;
+    products: AdminWishlistProduct[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+    } | null;
+    loading: boolean;
+    error: string | null;
+  };
 }
 
 const initialState: WishlistState = {
@@ -40,6 +101,13 @@ const initialState: WishlistState = {
   error: null,
   adding: false,
   removing: false,
+  adminData: {
+    stats: null,
+    products: [],
+    pagination: null,
+    loading: false,
+    error: null,
+  },
 };
 
 // Fetch wishlist
@@ -102,6 +170,30 @@ export const moveToCart = createAsyncThunk(
   }
 );
 
+// Fetch admin wishlist
+export const fetchAdminWishlist = createAsyncThunk(
+  "wishlist/fetchAdmin",
+  async (params: AdminWishlistParams | undefined = {}, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.search) queryParams.append("search", params.search);
+      if (params?.categoryId) queryParams.append("categoryId", params.categoryId);
+      if (params?.subcategoryId) queryParams.append("subcategoryId", params.subcategoryId);
+      if (params?.page) queryParams.append("page", params.page.toString());
+
+      const queryString = queryParams.toString();
+      const url = `/api/v1/admin/wishlist${queryString ? `?${queryString}` : ""}`;
+      
+      const response = await api.get(url);
+      return response.data as AdminWishlistResponse;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch admin wishlist"
+      );
+    }
+  }
+);
+
 const wishlistSlice = createSlice({
   name: "wishlist",
   initialState,
@@ -111,6 +203,18 @@ const wishlistSlice = createSlice({
     },
     clearError: (state) => {
       state.error = null;
+    },
+    clearAdminError: (state) => {
+      state.adminData.error = null;
+    },
+    clearAdminData: (state) => {
+      state.adminData = {
+        stats: null,
+        products: [],
+        pagination: null,
+        loading: false,
+        error: null,
+      };
     },
   },
   extraReducers: (builder) => {
@@ -161,11 +265,27 @@ const wishlistSlice = createSlice({
       .addCase(removeFromWishlist.rejected, (state, action) => {
         state.removing = false;
         state.error = action.payload as string;
+      })
+
+      // Fetch admin wishlist
+      .addCase(fetchAdminWishlist.pending, (state) => {
+        state.adminData.loading = true;
+        state.adminData.error = null;
+      })
+      .addCase(fetchAdminWishlist.fulfilled, (state, action) => {
+        state.adminData.loading = false;
+        state.adminData.stats = action.payload.stats;
+        state.adminData.products = action.payload.data;
+        state.adminData.pagination = action.payload.pagination;
+      })
+      .addCase(fetchAdminWishlist.rejected, (state, action) => {
+        state.adminData.loading = false;
+        state.adminData.error = action.payload as string;
       });
   },
 });
 
-export const { clearWishlist, clearError } = wishlistSlice.actions;
+export const { clearWishlist, clearError, clearAdminError, clearAdminData } = wishlistSlice.actions;
 
 // Selectors
 export const selectWishlistItems = (state: { wishlist: WishlistState }) =>
@@ -179,5 +299,17 @@ export const selectAddingToWishlist = (state: { wishlist: WishlistState }) =>
 export const selectRemovingFromWishlist = (state: {
   wishlist: WishlistState;
 }) => state.wishlist.removing;
+
+// Admin selectors
+export const selectAdminWishlistStats = (state: { wishlist: WishlistState }) =>
+  state.wishlist.adminData.stats;
+export const selectAdminWishlistProducts = (state: { wishlist: WishlistState }) =>
+  state.wishlist.adminData.products;
+export const selectAdminWishlistPagination = (state: { wishlist: WishlistState }) =>
+  state.wishlist.adminData.pagination;
+export const selectAdminWishlistLoading = (state: { wishlist: WishlistState }) =>
+  state.wishlist.adminData.loading;
+export const selectAdminWishlistError = (state: { wishlist: WishlistState }) =>
+  state.wishlist.adminData.error;
 
 export default wishlistSlice.reducer;
