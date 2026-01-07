@@ -36,8 +36,29 @@ interface PieDonutChartProps {
   activeIndex?: number;
   className?: string;
   chartHeight?: string;
-  showKey?: boolean; // New prop to show/hide key
-  keyPosition?: "right" | "bottom"; // Position of the key
+  chartWidth?: string;
+  showKey?: boolean;
+  keyPosition?: "right" | "bottom";
+  keyOrientation?: "vertical" | "horizontal";
+  keyAlignment?: "start" | "center" | "end";
+  innerRadius?: number | string;
+  outerRadius?: number | string;
+  chartPadding?: {
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+  };
+  labelGap?: number;
+  keyItemGap?: number;
+  renderKeyItem?: (
+    item: PieChartData,
+    index: number,
+    config: ChartConfig
+  ) => React.ReactNode;
+  showTotal?: boolean;
+  totalLabel?: string;
+  showPercentage?: boolean;
 }
 
 export function PieDonutChartComponent({
@@ -51,14 +72,116 @@ export function PieDonutChartComponent({
   activeIndex = 0,
   className = "",
   chartHeight = "350px",
-  showKey = true, // Default to showing key
-  keyPosition = "right", // Default to right side
+  chartWidth = "100%",
+  showKey = true,
+  keyPosition = "right",
+  keyOrientation = "vertical",
+  keyAlignment = "center",
+  innerRadius = "50%",
+  outerRadius = "80%",
+  chartPadding = { top: 0, right: 0, bottom: 0, left: 0 },
+  showPercentage = false,
+  labelGap = 16,
+  keyItemGap = 4,
+  renderKeyItem,
+  showTotal = false,
+  totalLabel = "Total",
 }: PieDonutChartProps) {
   // Calculate total for percentage display
-  // const totalValue = data.reduce((sum, item) => sum + item.value, 0);
+  const totalValue = data.reduce((sum, item) => sum + item.value, 0);
+
+  // Determine layout based on key position and orientation
+  const isKeyHorizontal = keyOrientation === "horizontal";
+
+  // For horizontal orientation, force keyPosition to bottom
+  const effectiveKeyPosition = isKeyHorizontal ? "bottom" : keyPosition;
+
+  // Calculate chart container dimensions based on key position
+  const getChartContainerClass = () => {
+    if (!showKey) return "w-full h-full";
+
+    if (effectiveKeyPosition === "right") {
+      return isKeyHorizontal ? "w-full h-3/4" : "w-3/4 h-full";
+    } else {
+      return "w-full h-3/4";
+    }
+  };
+
+  const getKeyContainerClass = () => {
+    const alignmentClasses = {
+      start: "items-start",
+      center: "items-center",
+      end: "items-end",
+    };
+
+    if (effectiveKeyPosition === "right") {
+      return `w-1/4 pl-${labelGap / 4} flex flex-col ${
+        alignmentClasses[keyAlignment]
+      }`;
+    } else {
+      return `h-1/4 pt-${labelGap / 4} flex ${
+        isKeyHorizontal ? "flex-row justify-center" : "flex-col"
+      } ${alignmentClasses[keyAlignment]}`;
+    }
+  };
+
+  const getKeyItemsContainerClass = () => {
+    if (isKeyHorizontal) {
+      return `flex ${
+        keyAlignment === "center"
+          ? "justify-center"
+          : keyAlignment === "end"
+          ? "justify-end"
+          : "justify-start"
+      } flex-wrap gap-${keyItemGap / 4}`;
+    }
+    return "space-y-4";
+  };
+
+  // Default key item renderer
+  const defaultRenderKeyItem = (item: PieChartData, index: number) => {
+    const percentage =
+      totalValue > 0 ? ((item.value / totalValue) * 100).toFixed(1) : "0.0";
+    const color =
+      config[item.name.toLowerCase().replace(/\s+/g, "-")]?.color || item.fill;
+
+    return (
+      <div
+        key={index}
+        className={`flex items-center gap-[${keyItemGap}] ${
+          isKeyHorizontal ? "gap-[${keyItemGap}]" : "justify-between"
+        } text-sm`}
+      >
+        <div className="flex items-center gap-2">
+          <div
+            className="w-5 h-5 rounded-sm flex-shrink-0"
+            style={{
+              backgroundColor: color.includes("var(")
+                ? `var(${color.match(/var\((.*)\)/)?.[1] || color})`
+                : color,
+            }}
+          />
+          <span className="truncate">{item.name}</span>
+        </div>
+        <div
+          className={`flex items-center gap-2 ${isKeyHorizontal ? "ml-1" : ""}`}
+        >
+          <span className="font-medium">{item.value}</span>
+          {showPercentage && (
+            <span className="text-muted-foreground text-xs">
+              ({percentage}%)
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <Card className={`shadow-none border-none ${className}`}>
+    <Card
+      className={`shadow-none border-none ${className}`}
+      style={{ width: chartWidth }}
+    >
       {title && (
         <CardHeader className="p-0 mb-4">
           {title && (
@@ -74,23 +197,17 @@ export function PieDonutChartComponent({
       >
         <div
           className={`flex ${
-            keyPosition === "right" ? "flex-row" : "flex-col"
+            effectiveKeyPosition === "right" ? "flex-row" : "flex-col"
           } h-full`}
         >
           {/* Chart Area */}
-          <div
-            className={`flex items-center justify-center ${
-              showKey
-                ? keyPosition === "right"
-                  ? "sm:w-1/2 md:w-3/4 w-full h-full"
-                  : "h-1/2"
-                : "w-full h-full"
-            }`}
-          >
+          <div className={getChartContainerClass()}>
             <ChartContainer
               config={config}
-              className="h-full"
-              style={{ width: "100%" }}
+              className="h-full w-full"
+              style={{
+                padding: `${chartPadding.top}px ${chartPadding.right}px ${chartPadding.bottom}px ${chartPadding.left}px`,
+              }}
             >
               <PieChart>
                 <ChartTooltip
@@ -101,16 +218,20 @@ export function PieDonutChartComponent({
                   data={data}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius="50%"
-                  outerRadius="80%"
+                  innerRadius={innerRadius}
+                  outerRadius={outerRadius}
                   strokeWidth={3}
-                  
                   activeIndex={activeIndex}
                   activeShape={({
-                    outerRadius = 0,
+                    outerRadius: radius = 0,
                     ...props
                   }: PieSectorDataItem) => (
-                    <Sector {...props} outerRadius={outerRadius + 5} />
+                    <Sector
+                      {...props}
+                      outerRadius={
+                        typeof radius === "number" ? radius + 5 : radius
+                      }
+                    />
                   )}
                 />
               </PieChart>
@@ -118,58 +239,31 @@ export function PieDonutChartComponent({
           </div>
 
           {showKey && (
-            <div
-              className={`${
-                keyPosition === "right" ? "w-1/4 pl-4" : "h-1/4 pt-4"
-              } flex flex-col justify-center`}
-            >
-              <div className="space-y-4">
-                {data.map((item, index) => {
-                  // const percentage =
-                  //   totalValue > 0
-                  //     ? ((item.value / totalValue) * 100).toFixed(1)
-                  //     : "0.0";
-                  const color =
-                    config[item.name.toLowerCase().replace(/\s+/g, "-")]
-                      ?.color || item.fill;
-
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{
-                            backgroundColor: color.includes("var(")
-                              ? `var(${
-                                  color.match(/var\((.*)\)/)?.[1] || color
-                                })`
-                              : color,
-                          }}
-                        />
-                        <span className="truncate">{item.name}</span>
-                      </div>
-                      {/* <div className="flex items-center gap-2 ml-2">
-                        <span className="font-medium">{item.value}</span>
-                        <span className="text-muted-foreground text-xs">
-                          ({percentage}%)
-                        </span>
-                      </div> */}
-                    </div>
-                  );
-                })}
+            <div className={getKeyContainerClass()}>
+              <div className={getKeyItemsContainerClass()}>
+                {data.map((item, index) =>
+                  renderKeyItem
+                    ? renderKeyItem(item, index, config)
+                    : defaultRenderKeyItem(item, index)
+                )}
 
                 {/* Total */}
-                {/* {data.length > 0 && (
-                  <div className="pt-2 mt-2 border-t">
-                    <div className="flex items-center justify-between text-sm font-medium">
-                      <span>Total</span>
+                {showTotal && data.length > 0 && (
+                  <div
+                    className={`${
+                      isKeyHorizontal ? "ml-4" : "pt-2 mt-2 border-t"
+                    }`}
+                  >
+                    <div
+                      className={`flex items-center ${
+                        isKeyHorizontal ? "gap-2" : "justify-between"
+                      } text-sm font-medium`}
+                    >
+                      <span>{totalLabel}</span>
                       <span>{totalValue}</span>
                     </div>
                   </div>
-                )} */}
+                )}
               </div>
             </div>
           )}
