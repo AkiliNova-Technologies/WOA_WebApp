@@ -20,7 +20,7 @@ export interface SubCategory {
   id: string;
   name: string;
   description?: string;
-  icon?: string;
+  coverImageUrl?: string;
   categoryId: string;
   isActive: boolean;
   createdAt: string;
@@ -246,20 +246,18 @@ export const createSubcategory = createAsyncThunk(
       name: string;
       description?: string;
       categoryId: string;
-      icon?: string;
+      coverImageUrl: string;
       isActive?: boolean;
     },
     { rejectWithValue }
   ) => {
     try {
-      // Use the correct endpoint format with categoryId in the URL
       const response = await api.post(
         `/api/v1/admin/categories/${data.categoryId}/subcategories`,
         {
           name: data.name,
           description: data.description,
-          icon: data.icon,
-          isActive: data.isActive ?? true,
+          coverImageUrl: data.coverImageUrl,
         }
       );
       return response.data;
@@ -274,12 +272,20 @@ export const createSubcategory = createAsyncThunk(
 export const updateSubcategory = createAsyncThunk(
   "subcategories/update",
   async (
-    { id, data }: { id: string; data: Partial<SubCategory> },
+    { 
+      categoryId, 
+      id, 
+      data 
+    }: { 
+      categoryId: string;
+      id: string; 
+      data: Partial<SubCategory> 
+    },
     { rejectWithValue }
   ) => {
     try {
       const response = await api.patch(
-        `/api/v1/admin/subcategories/${id}`,
+        `/api/v1/admin/categories/${categoryId}/subcategories/${id}`,
         data
       );
       return response.data;
@@ -293,9 +299,14 @@ export const updateSubcategory = createAsyncThunk(
 
 export const deleteSubcategory = createAsyncThunk(
   "subcategories/delete",
-  async (id: string, { rejectWithValue }) => {
+  async (
+    { categoryId, id }: { categoryId: string; id: string },
+    { rejectWithValue }
+  ) => {
     try {
-      await api.delete(`/api/v1/admin/subcategories/${id}`);
+      await api.delete(
+        `/api/v1/admin/categories/${categoryId}/subcategories/${id}`
+      );
       return id;
     } catch (error: any) {
       return rejectWithValue(
@@ -308,11 +319,13 @@ export const deleteSubcategory = createAsyncThunk(
 export const fetchAdminSubcategories = createAsyncThunk(
   "subcategories/fetchAdminAll",
   async (
-    params: { categoryId?: string; skip?: number; take?: number } = {},
+    { categoryId }: { categoryId: string },
     { rejectWithValue }
   ) => {
     try {
-      const response = await api.get("/api/v1/admin/subcategories", { params });
+      const response = await api.get(
+        `/api/v1/admin/categories/${categoryId}/subcategories`
+      );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(

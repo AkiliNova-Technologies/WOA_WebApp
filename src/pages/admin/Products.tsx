@@ -124,6 +124,7 @@ export default function AdminProductsPage() {
   // ✅ Use publicProducts instead of products
   const { 
     publicProducts, 
+    
     loading, 
     error,
     getPublicProducts,

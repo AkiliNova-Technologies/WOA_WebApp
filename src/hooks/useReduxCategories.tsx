@@ -179,10 +179,9 @@ export function useReduxCategories() {
 
   // Admin subcategory actions
   const getAdminSubcategories = useCallback(
-    async (params?: { categoryId?: string; skip?: number; take?: number }) => {
+    async (categoryId: string) => {
       try {
-        // Pass empty object if params is undefined
-        return await dispatch(fetchAdminSubcategories(params || {})).unwrap();
+        return await dispatch(fetchAdminSubcategories({ categoryId })).unwrap();
       } catch (error) {
         console.error("Failed to fetch admin subcategories:", error);
         throw error;
@@ -197,7 +196,8 @@ export function useReduxCategories() {
       data: {
         name: string;
         description?: string;
-        icon?: string;
+        coverImageUrl: string;
+        isActive?: boolean;
       }
     ) => {
       try {
@@ -215,9 +215,9 @@ export function useReduxCategories() {
   );
 
   const updateExistingSubcategory = useCallback(
-    async (id: string, data: Partial<SubCategory>) => {
+    async (categoryId: string, id: string, data: Partial<SubCategory>) => {
       try {
-        return await dispatch(updateSubcategory({ id, data })).unwrap();
+        return await dispatch(updateSubcategory({ categoryId, id, data })).unwrap();
       } catch (error) {
         console.error("Failed to update subcategory:", error);
         throw error;
@@ -227,9 +227,9 @@ export function useReduxCategories() {
   );
 
   const removeSubcategory = useCallback(
-    async (id: string) => {
+    async (categoryId: string, id: string) => {
       try {
-        await dispatch(deleteSubcategory(id)).unwrap();
+        await dispatch(deleteSubcategory({ categoryId, id })).unwrap();
         return true;
       } catch (error) {
         console.error("Failed to delete subcategory:", error);

@@ -24,6 +24,7 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
+import images from "@/assets/images";
 
 type DateRange = "last-7-days" | "last-30-days" | "all-time";
 type DetailsTab = "overview" | "details" | "products";
@@ -248,9 +249,9 @@ export default function AdminWarehouseDetails() {
   return (
     <>
       <SiteHeader />
-      <div className="min-h-screen py-6">
+      <div className="min-h-screen py-6 px-6">
         {/* Header */}
-        <div className="bg-white rounded-md mb-6 mx-6 dark:bg-[#303030]">
+        <div className="bg-white rounded-md mb-6 dark:bg-[#303030]">
           <div className="mx-auto px-10 py-4 flex items-center justify-between">
             <div className="flex items-center justify-center gap-4">
               <Button
@@ -276,12 +277,19 @@ export default function AdminWarehouseDetails() {
         </div>
 
         {/* Hero Section */}
-        <div className="relative h-32 bg-gradient-to-br from-purple-900 via-purple-800 to-pink-900">
-          <div className="absolute inset-0 bg-black opacity-30" />
-        </div>
+        {/* ================= COVER IMAGE ================= */}
+          <div className="relative w-full h-[380px] overflow-hidden rounded-2xl">
+            <img
+              src={images.Placeholder}
+              alt="Cover"
+              className="object-cover w-full h-full"
+            />
+
+            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3"></div>
+          </div>
 
         {/* Content */}
-        <div className="max-w-8xl mx-auto px-6 -mt-16 relative">
+        <div className="max-w-8xl mx-auto px-6 -mt-22 relative">
           <Card className="p-0 mb-6 shadow-none bg-transparent border-none dark:bg-trandparent">
             <div className="bg-white p-6 rounded-lg rounded-b-none border border-b-0 dark:bg-[#303030]">
               <div className="mb-6">

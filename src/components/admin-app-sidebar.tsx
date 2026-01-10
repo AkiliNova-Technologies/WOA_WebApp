@@ -98,8 +98,22 @@ const data = {
     },
     {
       title: "Support",
-      url: "/admin/revenue",
+      url: "/admin/support",
       icon: CircleQuestionMark,
+      items: [
+        {
+          title: "Reviews and Ratings ",
+          url: "/admin/support/review-and-ratings",
+        },
+        {
+          title: "Compliance reports",
+          url: "/admin/support/compliance-reports",
+        },
+        {
+          title: "Help desk",
+          url: "/admin/support/help-desk",
+        },
+      ]
     },
   ],
 

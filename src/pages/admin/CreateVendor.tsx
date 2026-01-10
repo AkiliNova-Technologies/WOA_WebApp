@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Progress } from "@/components/ui/progress";
+import { useReduxAuth } from "@/hooks/useReduxAuth";
+import { debounce } from "lodash";
 
 // Helper function to format email for display
 const formatEmailForDisplay = (email: string): string => {
@@ -99,6 +101,14 @@ export default function AdminCreateVendorPage() {
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [verificationAttempts, setVerificationAttempts] = useState(0);
   const [isAutoVerifying, setIsAutoVerifying] = useState(false);
+
+  // Email availability states
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
+  const [emailError, setEmailError] = useState("");
+
+  // Use the auth hook
+  const { checkEmailAvailability } = useReduxAuth();
 
   // Location verification states
   const [showLocationVerification, setShowLocationVerification] =
@@ -222,8 +232,87 @@ export default function AdminCreateVendorPage() {
     }));
   };
 
+  // Debounced email availability check using auth hook
+  const checkEmailAvailabilityDebounced = useCallback(
+    debounce(async (email: string) => {
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setEmailAvailable(null);
+        setEmailError("");
+        return;
+      }
+
+      // Don't check if email is already verified
+      if (formData.emailVerified) {
+        return;
+      }
+
+      setCheckingEmail(true);
+      setEmailError("");
+
+      try {
+        // Use the auth hook to check email availability
+        const result = await checkEmailAvailability(email);
+
+        // Assuming the API returns { available: boolean }
+        const available = result.available || false;
+        setEmailAvailable(available);
+
+        if (!available) {
+          setEmailError("This email is already registered");
+        }
+      } catch (error: any) {
+        console.error("Email check failed:", error);
+        setEmailAvailable(null);
+
+        // Handle specific error cases
+        if (error.response?.status === 404) {
+          console.log("Email availability check endpoint not available");
+          // Fallback to direct API call if needed
+          try {
+            const fallbackResponse = await api.post(
+              "/api/v1/auth/email-availability",
+              {
+                email: email,
+              }
+            );
+            setEmailAvailable(fallbackResponse.data.available);
+            if (!fallbackResponse.data.available) {
+              setEmailError("This email is already registered");
+            }
+          } catch (fallbackError) {
+            console.error("Fallback email check failed:", fallbackError);
+            setEmailError("Could not verify email availability");
+          }
+        } else {
+          setEmailError(
+            error.message || "Could not verify email availability"
+          );
+        }
+      } finally {
+        setCheckingEmail(false);
+      }
+    }, 500),
+    [formData.emailVerified, checkEmailAvailability]
+  );
+
   const handleChange = (field: keyof FormDataState, value: string) => {
     updateFormData({ [field]: value });
+
+    // Check email availability when email changes
+    if (field === "email") {
+      setEmailError("");
+      setEmailAvailable(null);
+
+      // Cancel any pending debounced check
+      checkEmailAvailabilityDebounced.cancel?.();
+
+      // Check immediately if email is empty or invalid
+      if (!value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        return;
+      }
+
+      checkEmailAvailabilityDebounced(value);
+    }
 
     // Clear error when user starts typing
     if (errors[field as keyof typeof errors]) {
@@ -343,6 +432,22 @@ export default function AdminCreateVendorPage() {
 
   const handleInputChange = (field: keyof FormDataState, value: string) => {
     updateFormData({ [field]: value });
+
+    // Check email availability when email changes
+    if (field === "email") {
+      setEmailError("");
+      setEmailAvailable(null);
+
+      // Cancel any pending debounced check
+      checkEmailAvailabilityDebounced.cancel?.();
+
+      // Check immediately if email is empty or invalid
+      if (!value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        return;
+      }
+
+      checkEmailAvailabilityDebounced(value);
+    }
   };
 
   const handleVideoChange = (url: string | null) => {
@@ -367,8 +472,50 @@ export default function AdminCreateVendorPage() {
   const sendVerificationCode = async () => {
     if (isSendingCode) return;
 
-    console.log("🔵 [EMAIL VERIFICATION] Starting process");
-    console.log("🔵 [EMAIL VERIFICATION] Email:", formData.email);
+    // Validate email format
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    // Check if email is available before sending verification
+    if (emailAvailable === false) {
+      toast.error(
+        "This email is already registered. Please use a different email."
+      );
+      return;
+    }
+
+    // Wait if still checking
+    if (checkingEmail) {
+      toast.error("Please wait while we verify your email availability");
+      return;
+    }
+
+    // If email availability is null (not checked yet), check it now
+    if (emailAvailable === null) {
+      try {
+        setCheckingEmail(true);
+        const result = await checkEmailAvailability(formData.email);
+        const available = result.available || false;
+        setEmailAvailable(available);
+
+        if (!available) {
+          toast.error(
+            "This email is already registered. Please use a different email."
+          );
+          return;
+        }
+      } catch (error: any) {
+        console.error("Email check failed:", error);
+        toast.error(
+          "Could not verify email availability. Please try again."
+        );
+        return;
+      } finally {
+        setCheckingEmail(false);
+      }
+    }
 
     try {
       setIsSendingCode(true);
@@ -376,33 +523,22 @@ export default function AdminCreateVendorPage() {
       setVerificationCode("");
       setVerificationAttempts(0);
 
-      console.log("🔵 [EMAIL VERIFICATION] Sending OTP request to API...");
-
+      // Use the KYC email OTP endpoint
       await api.post("/api/v1/vendor/kyc/email/otp", {
         email: formData.email,
       });
 
-      console.log("✅ [EMAIL VERIFICATION] OTP sent successfully");
-      console.log("✅ [EMAIL VERIFICATION] Setting showVerification to true");
-
       setShowVerification(true);
       setTimeLeft(60);
-      toast.success("Verification code sent to email");
-
-      console.log("✅ [EMAIL VERIFICATION] State updated, screen should show");
+      toast.success("Verification code sent to vendor's email");
     } catch (error: any) {
-      console.error("❌ [EMAIL VERIFICATION] Error sending OTP:", error);
-      console.error(
-        "❌ [EMAIL VERIFICATION] Error response:",
-        error?.response?.data
-      );
+      console.error("Error sending OTP:", error);
       toast.error(
         error?.response?.data?.message || "Failed to send verification code"
       );
       throw error;
     } finally {
       setIsSendingCode(false);
-      console.log("🔵 [EMAIL VERIFICATION] Cleanup complete");
     }
   };
 
@@ -706,6 +842,7 @@ export default function AdminCreateVendorPage() {
     try {
       setIsSubmitting(true);
 
+      // Use same payload structure as KYC
       const payload = {
         first_name: formData.firstName,
         middle_name: formData.middleName || undefined,
@@ -729,10 +866,8 @@ export default function AdminCreateVendorPage() {
         swift_code: formData.swiftCode || undefined,
       };
 
-      // TODO: Replace with actual admin endpoint when available
-      // await api.post("/api/v1/admin/vendors/create", payload);
-
-      console.log("Vendor creation payload:", payload);
+      // Use KYC endpoint (backend will handle admin role-based auto-approval)
+      await api.post("/api/v1/vendor/kyc/submit", payload);
 
       toast.success("Vendor created successfully!");
       navigate("/vendors");
@@ -1009,9 +1144,8 @@ export default function AdminCreateVendorPage() {
                           Personal Information
                         </h2>
                         <p className="text-sm text-[#303030] mb-6 dark:text-gray-400">
-                          Enter the vendor's personal information. This
-                          information will be used for verification purposes
-                          only.
+                          Enter the vendor's personal information. An OTP will
+                          be sent to their email for verification.
                         </p>
 
                         {/* Name Fields */}
@@ -1072,17 +1206,26 @@ export default function AdminCreateVendorPage() {
                         {/* Contact Fields */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
-                            <Label htmlFor="email" className="mb-2 block">
-                              Email Address{" "}
-                              <RequiredFieldIndicator
-                                completed={
-                                  !!formData.email?.trim() &&
-                                  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-                                    formData.email
-                                  )
-                                }
-                              />
-                            </Label>
+                            <div className="flex justify-between items-center mb-2">
+                              <Label htmlFor="email">
+                                Email Address{" "}
+                                <span className="text-red-500">*</span>
+                              </Label>
+                              {checkingEmail && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Checking...
+                                </span>
+                              )}
+                              {emailAvailable === true &&
+                                !checkingEmail &&
+                                !formData.emailVerified && (
+                                  <span className="text-xs text-green-600 flex items-center gap-1">
+                                    <CheckCircle className="h-3 w-3" />
+                                    Available
+                                  </span>
+                                )}
+                            </div>
                             <Input
                               id="email"
                               type="email"
@@ -1099,7 +1242,13 @@ export default function AdminCreateVendorPage() {
                                 ✓ Email verified
                               </p>
                             )}
+                            {emailError && !formData.emailVerified && (
+                              <p className="text-xs text-red-600 mt-1">
+                                {emailError}
+                              </p>
+                            )}
                           </div>
+
                           <div>
                             <Label htmlFor="phone" className="mb-2 block">
                               Phone number{" "}
@@ -1185,15 +1334,15 @@ export default function AdminCreateVendorPage() {
                           className="px-8 py-3 h-12 text-white dark:text-black text-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isSendingCode
-                            ? "Starting..."
+                            ? "Sending OTP..."
                             : formData.emailVerified
                             ? "Save and Continue"
-                            : "Verify Email"}
+                            : "Send Verification Code"}
                         </Button>
                       </div>
                     </>
                   ) : (
-                    // Email Verification Screen
+                    // Email Verification Screen - continues in next message due to length...
                     <div className="flex flex-col items-center justify-center min-h-[600px] dark:bg-[#121212]">
                       <div className="w-full max-w-xl">
                         <div className="flex flex-col items-center mb-3">
@@ -1203,13 +1352,16 @@ export default function AdminCreateVendorPage() {
                             className="h-52 w-52 object-contain"
                           />
                           <h2 className="text-2xl font-semibold text-gray-800 text-center mt-4 dark:text-white">
-                            Check email
+                            Verify Vendor's Email
                           </h2>
                           <p className="text-sm text-gray-500 mt-1 text-center dark:text-gray-300">
                             Verification code sent to{" "}
                             <span className="text-[#071437] font-medium dark:text-white">
                               {formatEmailForDisplay(formData.email)}
                             </span>
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1 text-center dark:text-gray-500">
+                            Ask the vendor to provide the code from their email
                           </p>
 
                           {verificationAttempts > 0 && (
@@ -1333,7 +1485,7 @@ export default function AdminCreateVendorPage() {
                 </div>
               )}
 
-              {/* Step 1: Store Setup - Same as before */}
+              {/* Step 1: Store Setup - Same as KYC */}
               {currentStep === 1 && (
                 <div className="bg-white rounded-lg p-6 dark:bg-[#303030]">
                   {!showLocationVerification && !showAddressConfirmation ? (
@@ -1514,7 +1666,7 @@ export default function AdminCreateVendorPage() {
                       </div>
                     </>
                   ) : showLocationVerification ? (
-                    // Location Verification UI - same as KYC
+                    // Location Verification UI
                     <div className="flex flex-col items-center justify-center min-h-[600px] py-12">
                       <div className="mb-8">
                         <div className="h-52 w-52 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
@@ -1603,7 +1755,7 @@ export default function AdminCreateVendorPage() {
                       )}
                     </div>
                   ) : (
-                    // Address Confirmation Screen - same as KYC
+                    // Address Confirmation Screen
                     <div className="flex flex-col items-center justify-center min-h-[600px] py-12">
                       <div className="mb-8">
                         <div className="h-52 w-52 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
@@ -1687,7 +1839,7 @@ export default function AdminCreateVendorPage() {
                 </div>
               )}
 
-              {/* Step 2: Store Description */}
+              {/* Step 2: Store Description - Same as KYC */}
               {currentStep === 2 && (
                 <div>
                   <div className="bg-white rounded-lg p-8 dark:bg-[#303030]">
@@ -1753,7 +1905,7 @@ export default function AdminCreateVendorPage() {
                 </div>
               )}
 
-              {/* Step 3: Bank Details */}
+              {/* Step 3: Bank Details - Same as KYC */}
               {currentStep === 3 && (
                 <div>
                   <div className="bg-white p-6 rounded-md mt-6 dark:bg-[#303030]">
@@ -1930,7 +2082,7 @@ export default function AdminCreateVendorPage() {
                 </div>
               )}
 
-              {/* Step 4: Preview */}
+              {/* Step 4: Preview - Same structure as KYC but without email verification status */}
               {currentStep === 4 && (
                 <div>
                   <div className="bg-white p-6 rounded-md mt-6 dark:bg-[#303030]">
@@ -2014,6 +2166,7 @@ export default function AdminCreateVendorPage() {
                                 <span>Email Address</span>
                               </div>
                               <p className="font-medium">{formData.email}</p>
+                              {/* CHANGED: Removed email verification status badge */}
                             </div>
 
                             <div className="space-y-2">
@@ -2081,7 +2234,7 @@ export default function AdminCreateVendorPage() {
                         </CardContent>
                       </Card>
 
-                      {/* Shop Details */}
+                      {/* Shop Details - Same as KYC Step5 */}
                       <Card className="shadow-none">
                         <CardHeader>
                           <CardTitle className="flex items-center gap-2">

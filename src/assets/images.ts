@@ -1,4 +1,5 @@
 import logo from "./images/WOA.png";
+import logoWhite from "./images/WOA_white.png";
 import PageNotFound from "./images/page-not-found.png";
 import ApplePay from "@/assets/images/ApplePay.png";
 import Discover from "@/assets/images/Discover.png";
@@ -43,6 +44,7 @@ import Seller5 from "@/assets/images/Seller5.jpg"
 
 const images = {
   logo,
+  logoWhite,
   PageNotFound,
   ApplePay,
   Cart,

@@ -192,10 +192,8 @@ export default function AdminCreateCategoriesPage() {
 
       const subcategoryPayload = {
         name: subCategoryData.name,
-        description: subCategoryData.description || "",
         categoryId: categoryId,
-        isActive: true,
-        icon: subCategoryData.image[0],
+        coverImageUrl: subCategoryData.image[0],
       };
 
       // Call the backend to create subcategory
