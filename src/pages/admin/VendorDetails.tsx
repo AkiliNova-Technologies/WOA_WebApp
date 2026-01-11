@@ -671,7 +671,7 @@ export default function AdminVendorDetailPage() {
                                   <Star
                                     key={i}
                                     className={`w-5 h-5 ${
-                                      i < 4
+                                      i < 0
                                         ? "fill-orange-400 text-orange-400"
                                         : "fill-orange-300 text-orange-300"
                                     }`}
@@ -915,7 +915,7 @@ export default function AdminVendorDetailPage() {
                   {/* SHOP DETAILS TAB */}
                   <TabsContent value="shop-details" className="space-y-8">
                     <div>
-                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
+                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white py-8">
                         <CardContent className="px-6">
                           <h2 className="text-lg font-semibold mb-3">
                             Basic Information
@@ -1084,7 +1084,7 @@ export default function AdminVendorDetailPage() {
                       </Card>
 
                       {/* Location of shop */}
-                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
+                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white py-8">
                         <CardContent>
                           <div className="flex flex-row flex-1 justify-between items-center">
                             <div className="space-y-2">
@@ -1097,7 +1097,7 @@ export default function AdminVendorDetailPage() {
                       </Card>
 
                       {/* Onboarded by */}
-                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
+                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white py-8">
                         <CardContent>
                           <div className="flex flex-row flex-1 justify-between items-center">
                             <div className="space-y-2">
@@ -1114,7 +1114,7 @@ export default function AdminVendorDetailPage() {
                       </Card>
 
                       {/* Store Status */}
-                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
+                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white py-8">
                         <CardHeader>
                           <h2 className="text-lg font-semibold">
                             Store Status
@@ -1159,7 +1159,7 @@ export default function AdminVendorDetailPage() {
 
                   {/* ORDERS TAB */}
                   <TabsContent value="orders" className="space-y-8 mt-6">
-                    <Card className="shadow-none border-none">
+                    <Card className="shadow-none border-none py-8">
                       <CardContent className="px-6">
                         <div className="rounded-lg">
                           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">

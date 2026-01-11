@@ -357,16 +357,16 @@ export default function AdminStaffDetailPage() {
   return (
     <>
       <SiteHeader label="Staff Management" />
-      <div className="min-h-screen bg-gray-50">
-        <div className="p-4 md:p-6 mx-auto space-y-6 max-w-7xl">
+      <div className="min-h-screen">
+        <div className="p-4 md:p-6 mx-auto space-y-6">
           {/* Back Navigation Card */}
-          <Card className="shadow-sm">
+          <Card className="">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4">
               <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
                   size="icon"
-                  className="rounded-full"
+                  className="rounded-sm"
                   onClick={() => navigate("/admin/users/staff")}
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -403,8 +403,8 @@ export default function AdminStaffDetailPage() {
           </div>
 
           {/* Staff Summary Card */}
-          <div className="relative -mt-20 md:-mt-24 px-4">
-            <Card className="shadow-lg border-0 rounded-xl">
+          <div className="relative -mt-20 md:-mt-24 px-6">
+            <Card className="border-0 rounded-xl">
               <div className="flex flex-col md:flex-row md:items-center gap-6 p-6">
                 {/* Avatar */}
                 <div className="flex-shrink-0">
@@ -412,11 +412,11 @@ export default function AdminStaffDetailPage() {
                     <img
                       src={staffData.avatar}
                       alt={staffData.name}
-                      className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-4 border-white shadow-lg"
+                      className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-4 border-white"
                     />
                   ) : (
                     <div
-                      className={`w-24 h-24 md:w-32 md:h-32 rounded-full ${staffData.avatarColor} flex items-center justify-center text-3xl md:text-4xl font-bold border-4 border-white shadow-lg`}
+                      className={`w-24 h-24 md:w-32 md:h-32 rounded-full ${staffData.avatarColor} flex items-center justify-center text-3xl md:text-4xl font-bold border-4 border-white`}
                     >
                       {getInitials(staffData.name)}
                     </div>
@@ -576,7 +576,7 @@ export default function AdminStaffDetailPage() {
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card className="py-6">
                     <CardHeader>
                       <h2 className="text-xl font-semibold">Location Information</h2>
                     </CardHeader>

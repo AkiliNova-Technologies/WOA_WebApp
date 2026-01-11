@@ -89,6 +89,13 @@ import VendorWishlistPage from "./pages/vendor/dashboard/Wishlist.tsx";
 import AdminStaffDetailPage from "./pages/admin/StaffDetails.tsx";
 import HomePage from "./pages/consumer/Home.tsx";
 import ClientWebsiteLayout from "./layout/ClientHomeLayout.tsx";
+import AdminReviewDetailPage from "./pages/admin/ReviewDetails.tsx";
+import AdminReviewsPage from "./pages/admin/ReviewsAndRatings.tsx";
+import AdminComplianceReportsPage from "./pages/admin/ComplianceReports.tsx";
+import AdminHelpDeskPage from "./pages/admin/HelpDesk.tsx";
+import AdminComplianceReportDetailPage from "./pages/admin/ComplianceReportDetails.tsx";
+import AdminHelpDeskCaseDetailPage from "./pages/admin/HelpDeskDetails.tsx";
+import AdminEditCategoryPage from "./pages/admin/EditCategories.tsx";
 
 function App() {
   return (
@@ -248,6 +255,10 @@ function App() {
                     path="create-category"
                     element={<AdminCreateCategoriesPage />}
                   />
+                  <Route
+                    path=":categoryId/edit"
+                    element={<AdminEditCategoryPage />}
+                  />
                 </Route>
                 <Route
                   path="approvals"
@@ -300,22 +311,46 @@ function App() {
                 />
               </Route>
 
+              <Route path="support" element={<AdminSimpleLayout />}>
+                <Route index element={<AdminSupportPage />} />
+                <Route path="reviews" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminReviewsPage />} />
+                  <Route
+                    path=":id/details"
+                    element={<AdminReviewDetailPage />}
+                  />
+                </Route>
+                <Route
+                  path="compliance-reports"
+                  element={<AdminSimpleLayout />}
+                >
+                  <Route index element={<AdminComplianceReportsPage />} />
+                  <Route
+                    path=":id/details"
+                    element={<AdminComplianceReportDetailPage />}
+                  />
+                </Route>
+                <Route path="help-desk" element={<AdminSimpleLayout />}>
+                  <Route index element={<AdminHelpDeskPage />} />
+                  <Route
+                    path=":id/details"
+                    element={<AdminHelpDeskCaseDetailPage />}
+                  />
+                </Route>
+              </Route>
+
               <Route path="revenue" element={<AdminRevenuePage />} />
 
               <Route path="settings" element={<AdminSettingsPage />} />
-
-              <Route path="supoort" element={<AdminSimpleLayout />}>
-                <Route index element={<AdminSupportPage />} />
-              </Route>
             </Route>
           </Routes>
           <Toaster
             position="top-right"
             expand={false}
             richColors
-            closeButton
+            // closeButton
             duration={4000}
-            visibleToasts={3}
+            visibleToasts={1}
             offset={16}
           />
         </BreadcrumbProvider>

@@ -60,7 +60,7 @@ interface ReviewStats {
   flaggedReviewsChange?: { trend: "up" | "down"; value: string };
 }
 
-export default function AdminSupportPage() {
+export default function AdminReviewsPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<ReviewStatus[]>([]);
@@ -413,7 +413,7 @@ export default function AdminSupportPage() {
       label: "View Details",
       icon: <Eye className="size-5" />,
       onClick: (review) => {
-        navigate(`/admin/reviews/${review.id}`);
+        navigate(`/admin/support/reviews/${review.id}/details`);
       },
     },
   ];

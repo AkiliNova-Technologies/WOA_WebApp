@@ -248,7 +248,7 @@ export default function AdminCategoriesPage() {
       label: "Edit Category",
       icon: <PenIcon className="size-5" />,
       onClick: (category) => {
-        navigate(`/admin/categories/${category.id}/edit`);
+        navigate(`/admin/products/categories/${category.id}/edit`);
       },
     },
     {

@@ -43,6 +43,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   FacebookAuthProvider,
+  OAuthProvider,
   signInWithEmailAndPassword as firebaseSignIn,
   createUserWithEmailAndPassword as firebaseSignUp,
   signOut as firebaseSignOut,
@@ -479,6 +480,90 @@ export function useReduxAuth() {
   );
 
   // ========================
+  // APPLE AUTH WITH BACKEND ENDPOINT
+  // ========================
+
+  const signInWithApple = useCallback(
+    async (retryCount = 0) => {
+      try {
+        setFirebaseAuthLoading(true);
+
+        const provider = new OAuthProvider("apple.com");
+        provider.addScope("email");
+        provider.addScope("name");
+        provider.setCustomParameters({
+          locale: "en",
+        });
+
+        // Sign in with Firebase Apple OAuth
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        // Get Firebase ID token
+        const idToken = await user.getIdToken();
+
+        console.log(
+          "Firebase Apple login successful, sending token to backend:",
+          {
+            email: user.email,
+            uid: user.uid,
+            tokenPreview: idToken.substring(0, 20) + "...",
+          }
+        );
+
+        // Send Firebase token to your backend with abort controller
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 45000); // 45 second timeout
+
+        try {
+          const response = await dispatch(
+            loginWithGoogle({
+              idToken,
+              signal: abortController.signal,
+            } as any)
+          ).unwrap();
+
+          clearTimeout(timeoutId);
+
+          // Clear any verification state
+          dispatch(clearVerification());
+
+          toast.success("Apple login successful!");
+          return response.user;
+        } catch (error: any) {
+          clearTimeout(timeoutId);
+
+          // Retry logic (max 2 retries)
+          if (
+            retryCount < 2 &&
+            (error.includes("timeout") || error.includes("network"))
+          ) {
+            console.log(`Retrying Apple login (attempt ${retryCount + 1})...`);
+            return signInWithApple(retryCount + 1);
+          }
+
+          throw error;
+        }
+      } catch (error: any) {
+        console.error("Apple sign-in failed:", error);
+
+        let errorMessage = "Apple sign-in failed";
+        if (error.code) {
+          errorMessage = getFirebaseErrorMessage(error.code);
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        toast.error(errorMessage);
+        throw error;
+      } finally {
+        setFirebaseAuthLoading(false);
+      }
+    },
+    [dispatch]
+  );
+
+  // ========================
   // FIREBASE AUTH METHODS (Alternative)
   // ========================
 
@@ -770,8 +855,9 @@ export function useReduxAuth() {
     refreshToken,
     clearError: clearAuthError,
 
-    // Google Auth (uses your backend endpoint)
+    // OAuth Auth (uses your backend endpoint)
     signInWithGoogle,
+    signInWithApple,
 
     // Firebase Auth Methods
     signInWithFacebook,

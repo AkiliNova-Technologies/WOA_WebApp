@@ -721,7 +721,7 @@ export default function AdminCustomerDetailPage() {
 
                   {/* Overview Tab */}
                   <TabsContent value="overview" className="space-y-8">
-                    <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
+                    <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white ">
                       <CardContent className="px-6 py-8">
                         <div className="mb-8">
                           <h2 className="text-2xl font-semibold mb-2">
@@ -840,7 +840,7 @@ export default function AdminCustomerDetailPage() {
                   <TabsContent value="customer-details" className="space-y-8">
                     {/* Contact Info Details */}
                     <div>
-                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
+                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white py-8">
                         <CardContent className="px-6">
                           <h2 className="text-lg font-semibold mb-3">
                             Basic Information
@@ -892,7 +892,7 @@ export default function AdminCustomerDetailPage() {
                         </CardContent>
                       </Card>
 
-                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
+                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white py-8">
                         <CardHeader className="flex flex-row items-center justify-between">
                           <h2 className="text-lg font-semibold">Addresses</h2>
                           <Button
@@ -1010,7 +1010,7 @@ export default function AdminCustomerDetailPage() {
                         </CardContent>
                       </Card>
 
-                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white">
+                      <Card className="max-w-8xl mx-auto mt-8 shadow-none border-none bg-white py-8">
                         <CardHeader>
                           <h2 className="text-lg font-semibold">
                             Customer Status
@@ -1055,7 +1055,7 @@ export default function AdminCustomerDetailPage() {
 
                   {/* Orders Tab */}
                   <TabsContent value="orders" className="space-y-8 mt-6">
-                    <Card className="shadow-none border-none">
+                    <Card className="shadow-none border-none py-8">
                       <CardContent className="px-6">
                         <div className="rounded-lg">
                           {/* Search and Filter Section */}

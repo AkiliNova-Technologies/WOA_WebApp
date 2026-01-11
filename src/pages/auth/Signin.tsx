@@ -18,16 +18,25 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  
+  // Individual loading states for each auth method
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
 
   const navigate = useNavigate();
   const {
     signin,
     signInWithGoogle,
-    loading,
+    signInWithApple,
+    loading: globalLoading,
     error: authError,
     isAuthenticated,
     clearError,
   } = useReduxAuth();
+
+  // Check if any auth method is loading
+  const isAnyLoading = emailLoading || googleLoading || appleLoading || globalLoading;
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -46,6 +55,13 @@ export default function SignInPage() {
     }
   }, [email, password]);
 
+  // Display form errors as toasts
+  useEffect(() => {
+    if (formError) {
+      toast.error(formError);
+    }
+  }, [formError]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -54,12 +70,12 @@ export default function SignInPage() {
 
     // Basic validation
     if (!email.trim()) {
-      setFormError("Email is required");
+      setFormError("Please enter your email address");
       return;
     }
 
     if (!password.trim()) {
-      setFormError("Password is required");
+      setFormError("Please enter your password");
       return;
     }
 
@@ -68,48 +84,158 @@ export default function SignInPage() {
       return;
     }
 
+    setEmailLoading(true);
     try {
       // Call the signin function from useReduxAuth
       await signin(email, password);
 
-      // Optionally: Store email in localStorage if remember me is checked
+      // Store email in localStorage if remember me is checked
       if (rememberMe && typeof window !== "undefined") {
         localStorage.setItem("rememberedEmail", email);
       } else {
         localStorage.removeItem("rememberedEmail");
       }
-    } catch (error) {
+
+      // Success toast is handled in useReduxAuth
+      toast.success("Welcome back! Redirecting...", {
+        duration: 2000,
+      });
+    } catch (error: any) {
       console.error("Login failed:", error);
-      // Error is already handled in the auth slice and toast
+      
+      // Display user-friendly error messages
+      let errorMessage = "Unable to sign in. Please try again.";
+      
+      if (error?.message) {
+        const msg = error.message.toLowerCase();
+        
+        if (msg.includes("invalid") || msg.includes("wrong") || msg.includes("incorrect")) {
+          errorMessage = "Invalid email or password. Please check your credentials.";
+        } else if (msg.includes("not found") || msg.includes("user not found")) {
+          errorMessage = "No account found with this email. Please sign up first.";
+        } else if (msg.includes("network") || msg.includes("connection")) {
+          errorMessage = "Network error. Please check your internet connection.";
+        } else if (msg.includes("disabled")) {
+          errorMessage = "This account has been disabled. Please contact support.";
+        } else if (msg.includes("too many")) {
+          errorMessage = "Too many login attempts. Please try again later.";
+        } else if (msg.includes("verify") || msg.includes("verification")) {
+          errorMessage = "Please verify your email before signing in.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast.error(errorMessage, {
+        duration: 4000,
+      });
+    } finally {
+      setEmailLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
-    try {
-      setFormError(null);
-      clearError();
+    setFormError(null);
+    clearError();
+    setGoogleLoading(true);
 
+    try {
       // Call the signInWithGoogle function from useReduxAuth
       await signInWithGoogle();
 
-
-      // Optionally: Store email in localStorage if remember me is checked
+      // Store email in localStorage if remember me is checked
       if (rememberMe && typeof window !== "undefined") {
         localStorage.setItem("rememberedEmail", email);
       }
-    } catch (error) {
+
+      // Success toast is handled in useReduxAuth
+    } catch (error: any) {
       console.error("Google sign-in failed:", error);
+      
+      // Display user-friendly error messages
+      let errorMessage = "Google sign-in failed. Please try again.";
+      
+      if (error?.message) {
+        const msg = error.message.toLowerCase();
+        
+        if (msg.includes("popup") && msg.includes("closed")) {
+          errorMessage = "Sign-in was cancelled. Please try again.";
+        } else if (msg.includes("popup") && msg.includes("blocked")) {
+          errorMessage = "Popup was blocked. Please allow popups for this site.";
+        } else if (msg.includes("network")) {
+          errorMessage = "Network error. Please check your internet connection.";
+        } else if (msg.includes("timeout")) {
+          errorMessage = "Sign-in timed out. Please try again.";
+        } else if (msg.includes("account-exists")) {
+          errorMessage = "An account with this email already exists with a different sign-in method.";
+        } else if (msg.includes("unauthorized") || msg.includes("not authorized")) {
+          errorMessage = "Google sign-in is not properly configured. Please contact support.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast.error(errorMessage, {
+        duration: 4000,
+      });
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
+  const handleAppleSignIn = async () => {
+    setFormError(null);
+    clearError();
+    setAppleLoading(true);
+
+    try {
+      // Call the signInWithApple function from useReduxAuth
+      await signInWithApple();
+
+      // Store email in localStorage if remember me is checked
+      if (rememberMe && typeof window !== "undefined") {
+        localStorage.setItem("rememberedEmail", email);
+      }
+
+      // Success toast is handled in useReduxAuth
+    } catch (error: any) {
+      console.error("Apple sign-in failed:", error);
+      
+      // Display user-friendly error messages
+      let errorMessage = "Apple sign-in failed. Please try again.";
+      
+      if (error?.message) {
+        const msg = error.message.toLowerCase();
+        
+        if (msg.includes("popup") && msg.includes("closed")) {
+          errorMessage = "Sign-in was cancelled. Please try again.";
+        } else if (msg.includes("popup") && msg.includes("blocked")) {
+          errorMessage = "Popup was blocked. Please allow popups for this site.";
+        } else if (msg.includes("network")) {
+          errorMessage = "Network error. Please check your internet connection.";
+        } else if (msg.includes("timeout")) {
+          errorMessage = "Sign-in timed out. Please try again.";
+        } else if (msg.includes("account-exists")) {
+          errorMessage = "An account with this email already exists with a different sign-in method.";
+        } else if (msg.includes("unauthorized") || msg.includes("not authorized")) {
+          errorMessage = "Apple sign-in is not properly configured. Please contact support.";
+        } else if (msg.includes("not supported")) {
+          errorMessage = "Apple sign-in is not available on this device.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast.error(errorMessage, {
+        duration: 4000,
+      });
+    } finally {
+      setAppleLoading(false);
+    }
+  };
 
   const handleForgotPassword = () => {
     navigate("/auth/forgot-password");
-  };
-
-  const handleAppleSignIn = () => {
-    // TODO: Implement Apple OAuth or show message
-    toast.info("Apple sign-in is coming soon!");
   };
 
   // Load remembered email on component mount
@@ -119,6 +245,9 @@ export default function SignInPage() {
       if (rememberedEmail) {
         setEmail(rememberedEmail);
         setRememberMe(true);
+        toast.success(`Welcome back! We remembered your email.`, {
+          duration: 3000,
+        });
       }
     }
   }, []);
@@ -183,7 +312,7 @@ export default function SignInPage() {
                 variant={"link"}
                 className="p-0 text-[#1B84FF]"
                 onClick={() => navigate("/auth/signup")}
-                disabled={loading}
+                disabled={isAnyLoading}
               >
                 Sign up
               </Button>
@@ -195,18 +324,26 @@ export default function SignInPage() {
                 variant={"outline"}
                 className="h-11 shadow-xs px-6 text-[#4B5675] dark:text-white flex-1"
                 onClick={handleGoogleSignIn}
-                disabled={loading}
+                disabled={isAnyLoading}
               >
-                <img src={icons.Google} alt="Google" className="h-5 w-5 mr-2" />
+                {googleLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <img src={icons.Google} alt="Google" className="h-5 w-5 mr-2" />
+                )}
                 Use Google
               </Button>
               <Button
                 variant={"outline"}
                 className="h-11 shadow-xs px-6 text-[#4B5675] dark:text-white flex-1"
                 onClick={handleAppleSignIn}
-                disabled={loading}
+                disabled={isAnyLoading}
               >
-                <img src={icons.Apple} alt="Apple" className="h-5 w-5 mr-2" />
+                {appleLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <img src={icons.Apple} alt="Apple" className="h-5 w-5 mr-2" />
+                )}
                 Use Apple
               </Button>
             </div>
@@ -232,7 +369,7 @@ export default function SignInPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={loading}
+                  disabled={isAnyLoading}
                 />
               </div>
 
@@ -246,7 +383,7 @@ export default function SignInPage() {
                     type="button"
                     onClick={handleForgotPassword}
                     className="text-sm text-[#3B82F6] float-right hover:underline p-0 mb-1"
-                    disabled={loading}
+                    disabled={isAnyLoading}
                   >
                     Forgot Password?
                   </button>
@@ -257,7 +394,7 @@ export default function SignInPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="mt-1 bg-[#FCFCFC]"
                   required
-                  disabled={loading}
+                  disabled={isAnyLoading}
                 />
               </div>
 
@@ -270,7 +407,7 @@ export default function SignInPage() {
                   onCheckedChange={(checked) =>
                     setRememberMe(checked as boolean)
                   }
-                  disabled={loading}
+                  disabled={isAnyLoading}
                 />
                 <Label
                   htmlFor="remember"
@@ -284,11 +421,12 @@ export default function SignInPage() {
               <Button
                 type="submit"
                 className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm mt-5"
-                disabled={loading}
+                disabled={isAnyLoading}
               >
-                {loading ? (
+                {emailLoading ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Signing in...
                   </>
                 ) : (
                   "Log in"

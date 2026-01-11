@@ -49,13 +49,30 @@ export function AdminNavMain({
     // If item has sub-items, main item should NEVER be active
     if (hasSubItems(item)) return false;
 
-    // Only check for exact match for main items without sub-items
-    return currentPath === item.url;
+    // For main items without sub-items, check exact match or if current path starts with the item URL
+    // But exclude cases where the path continues beyond the item URL with another segment
+    if (currentPath === item.url) return true;
+    
+    // Special handling for dashboard - only match exactly
+    if (item.url === "/admin" || item.url === "/vendor") {
+      return currentPath === item.url;
+    }
+    
+    // For other routes, match if path starts with URL and next char is / or end of string
+    const urlPattern = new RegExp(`^${item.url.replace(/\//g, "\\/")}(\\/|$)`);
+    return urlPattern.test(currentPath);
   };
 
   // Function to check if a sub-item is active
   const isSubItemActive = (subItem: { url: string }) => {
-    return currentPath === subItem.url;
+    // Check if current path starts with the sub-item URL
+    // This will match both exact URLs and detail/nested pages
+    if (currentPath === subItem.url) return true;
+    
+    // Check if current path starts with subItem.url followed by /
+    // This catches detail pages like /admin/users/vendors/123/details
+    const urlPattern = new RegExp(`^${subItem.url.replace(/\//g, "\\/")}(\\/|$)`);
+    return urlPattern.test(currentPath);
   };
 
   // Function to check if any sub-item is active (for opening collapsible)
@@ -82,9 +99,9 @@ export function AdminNavMain({
                       tooltip={item.title}
                       className={cn(
                         "min-h-12 min-w-full text-center justify-center text-white transition-colors duration-200",
-                        // Main items with sub-items NEVER get active state in collapsed mode
+                        // Highlight if any sub-item is active
                         subItemActive
-                          ? "hover:bg-white/10" // Just show hover, no active state
+                          ? "bg-white/20 border-l-3 border-[#CC5500]"
                           : "hover:bg-white/10"
                       )}
                     >
@@ -124,10 +141,10 @@ export function AdminNavMain({
                         <SidebarMenuButton
                           className={cn(
                             "h-12 text-white transition-colors duration-200",
-                            // Main items with sub-items NEVER get active state
+                            // Highlight parent when sub-item is active
                             subItemActive
-                              ? "hover:bg-white hover:text-[#303030]" // Just hover when sub-item is active
-                              : "hover:bg-white hover:text-[#303030]" // Regular hover
+                              ? "bg-white/10 text-white font-medium"
+                              : "hover:bg-white hover:text-[#303030]"
                           )}
                         >
                           {item.icon && <item.icon />}
