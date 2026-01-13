@@ -178,7 +178,7 @@ export default function MyAccountPage() {
   return (
     <div className="space-y-6">
       {/* Account Settings */}
-      <Card className="shadow-xs">
+      <Card className="shadow-xs py-6">
         <CardHeader className="border-b">
           <CardTitle>
             <h1 className="text-2xl font-medium">Account Settings</h1>
@@ -197,6 +197,7 @@ export default function MyAccountPage() {
                   placeholder="Enter first name"
                   value={firstName}
                   onChange={(e) => handleInputChange("firstName", e.target.value)}
+                  disabled
                 />
               </div>
               <div>
@@ -209,6 +210,7 @@ export default function MyAccountPage() {
                   placeholder="Enter last name"
                   value={lastName}
                   onChange={(e) => handleInputChange("lastName", e.target.value)}
+                  disabled
                 />
               </div>
               <div>
@@ -235,6 +237,7 @@ export default function MyAccountPage() {
                   countryCode={countryCode}
                   onCountryCodeChange={handleCountryCodeChange}
                   placeholder="Enter your phone number"
+                  disabled
                 />
               </div>
             </div>
@@ -258,7 +261,7 @@ export default function MyAccountPage() {
       </Card>
 
        {/* Address Information */}
-      <Card className="shadow-xs">
+      <Card className="shadow-xs py-6">
         <CardHeader>
           <CardTitle>
             <h1 className="text-2xl font-medium">Address Information</h1>

@@ -3,7 +3,7 @@ import {
   createSlice,
   type PayloadAction,
 } from "@reduxjs/toolkit";
-import api, { saveAuthData } from "@/utils/api";
+import api, { saveAuthData, clearAuthData } from "@/utils/api";
 import type { User as FirebaseUser } from "firebase/auth";
 import { getDeviceInfo, getFCMToken } from "@/utils/device";
 
@@ -215,59 +215,30 @@ const handleApiError = (error: unknown): string => {
   return "An unexpected error occurred";
 };
 
-// 🔄 Refresh token logic - UPDATED to use Authorization header
+// 🔄 Refresh token logic - UPDATED: HttpOnly cookie approach
 export const refreshAccessToken = createAsyncThunk(
   "auth/refreshToken",
   async (_, { rejectWithValue }) => {
     try {
-      if (typeof window !== "undefined") {
-        const authData = localStorage.getItem("authData");
-        if (!authData) {
-          throw new Error("No authentication data found");
-        }
+      console.log("🔄 Refreshing token via HttpOnly cookie");
 
-        const parsedData = JSON.parse(authData);
+      // CRITICAL: Just call refresh endpoint - cookie is sent automatically
+      // Backend reads refresh token from HttpOnly cookie
+      const response = await api.post("/api/v1/auth/refresh", {});
 
-        // CRITICAL: Get refresh token from correct path
-        const refreshToken = parsedData.tokens?.refreshToken;
+      console.log("✅ Refresh response received:", response.data);
 
-        if (!refreshToken) {
-          console.error("AuthData structure:", parsedData);
-          throw new Error("No refresh token available");
-        }
-
-        console.log("🔄 Refreshing token with refresh token");
-
-        // Send refresh token in Authorization header
-        const response = await api.post(
-          "/api/v1/auth/refresh",
-          { refreshToken: refreshToken },
-          {
-            headers: {
-              Authorization: `Bearer ${refreshToken}`,
-            },
-          }
-        );
-
-        console.log("✅ Refresh response received:", response.data);
-
-        // IMPORTANT: Return user data AND tokens
-        return {
-          user: response.data, // Contains userId, email, role, emailVerified
-          tokens: response.data.tokens, // Contains accessToken, refreshToken, etc.
-        };
-      }
-
-      throw new Error("Window is not defined");
+      // IMPORTANT: Return user data AND new access token
+      return {
+        user: response.data, // Contains userId, email, role, emailVerified
+        tokens: response.data.tokens, // Contains accessToken, tokenType, expiresInSec
+      };
     } catch (error: unknown) {
       const errorMessage = handleApiError(error);
       console.error("❌ Refresh token error:", errorMessage);
 
       // Clear invalid auth data
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("authData");
-        localStorage.removeItem("user");
-      }
+      clearAuthData();
 
       return rejectWithValue(errorMessage);
     }
@@ -413,30 +384,16 @@ export const logoutAsync = createAsyncThunk(
     try {
       await dispatch(removeCurrentDeviceSession()).unwrap();
 
-      if (typeof window !== "undefined") {
-        const authData = localStorage.getItem("authData");
-
-        if (authData) {
-          const parsedData = JSON.parse(authData);
-          if (parsedData.tokens?.accessToken) {
-            await api.post(
-              "/api/v1/auth/logout",
-              {},
-              {
-                headers: {
-                  Authorization: `Bearer ${parsedData.tokens.accessToken}`,
-                },
-              }
-            );
-          }
-        }
-      }
+      // Call backend logout to clear HttpOnly cookie
+      await api.post("/api/v1/auth/logout", {});
     } catch (error) {
       console.error("Logout API error:", error);
     } finally {
+      // Clear local auth data
+      clearAuthData();
+
       if (typeof window !== "undefined") {
         localStorage.removeItem("user");
-        localStorage.removeItem("authData");
         localStorage.removeItem("deviceName");
         localStorage.removeItem("deviceId");
         localStorage.removeItem("firebase_user");
@@ -924,7 +881,6 @@ const authSlice = createSlice({
 
       if (typeof window !== "undefined") {
         localStorage.removeItem("user");
-        localStorage.removeItem("authData");
         localStorage.removeItem("firebase_user");
       }
     },
@@ -1030,7 +986,7 @@ const authSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // ========================================
-      // Login cases - CORRECTED
+      // Login cases - UPDATED for HttpOnly cookies
       // ========================================
       .addCase(login.pending, (state) => {
         state.loading = true;
@@ -1042,7 +998,7 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.error = null;
 
-        // CRITICAL: Save auth data in correct structure using saveAuthData helper
+        // CRITICAL: Save auth data (only access token, refresh token is in HttpOnly cookie)
         if (typeof window !== "undefined" && action.payload.tokens) {
           saveAuthData({
             userId: action.payload.user.id,
@@ -1080,14 +1036,11 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.error = action.payload as string;
 
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("user");
-          localStorage.removeItem("authData");
-        }
+        clearAuthData();
       })
 
       // ========================================
-      // Google Login cases - CORRECTED
+      // Google Login cases - UPDATED
       // ========================================
       .addCase(loginWithGoogle.pending, (state) => {
         state.loading = true;
@@ -1098,7 +1051,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.error = null;
 
-        // CRITICAL: Save auth data in correct structure using saveAuthData helper
+        // CRITICAL: Save auth data (only access token)
         if (typeof window !== "undefined" && action.payload.tokens) {
           saveAuthData({
             userId: action.payload.user.id,
@@ -1136,14 +1089,11 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.error = action.payload as string;
 
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("user");
-          localStorage.removeItem("authData");
-        }
+        clearAuthData();
       })
 
       // ========================================
-      // Register cases - CORRECTED
+      // Register cases - UPDATED
       // ========================================
       .addCase(register.pending, (state) => {
         state.loading = true;
@@ -1160,7 +1110,7 @@ const authSlice = createSlice({
 
         state.user = user;
 
-        // CRITICAL: Save auth data even for unverified users using saveAuthData helper
+        // CRITICAL: Save auth data even for unverified users
         if (typeof window !== "undefined" && action.payload.tokens) {
           saveAuthData({
             userId: user.id,
@@ -1170,9 +1120,6 @@ const authSlice = createSlice({
             forcePasswordChange: user.forcePasswordChange || false,
             tokens: action.payload.tokens,
           });
-
-          // DON'T save user until verified
-          // localStorage.setItem("user", JSON.stringify(user));
         }
 
         // Set verification pending
@@ -1245,7 +1192,7 @@ const authSlice = createSlice({
       })
 
       // ========================================
-      // Refresh token cases - CORRECTED
+      // Refresh token cases - UPDATED for HttpOnly cookies
       // ========================================
       .addCase(refreshAccessToken.pending, (state) => {
         state.loading = true;
@@ -1257,7 +1204,7 @@ const authSlice = createSlice({
           const user = mapApiResponseToUser(action.payload.user);
           state.user = user;
 
-          // CRITICAL: Update auth data with new tokens using saveAuthData helper
+          // CRITICAL: Update auth data with new access token
           if (typeof window !== "undefined" && action.payload.tokens) {
             saveAuthData({
               userId: user.id,
@@ -1294,10 +1241,7 @@ const authSlice = createSlice({
         state.user = null;
         state.error = action.payload as string;
 
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("user");
-          localStorage.removeItem("authData");
-        }
+        clearAuthData();
       })
 
       // Email Verification cases

@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import api from "@/utils/api";
 import kycApi from "@/utils/kyc-api";
 
+// Define the form data type
 export interface FormData {
   // Step1 data - Personal Info & Identity Verification
   firstName: string;
@@ -76,25 +77,15 @@ const steps = [
   },
 ];
 
-// 🔑 LocalStorage key for KYC draft data
+// 🔑 LocalStorage keys
 const KYC_DRAFT_KEY = "kycDraftData";
 const KYC_CURRENT_STEP_KEY = "kycCurrentStep";
 const KYC_COMPLETED_STEPS_KEY = "kycCompletedSteps";
 
-export default function StepsContainer() {
-  const navigate = useNavigate();
-  const [current, setCurrent] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [requestEmailVerification, setRequestEmailVerification] =
-    useState(false);
-  const [_kycSessionId, setKycSessionId] = useState<string | null>(null);
-  const [kycStatus, setKycStatus] = useState<
-    "draft" | "email_pending" | "email_verified" | "submitted"
-  >("draft");
-  const [isStartingKYC, setIsStartingKYC] = useState(false);
-  const [_isLoading, setIsLoading] = useState(true);
-
-  const [formData, setFormData] = useState<FormData>({
+// 🔑 FIX: Function to get initial form data (loads from localStorage if available)
+const getInitialFormData = (): FormData => {
+  // Default empty state
+  const defaultData: FormData = {
     firstName: "",
     middleName: "",
     lastName: "",
@@ -122,57 +113,85 @@ export default function StepsContainer() {
     swiftCode: "",
     step4Completed: false,
     step5Completed: false,
-  });
+  };
 
-  // Track completed steps
-  const [completedSteps, setCompletedSteps] = useState<number[]>([0]);
+  // Try to load from localStorage
+  try {
+    const savedData = localStorage.getItem(KYC_DRAFT_KEY);
+    if (savedData) {
+      const parsedData = JSON.parse(savedData);
+      console.log("✅ Loaded saved KYC data from localStorage on init");
+      // Merge saved data with defaults (in case new fields were added)
+      return { ...defaultData, ...parsedData };
+    }
+  } catch (error) {
+    console.error("❌ Error loading saved KYC data:", error);
+  }
 
-  useEffect(() => {
-    const loadSavedData = () => {
-      try {
-        // Load form data
-        const savedData = localStorage.getItem(KYC_DRAFT_KEY);
-        if (savedData) {
-          const parsedData = JSON.parse(savedData);
-          setFormData((prev) => ({ ...prev, ...parsedData }));
-          console.log("✅ Loaded saved KYC data from localStorage");
-        }
+  return defaultData;
+};
 
-        // Load current step
-        const savedStep = localStorage.getItem(KYC_CURRENT_STEP_KEY);
-        if (savedStep) {
-          const stepNumber = parseInt(savedStep, 10);
-          if (
-            !isNaN(stepNumber) &&
-            stepNumber >= 0 &&
-            stepNumber < steps.length
-          ) {
-            setCurrent(stepNumber);
-            console.log(`✅ Restored to step ${stepNumber}`);
-          }
-        }
-
-        // Load completed steps
-        const savedCompletedSteps = localStorage.getItem(
-          KYC_COMPLETED_STEPS_KEY
-        );
-        if (savedCompletedSteps) {
-          const parsedSteps = JSON.parse(savedCompletedSteps);
-          if (Array.isArray(parsedSteps)) {
-            setCompletedSteps(parsedSteps);
-            console.log("✅ Restored completed steps:", parsedSteps);
-          }
-        }
-      } catch (error) {
-        console.error("❌ Error loading saved KYC data:", error);
+// 🔑 FIX: Function to get initial step
+const getInitialStep = (): number => {
+  try {
+    const savedStep = localStorage.getItem(KYC_CURRENT_STEP_KEY);
+    if (savedStep) {
+      const stepNumber = parseInt(savedStep, 10);
+      if (!isNaN(stepNumber) && stepNumber >= 0 && stepNumber < steps.length) {
+        console.log(`✅ Restored to step ${stepNumber} on init`);
+        return stepNumber;
       }
-    };
+    }
+  } catch (error) {
+    console.error("❌ Error loading current step:", error);
+  }
+  return 0;
+};
 
-    loadSavedData();
-  }, []);
+// 🔑 FIX: Function to get initial completed steps
+const getInitialCompletedSteps = (): number[] => {
+  try {
+    const savedCompletedSteps = localStorage.getItem(KYC_COMPLETED_STEPS_KEY);
+    if (savedCompletedSteps) {
+      const parsedSteps = JSON.parse(savedCompletedSteps);
+      if (Array.isArray(parsedSteps)) {
+        console.log("✅ Restored completed steps on init:", parsedSteps);
+        return parsedSteps;
+      }
+    }
+  } catch (error) {
+    console.error("❌ Error loading completed steps:", error);
+  }
+  return [0];
+};
 
+export default function StepsContainer() {
+  const navigate = useNavigate();
   
+  // 🔑 FIX: Initialize state with data from localStorage
+  const [current, setCurrent] = useState(getInitialStep());
+  const [completedSteps, setCompletedSteps] = useState<number[]>(getInitialCompletedSteps());
+  const [formData, setFormData] = useState<FormData>(getInitialFormData());
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requestEmailVerification, setRequestEmailVerification] = useState(false);
+  const [_kycSessionId, setKycSessionId] = useState<string | null>(null);
+  const [kycStatus, setKycStatus] = useState<
+    "draft" | "email_pending" | "email_verified" | "submitted"
+  >("draft");
+  const [isStartingKYC, setIsStartingKYC] = useState(false);
+  const [_isLoading, setIsLoading] = useState(true);
+  
+  // 🔑 FIX: Track if this is the initial mount to prevent double-saving
+  const [isInitialMount, setIsInitialMount] = useState(true);
+
+  // 🔑 FIX: Save form data to localStorage (but skip on initial mount)
   useEffect(() => {
+    if (isInitialMount) {
+      setIsInitialMount(false);
+      return;
+    }
+
     try {
       localStorage.setItem(KYC_DRAFT_KEY, JSON.stringify(formData));
       console.log("💾 Saved form data to localStorage");
@@ -182,6 +201,7 @@ export default function StepsContainer() {
     }
   }, [formData]);
 
+  // 🔑 Save current step to localStorage whenever it changes
   useEffect(() => {
     try {
       localStorage.setItem(KYC_CURRENT_STEP_KEY, current.toString());
@@ -191,13 +211,10 @@ export default function StepsContainer() {
     }
   }, [current]);
 
-  
+  // 🔑 Save completed steps to localStorage whenever they change
   useEffect(() => {
     try {
-      localStorage.setItem(
-        KYC_COMPLETED_STEPS_KEY,
-        JSON.stringify(completedSteps)
-      );
+      localStorage.setItem(KYC_COMPLETED_STEPS_KEY, JSON.stringify(completedSteps));
       console.log("💾 Saved completed steps to localStorage:", completedSteps);
     } catch (error) {
       console.error("❌ Error saving completed steps:", error);
@@ -212,21 +229,16 @@ export default function StepsContainer() {
         const response = await kycApi.get("/api/v1/vendor/kyc");
         if (response.data) {
           setKycStatus(response.data.kycStatus);
-
+          
           // If KYC is already submitted, redirect or show message
-          if (
-            response.data.kycStatus === "submitted" ||
-            response.data.kycStatus === "approved"
-          ) {
-            toast.info(
-              "Your KYC has already been submitted and is under review"
-            );
+          if (response.data.kycStatus === 'submitted' || response.data.kycStatus === 'approved') {
+            toast.info('Your KYC has already been submitted and is under review');
             // 🔑 Clear localStorage since KYC is submitted
             clearLocalStorage();
-            navigate("/dashboard", { replace: true });
+            navigate('/dashboard', { replace: true });
             return;
           }
-
+          
           if (response.data.emailVerified) {
             updateFormData({
               emailVerified: true,
@@ -242,10 +254,10 @@ export default function StepsContainer() {
         }
       } catch (error: any) {
         console.log("No existing KYC session or error checking status:", error);
-
+        
         // Handle 401 Unauthorized specifically
         if (error.response?.status === 401) {
-          console.log("Authentication required for KYC");
+          console.log('Authentication required for KYC');
         }
       } finally {
         setIsLoading(false);
@@ -263,14 +275,9 @@ export default function StepsContainer() {
         setCompletedSteps((prev) => [...prev, 1]);
       }
     }
-  }, [
-    formData.emailVerified,
-    formData.step1Completed,
-    current,
-    completedSteps,
-  ]);
+  }, [formData.emailVerified, formData.step1Completed, current, completedSteps]);
 
-  // 🔑 NEW: Function to clear localStorage
+  // 🔑 Function to clear localStorage
   const clearLocalStorage = () => {
     try {
       localStorage.removeItem(KYC_DRAFT_KEY);
@@ -306,10 +313,7 @@ export default function StepsContainer() {
         );
         // Only update if explicitly set or if all conditions are met
         if (newData.step1Completed !== undefined || step1Complete) {
-          updated.step1Completed =
-            newData.step1Completed !== undefined
-              ? newData.step1Completed
-              : step1Complete;
+          updated.step1Completed = newData.step1Completed !== undefined ? newData.step1Completed : step1Complete;
         }
       }
 
@@ -353,7 +357,7 @@ export default function StepsContainer() {
       }
     } catch (error: any) {
       console.error("Error starting KYC:", error);
-
+      
       // Handle 401 specifically
       if (error.response?.status === 401) {
         toast.error("Your session has expired. Please login again.");
@@ -527,7 +531,7 @@ export default function StepsContainer() {
       setCurrent(steps.length);
     } catch (error: any) {
       console.error("Failed to submit KYC:", error);
-
+      
       // Handle 401 specifically
       if (error.response?.status === 401) {
         toast.error("Your session has expired. Please login again.");
@@ -696,13 +700,13 @@ export default function StepsContainer() {
           // Before email verification
           const basicFieldsFilled = Boolean(
             formData.firstName &&
-              formData.lastName &&
-              formData.email &&
-              formData.phoneNumber &&
-              formData.identityDocumentUrls &&
-              formData.identityDocumentUrls.length >= 2
+            formData.lastName &&
+            formData.email &&
+            formData.phoneNumber &&
+            formData.identityDocumentUrls &&
+            formData.identityDocumentUrls.length >= 2
           );
-
+          
           // Button is disabled if fields not filled or KYC is starting
           return !basicFieldsFilled || isStartingKYC;
         } else {
@@ -722,7 +726,8 @@ export default function StepsContainer() {
       case 2:
         // Step 3 requires store description
         return !(
-          formData.storeDescription.trim().length > 0 && formData.emailVerified
+          formData.storeDescription.trim().length > 0 &&
+          formData.emailVerified
         );
       case 3:
         // Step 4 requires bank details
@@ -734,7 +739,7 @@ export default function StepsContainer() {
           formData.emailVerified
         );
       case 4:
-        return !formData.emailVerified; // Can't submit without email verification
+        return !formData.emailVerified; 
       default:
         return true;
     }

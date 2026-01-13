@@ -15,6 +15,8 @@ import {
   getAuthState,
   startTokenRefreshScheduler,
   manualTokenRefresh,
+  getAccessToken,
+  setAccessToken,
 } from "./api";
 import { MorphingSpinner } from "@/components/ui/morphing-spinner";
 
@@ -97,11 +99,19 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
         // First, load user from storage (synchronous)
         dispatch(loadUserFromStorage());
 
-        // Check if we have valid auth data
+        // Check if we have access token (in memory or localStorage)
         const authState = getAuthState();
+        let hasAccessToken = !!getAccessToken();
 
-        if (authState.hasToken && authState.refreshToken) {
-          console.log("✅ Auth tokens found in storage");
+        if (!hasAccessToken && authState.hasToken) {
+          // Restore from localStorage if available
+          console.log("📦 Restoring access token from localStorage to memory");
+          setAccessToken(authState.accessToken);
+          hasAccessToken = true;
+        }
+
+        if (hasAccessToken) {
+          console.log("✅ Access token found");
 
           // Check if session is still valid
           const isValidSession = checkAuthSession();
@@ -110,6 +120,7 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
             console.log("✅ Session is valid");
 
             // Try to refresh the access token to ensure it's fresh
+            // This also validates the HttpOnly refresh token cookie
             try {
               console.log("🔄 Refreshing access token on init...");
               await dispatch(refreshAccessToken()).unwrap();
@@ -132,7 +143,8 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
                 "❌ Failed to refresh token on init:",
                 refreshError
               );
-              // If refresh fails, clear auth and redirect to login
+              // If refresh fails, it means the HttpOnly cookie is invalid/expired
+              // Clear auth and redirect to login
               dispatch(logout());
 
               const currentPath = location.pathname;
@@ -150,12 +162,36 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
             }
           }
         } else {
-          console.log("ℹ️ No auth tokens found");
+          console.log("ℹ️ No access token found");
 
-          // No tokens, ensure user is on public route
-          const currentPath = location.pathname;
-          if (!isPublicRoute(currentPath)) {
-            navigate("/auth/login", { replace: true });
+          // No access token, but maybe we have a valid HttpOnly cookie
+          // Try to refresh to get a new access token
+          try {
+            console.log("🔄 Attempting silent refresh with HttpOnly cookie...");
+            await dispatch(refreshAccessToken()).unwrap();
+            console.log("✅ Silent refresh successful");
+
+            // After successful refresh, check if user should be redirected
+            const authState = getAuthState();
+            const currentPath = location.pathname;
+            const isPublic = isPublicRoute(currentPath);
+
+            if (isPublic && authState.emailVerified && authState.role) {
+              const redirectPath = getUserRedirectPath(authState.role);
+              console.log(
+                "🔄 Redirecting authenticated user to:",
+                redirectPath
+              );
+              navigate(redirectPath, { replace: true });
+            }
+          } catch (error) {
+            console.log("ℹ️ No valid session found, user needs to login");
+
+            // No valid session, ensure user is on public route
+            const currentPath = location.pathname;
+            if (!isPublicRoute(currentPath)) {
+              navigate("/auth/login", { replace: true });
+            }
           }
         }
       } catch (error) {
@@ -207,9 +243,17 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
         const isValid = checkAuthSession();
 
         if (!isValid) {
-          console.log("❌ Session invalid, logging out");
-          dispatch(logout());
-          navigate("/auth", { replace: true });
+          console.log("❌ Session invalid, attempting refresh...");
+          
+          // Try to refresh using HttpOnly cookie
+          try {
+            await dispatch(refreshAccessToken()).unwrap();
+            console.log("✅ Session refreshed on visibility change");
+          } catch (error) {
+            console.log("❌ Refresh failed, logging out");
+            dispatch(logout());
+            navigate("/auth", { replace: true });
+          }
           return;
         }
 

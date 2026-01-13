@@ -24,35 +24,30 @@ const api = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
   headers: { "Content-Type": "application/json" },
+  withCredentials: true, // CRITICAL: Enable sending cookies
 });
 
 const refreshApi = axios.create({
   baseURL: BASE_URL,
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
+  withCredentials: true, // CRITICAL: Enable sending cookies
 });
 
-// Interface for auth state
+// Interface for auth data - UPDATED: No refresh token stored
 interface AuthData {
   userId: string;
   email: string;
   role: string;
   emailVerified: boolean;
   forcePasswordChange?: boolean;
-  tokens: {
-    accessToken: string;
-    refreshToken: string;
-    tokenType: string;
-    expiresInSec: number;
-    refreshExpiresInSec: number;
-  };
+  accessToken: string; // Only access token in memory/storage
   tokenExpiry: number;
 }
 
 interface AuthState {
   hasToken: boolean;
   accessToken: string | null;
-  refreshToken: string | null;
   user: any;
   tokenExpiry?: number;
   userId?: string;
@@ -61,33 +56,73 @@ interface AuthState {
   emailVerified?: boolean;
 }
 
+// In-memory token storage - MORE SECURE than localStorage
+let inMemoryAccessToken: string | null = null;
+
+// Function to set access token in memory
+export const setAccessToken = (token: string | null) => {
+  inMemoryAccessToken = token;
+  if (token) {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common.Authorization;
+  }
+};
+
+// Function to get access token from memory
+export const getAccessToken = (): string | null => {
+  return inMemoryAccessToken;
+};
+
 // Function to get current auth state
 export const getAuthState = (): AuthState => {
   if (typeof window === "undefined") {
     return {
       hasToken: false,
       accessToken: null,
-      refreshToken: null,
       user: null,
     };
   }
 
   try {
+    // Try in-memory first
+    if (inMemoryAccessToken) {
+      const authData = localStorage.getItem("authData");
+      if (authData) {
+        const parsedData: AuthData = JSON.parse(authData);
+        return {
+          hasToken: true,
+          accessToken: inMemoryAccessToken,
+          tokenExpiry: parsedData.tokenExpiry,
+          userId: parsedData.userId,
+          email: parsedData.email,
+          role: parsedData.role,
+          emailVerified: parsedData.emailVerified,
+          user: parsedData,
+        };
+      }
+    }
+
+    // Fallback to localStorage (for page refresh scenarios)
     const authData = localStorage.getItem("authData");
     if (!authData) {
       return {
         hasToken: false,
         accessToken: null,
-        refreshToken: null,
         user: null,
       };
     }
 
     const parsedData: AuthData = JSON.parse(authData);
+    
+    // Restore to memory if found in localStorage
+    if (parsedData.accessToken) {
+      setAccessToken(parsedData.accessToken);
+    }
+
     return {
-      hasToken: !!parsedData.tokens?.accessToken,
-      accessToken: parsedData.tokens?.accessToken || null,
-      refreshToken: parsedData.tokens?.refreshToken || null,
+      hasToken: !!parsedData.accessToken,
+      accessToken: parsedData.accessToken || null,
       tokenExpiry: parsedData.tokenExpiry,
       userId: parsedData.userId,
       email: parsedData.email,
@@ -100,7 +135,6 @@ export const getAuthState = (): AuthState => {
     return {
       hasToken: false,
       accessToken: null,
-      refreshToken: null,
       user: null,
     };
   }
@@ -120,7 +154,7 @@ const isTokenExpired = (token: string, bufferMinutes: number = 5): boolean => {
   }
 };
 
-// Helper function to save auth data after login
+// Helper function to save auth data after login - UPDATED: Only access token
 export const saveAuthData = (loginResponse: {
   userId: string;
   email: string;
@@ -129,10 +163,8 @@ export const saveAuthData = (loginResponse: {
   forcePasswordChange?: boolean;
   tokens: {
     accessToken: string;
-    refreshToken: string;
     tokenType: string;
     expiresInSec: number;
-    refreshExpiresInSec: number;
   };
 }) => {
   if (typeof window === "undefined") return;
@@ -144,96 +176,70 @@ export const saveAuthData = (loginResponse: {
       role: loginResponse.role,
       emailVerified: loginResponse.emailVerified,
       forcePasswordChange: loginResponse.forcePasswordChange,
-      tokens: {
-        accessToken: loginResponse.tokens.accessToken,
-        refreshToken: loginResponse.tokens.refreshToken,
-        tokenType: loginResponse.tokens.tokenType,
-        expiresInSec: loginResponse.tokens.expiresInSec,
-        refreshExpiresInSec: loginResponse.tokens.refreshExpiresInSec,
-      },
+      accessToken: loginResponse.tokens.accessToken,
       tokenExpiry: Date.now() + loginResponse.tokens.expiresInSec * 1000,
     };
 
+    // Store minimal data in localStorage (for persistence across page refresh)
     localStorage.setItem("authData", JSON.stringify(authData));
 
-    // Set default authorization header
-    api.defaults.headers.common.Authorization = `Bearer ${loginResponse.tokens.accessToken}`;
+    // Set token in memory and axios headers
+    setAccessToken(loginResponse.tokens.accessToken);
 
-    console.log("✅ Auth data saved successfully");
+    console.log("✅ Auth data saved successfully (access token in memory)");
   } catch (error) {
     console.error("Error saving auth data:", error);
   }
 };
 
-// Function to refresh backend token
+// Function to refresh backend token - UPDATED: No manual refresh token handling
 const refreshBackendToken = async (): Promise<string> => {
   try {
-    if (typeof window === "undefined") {
-      throw new Error("Window is not defined");
-    }
+    console.log("🔄 Attempting to refresh backend token via HttpOnly cookie...");
 
-    const authData = localStorage.getItem("authData");
-    if (!authData) {
-      throw new Error("No authentication data found");
-    }
+    // CRITICAL: Just call refresh endpoint - cookie is sent automatically
+    // No need to manually send refresh token!
+    const response = await refreshApi.post("/api/v1/auth/refresh", {});
 
-    const parsedData: AuthData = JSON.parse(authData);
-    const refreshToken = parsedData.tokens?.refreshToken;
+    if (response.data.tokens?.accessToken) {
+      const newAccessToken = response.data.tokens.accessToken;
 
-    if (!refreshToken) {
-      throw new Error("No refresh token available");
-    }
+      // Update in-memory token
+      setAccessToken(newAccessToken);
 
-    console.log("🔄 Attempting to refresh backend token...");
+      // Update localStorage with new token and expiry
+      if (typeof window !== "undefined") {
+        const authData = localStorage.getItem("authData");
+        if (authData) {
+          const parsedData: AuthData = JSON.parse(authData);
+          const updatedAuthData: AuthData = {
+            userId: response.data.userId || parsedData.userId,
+            email: response.data.email || parsedData.email,
+            role: response.data.role || parsedData.role,
+            emailVerified: response.data.emailVerified ?? parsedData.emailVerified,
+            forcePasswordChange: parsedData.forcePasswordChange,
+            accessToken: newAccessToken,
+            tokenExpiry: Date.now() + (response.data.tokens.expiresInSec || 900) * 1000,
+          };
 
-    // IMPORTANT: Send refresh token in Authorization header
-    const response = await refreshApi.post(
-      "/api/v1/auth/refresh",
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${refreshToken}`,
-        },
-      }
-    );
+          localStorage.setItem("authData", JSON.stringify(updatedAuthData));
 
-    if (response.data.tokens?.accessToken && response.data.tokens?.refreshToken) {
-      // Update localStorage with new tokens
-      const updatedAuthData: AuthData = {
-        userId: response.data.userId,
-        email: response.data.email,
-        role: response.data.role,
-        emailVerified: response.data.emailVerified,
-        forcePasswordChange: parsedData.forcePasswordChange,
-        tokens: {
-          accessToken: response.data.tokens.accessToken,
-          refreshToken: response.data.tokens.refreshToken,
-          tokenType: response.data.tokens.tokenType || "Bearer",
-          expiresInSec: response.data.tokens.expiresInSec || 900,
-          refreshExpiresInSec: response.data.tokens.refreshExpiresInSec || 604800,
-        },
-        tokenExpiry: Date.now() + (response.data.tokens.expiresInSec || 900) * 1000,
-      };
-
-      localStorage.setItem("authData", JSON.stringify(updatedAuthData));
-
-      // Update default headers
-      api.defaults.headers.common.Authorization = `Bearer ${response.data.tokens.accessToken}`;
-
-      // Also update user in localStorage if needed
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          user.emailVerified = response.data.emailVerified;
-          localStorage.setItem("user", JSON.stringify(user));
-        } catch (e) {
-          console.error("Error updating user data:", e);
+          // Also update user in localStorage if needed
+          const userStr = localStorage.getItem("user");
+          if (userStr) {
+            try {
+              const user = JSON.parse(userStr);
+              user.emailVerified = response.data.emailVerified ?? user.emailVerified;
+              localStorage.setItem("user", JSON.stringify(user));
+            } catch (e) {
+              console.error("Error updating user data:", e);
+            }
+          }
         }
       }
 
       console.log("✅ Backend token refreshed successfully");
-      return response.data.tokens.accessToken;
+      return newAccessToken;
     }
 
     throw new Error("Invalid refresh response format");
@@ -247,9 +253,7 @@ const refreshBackendToken = async (): Promise<string> => {
 
     // Clear invalid auth data
     if (typeof window !== "undefined") {
-      localStorage.removeItem("authData");
-      localStorage.removeItem("user");
-      delete api.defaults.headers.common.Authorization;
+      clearAuthData();
     }
 
     throw error;
@@ -264,33 +268,18 @@ api.interceptors.request.use(
       return config;
     }
 
-    // Try to get token from localStorage
-    if (typeof window !== "undefined") {
+    // Get token from memory first
+    let token = getAccessToken();
+
+    // If not in memory, try to restore from localStorage
+    if (!token && typeof window !== "undefined") {
       try {
         const authData = localStorage.getItem("authData");
         if (authData) {
           const parsedData: AuthData = JSON.parse(authData);
-          
-          if (parsedData.tokens?.accessToken) {
-            // Check if token is expired or about to expire
-            if (isTokenExpired(parsedData.tokens.accessToken, 5)) {
-              console.log("⚠️ Token expired or about to expire, refreshing...");
-              
-              // If not already refreshing, trigger refresh
-              if (!isRefreshing) {
-                try {
-                  const newToken = await refreshBackendToken();
-                  config.headers.Authorization = `Bearer ${newToken}`;
-                  return config;
-                } catch (error) {
-                  console.error("Failed to refresh token in request interceptor:", error);
-                  // Continue with existing token, let response interceptor handle it
-                }
-              }
-            }
-            
-            config.headers.Authorization = `Bearer ${parsedData.tokens.accessToken}`;
-            return config;
+          if (parsedData.accessToken) {
+            token = parsedData.accessToken;
+            setAccessToken(token); // Restore to memory
           }
         }
       } catch (error) {
@@ -298,13 +287,35 @@ api.interceptors.request.use(
       }
     }
 
+    if (token) {
+      // Check if token is expired or about to expire
+      if (isTokenExpired(token, 5)) {
+        console.log("⚠️ Token expired or about to expire, refreshing...");
+
+        // If not already refreshing, trigger refresh
+        if (!isRefreshing) {
+          try {
+            const newToken = await refreshBackendToken();
+            config.headers.Authorization = `Bearer ${newToken}`;
+            return config;
+          } catch (error) {
+            console.error("Failed to refresh token in request interceptor:", error);
+            // Continue with existing token, let response interceptor handle it
+          }
+        }
+      }
+
+      config.headers.Authorization = `Bearer ${token}`;
+      return config;
+    }
+
     // Fallback to Firebase auth for specific endpoints
     const isAuthEndpoint = config.url?.includes("/auth/");
     if (isAuthEndpoint && auth.currentUser) {
       try {
-        const token = await auth.currentUser.getIdToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        const firebaseToken = await auth.currentUser.getIdToken();
+        if (firebaseToken) {
+          config.headers.Authorization = `Bearer ${firebaseToken}`;
         }
       } catch (error) {
         console.error("Error getting Firebase token:", error);
@@ -373,17 +384,13 @@ api.interceptors.response.use(
       } catch (refreshError) {
         console.error("❌ Token refresh failed, clearing auth:", refreshError);
         processQueue(refreshError, null);
-        
+
         // Clear auth data
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("authData");
-          localStorage.removeItem("user");
-          delete api.defaults.headers.common.Authorization;
-        }
-        
+        clearAuthData();
+
         // Dispatch logout event
         window.dispatchEvent(new CustomEvent("auth:logout"));
-        
+
         return Promise.reject(new Error("Session expired. Please login again."));
       } finally {
         isRefreshing = false;
@@ -431,16 +438,11 @@ export const startTokenRefreshScheduler = (): (() => void) | null => {
 
   const checkAndRefreshToken = async () => {
     try {
-      const authData = localStorage.getItem("authData");
-      if (!authData) return;
-
-      const parsedData: AuthData = JSON.parse(authData);
-      const accessToken = parsedData.tokens?.accessToken;
-
-      if (!accessToken) return;
+      const token = getAccessToken();
+      if (!token) return;
 
       // Check if token is about to expire (within 5 minutes)
-      if (isTokenExpired(accessToken, 5)) {
+      if (isTokenExpired(token, 5)) {
         console.log("🔄 Token expiring soon, refreshing proactively...");
         await refreshBackendToken();
       }
@@ -484,39 +486,52 @@ export const manualTokenRefresh = async (): Promise<boolean> => {
 export const checkAuthSession = (): boolean => {
   if (typeof window === "undefined") return false;
 
-  const authData = localStorage.getItem("authData");
-  if (!authData) return false;
+  const token = getAccessToken();
+  if (!token) {
+    // Try to restore from localStorage
+    const authData = localStorage.getItem("authData");
+    if (!authData) return false;
 
-  try {
-    const parsedData: AuthData = JSON.parse(authData);
+    try {
+      const parsedData: AuthData = JSON.parse(authData);
+      if (!parsedData.accessToken) return false;
 
-    // Check if we have both access and refresh tokens
-    if (!parsedData.tokens?.accessToken || !parsedData.tokens?.refreshToken) {
+      // Check if token is expired (with no buffer)
+      if (isTokenExpired(parsedData.accessToken, 0)) {
+        console.log("❌ Access token expired");
+        return false;
+      }
+
+      // Restore to memory
+      setAccessToken(parsedData.accessToken);
+      return true;
+    } catch (error) {
+      console.error("Error checking auth session:", error);
       return false;
     }
+  }
 
-    // Check if refresh token is expired
-    if (isTokenExpired(parsedData.tokens.refreshToken, 0)) {
-      console.log("❌ Refresh token expired");
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error("Error checking auth session:", error);
+  // Check if token in memory is expired
+  if (isTokenExpired(token, 0)) {
+    console.log("❌ Access token expired");
     return false;
   }
+
+  return true;
 };
 
-// Helper function to clear auth data
+// Helper function to clear auth data - UPDATED
 export const clearAuthData = () => {
   if (typeof window === "undefined") return;
 
   stopTokenRefreshScheduler();
 
+  // Clear in-memory token
+  setAccessToken(null);
+
+  // Clear localStorage
   localStorage.removeItem("authData");
   localStorage.removeItem("user");
-  delete api.defaults.headers.common.Authorization;
 
   console.log("✅ Auth data cleared");
 };
