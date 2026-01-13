@@ -293,7 +293,8 @@ export const fetchPublicProducts = createAsyncThunk(
       if (params.subcategoryId) queryParams.append("subcategoryId", params.subcategoryId);
       if (params.sellerId) queryParams.append("sellerId", params.sellerId);
 
-      const url = `/api/v1/products${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+      // const url = `/api/v1/products/all${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+      const url = `/api/v1/products/all`;
       const response = await api.get(url);
       
       console.log("📦 fetchPublicProducts response:", response.data);
