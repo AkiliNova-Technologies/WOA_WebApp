@@ -16,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import images from "@/assets/images";
 import { toast } from "sonner";
 import { debounce } from "lodash";
-import { useReduxAuth } from "@/hooks/useReduxAuth"; // Import your auth hook
+import { useReduxAuth } from "@/hooks/useReduxAuth";
 
 // Helper function to format email for display
 const formatEmailForDisplay = (email: string): string => {
@@ -190,94 +190,20 @@ export default function Step1({
     updateFormData({ identityDocumentUrls: documents });
   };
 
-  // This is called from parent when "Save and continue" is clicked
-  const sendVerificationCode = async () => {
-    if (isSendingCode) return;
-
-    // Validate email format
-    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      toast.error("Please enter a valid email address");
-      return;
-    }
-
-    // Check if email is available before sending verification
-    if (emailAvailable === false) {
-      toast.error("This email is already registered. Please use a different email.");
-      return;
-    }
-
-    // Wait if still checking
-    if (checkingEmail) {
-      toast.error("Please wait while we verify your email availability");
-      return;
-    }
-
-    // If email availability is null (not checked yet), check it now
-    if (emailAvailable === null) {
-      try {
-        setCheckingEmail(true);
-        const result = await checkEmailAvailability(formData.email);
-        const available = result.available || false;
-        setEmailAvailable(available);
-        
-        if (!available) {
-          toast.error("This email is already registered. Please use a different email.");
-          return;
-        }
-      } catch (error: any) {
-        console.error("Email check failed:", error);
-        toast.error("Could not verify email availability. Please try again.");
-        return;
-      } finally {
-        setCheckingEmail(false);
-      }
-    }
-
-    try {
-      setIsSendingCode(true);
-
-      // ONLY send email for KYC start (no other data)
-      await api.post("/api/v1/vendor/kyc/email/otp", {
-        email: formData.email,
-      });
-
-      // Show verification UI
-      setShowVerification(true);
-      setTimeLeft(60);
-      toast.success("Verification code sent to your email");
-    } catch (error: any) {
-      console.error("Error sending OTP:", error);
-      toast.error(
-        error?.response?.data?.message || "Failed to send verification code"
-      );
-      throw error;
-    } finally {
-      setIsSendingCode(false);
-    }
-  };
-
+  // 🔑 FIX: Handle requestVerification from parent (parent already sent OTP)
   useEffect(() => {
     if (!requestVerification) return;
 
-    const run = async () => {
-      try {
-        // Parent already started KYC via /kyc/start
-        // We just need to resend OTP if needed
-        if (kycStatus === 'email_pending') {
-          await sendVerificationCode();
-        } else {
-          // This shouldn't happen, but just in case
-          setShowVerification(true);
-          setTimeLeft(60);
-        }
-        onVerificationStarted(); // reset parent flag
-      } catch {
-        onVerificationStarted(); // prevent lock if API fails
-      }
-    };
-
-    run();
-  }, [requestVerification]);
+    console.log("📧 Parent requested verification - showing UI (OTP already sent by parent)");
+    
+    // Parent has already sent the OTP via startKYCProcess()
+    // We just need to show the verification UI
+    setShowVerification(true);
+    setTimeLeft(60);
+    
+    // Reset parent flag immediately to prevent loops
+    onVerificationStarted();
+  }, [requestVerification, onVerificationStarted]);
 
   const handleAutoVerify = async () => {
     if (verificationCode.length !== 5) {
@@ -346,7 +272,9 @@ export default function Step1({
     try {
       setIsSendingCode(true);
       
-      // Use the KYC OTP endpoint
+      console.log("📧 Resending OTP via /api/v1/vendor/kyc/email/otp");
+      
+      // Use the KYC OTP endpoint for resending
       await api.post("/api/v1/vendor/kyc/email/otp", {
         email: formData.email
       });
