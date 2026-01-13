@@ -502,7 +502,7 @@ export default function ProfileSettingsPage() {
 
         {/* Address Form */}
         <div className="bg-white p-6 px-8 rounded-md">
-          <Card className="shadow-none border-0">
+          <Card className="shadow-none border-0 py-6">
             <CardContent className="space-y-6 p-0">
               {/* Country */}
               <div className="space-y-3">
@@ -741,7 +741,7 @@ export default function ProfileSettingsPage() {
           <TabsContent value="account" className="mt-8">
             <div className="space-y-8">
               {/* Create Your Password */}
-              <Card className="shadow-none ">
+              <Card className="shadow-none py-6">
                 <CardHeader>
                   <CardTitle className="text-lg">Your Identity</CardTitle>
                   <CardDescription>
@@ -817,7 +817,7 @@ export default function ProfileSettingsPage() {
               </Card>
 
               {/* Create Your Password */}
-              <Card className="shadow-none ">
+              <Card className="shadow-none py-6">
                 <CardHeader>
                   <CardTitle className="text-lg">Change Password</CardTitle>
                 </CardHeader>
@@ -879,7 +879,7 @@ export default function ProfileSettingsPage() {
               </Card>
 
               {/* Delete your account */}
-              <Card className="shadow-xs">
+              <Card className="shadow-xs py-6">
                 <CardHeader>
                   <CardTitle>
                     <h1 className="text-2xl font-medium">
@@ -1039,7 +1039,7 @@ export default function ProfileSettingsPage() {
               </div>
 
               {addresses.length === 0 ? (
-                <Card className="shadow-none">
+                <Card className="shadow-none py-6">
                   <div className="flex flex-col items-center justify-center p-6">
                     <img
                       src={images.EmptyWallet}
@@ -1177,7 +1177,7 @@ export default function ProfileSettingsPage() {
                 <p className="text-lg font-medium">Notify me about</p>
               </div>
 
-              <Card className="shadow-none">
+              <Card className="shadow-none py-6">
                 <div className="space-y-6">
                   <div className="px-6">
                     <div className="flex flex-1 flex-row justify-between">

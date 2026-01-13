@@ -183,7 +183,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ================= STORE SUMMARY ================= */}
-        <Card className=" relative mx-auto  -mt-12 shadow-xs border bg-white">
+        <Card className=" relative mx-auto  -mt-12 mx-6 shadow-xs border bg-white py-6">
           <CardContent className="px-6 flex flex-col md:flex-row md:items-center gap-6">
             <div className="w-30 h-30 rounded-full bg-[#EFEFEF] flex items-center justify-center text-4xl font-bold text-[#5B5B5B]">
               3
@@ -304,7 +304,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* ================= STORE DESCRIPTION ================= */}
-        <Card className="max-w-8xl mx-auto mt-8 shadow-xs border bg-white">
+        <Card className="max-w-8xl mx-auto mt-8 mx-6 shadow-xs border bg-white ">
           <CardContent className="p-6">
             <h2 className="text-lg font-semibold mb-4">Store Description</h2>
 
@@ -340,7 +340,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Delete your account */}
-        <Card className="shadow-xs mt-8">
+        <Card className="shadow-xs mt-8 py-6 mx-6">
           <CardHeader>
             <CardTitle>
               <h1 className="text-2xl font-medium">Delete your account</h1>

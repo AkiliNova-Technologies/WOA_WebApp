@@ -5,6 +5,7 @@ import {
   Home,
   ScrollText,
   SettingsIcon,
+  Star,
   Store,
   Tag,
 } from "lucide-react";
@@ -54,6 +55,11 @@ const data = {
       title: "Revenue",
       url: "/vendor/revenue",
       icon: ScrollText,
+    },
+    {
+      title: "Review & Ratings",
+      url: "/vendor/reviews",
+      icon: Star,
     },
   ],
 

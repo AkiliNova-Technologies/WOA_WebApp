@@ -127,24 +127,36 @@ const mockOrders: Order[] = [
 ];
 
 // Mock reviews data
+// const mockReviews = [
+//   {
+//     id: "1",
+//     name: "Annette Black",
+//     date: "Apr 11 2025",
+//     rating: 4.5,
+//     comment:
+//       "Great store with quality products. Fast shipping and excellent customer service.",
+//     helpful: 12,
+//   },
+//   {
+//     id: "2",
+//     name: "Emma Stone",
+//     date: "Jul 22 2025",
+//     rating: 5.0,
+//     comment:
+//       "Absolutely love shopping here! Authentic products and very professional seller.",
+//     helpful: 15,
+//   },
+// ];
+
 const mockReviews = [
   {
     id: "1",
-    name: "Annette Black",
-    date: "Apr 11 2025",
-    rating: 4.5,
+    name: "",
+    date: "",
+    rating: 0,
     comment:
-      "Great store with quality products. Fast shipping and excellent customer service.",
-    helpful: 12,
-  },
-  {
-    id: "2",
-    name: "Emma Stone",
-    date: "Jul 22 2025",
-    rating: 5.0,
-    comment:
-      "Absolutely love shopping here! Authentic products and very professional seller.",
-    helpful: 15,
+      "",
+    helpful: 0,
   },
 ];
 
@@ -455,7 +467,6 @@ export default function AdminVendorDetailPage() {
   const vendorStatusDisplay =
     vendorStatusConfig[vendorStatus] || vendorStatusConfig.pending;
 
-  // Bank details from API
   const bankName = vendor.bankName || "Not provided";
   const accountName = vendor.accountName || "Not provided";
   const accountNumber = vendor.accountNumber || "Not provided";
@@ -474,13 +485,17 @@ export default function AdminVendorDetailPage() {
     return `${firstInitial}${lastInitial}`;
   };
 
-  const handleStatusUpdate = async (newStatus: VendorStatus) => {
+  const handleStatusUpdate = async (
+    newStatus: VendorStatus,
+    reason?: string
+  ) => {
     if (!vendor || !id) return;
 
     setStatusUpdateLoading(true);
 
     try {
       let endpoint = "";
+      let requestData: any = { userId: user.id }; // Change variable name to requestData
       let successMessage = `Vendor status updated to ${newStatus}`;
 
       // Map the status to the correct API endpoint
@@ -491,7 +506,8 @@ export default function AdminVendorDetailPage() {
           } else if (vendorStatus === "pending") {
             endpoint = `/api/v1/vendor/approve`;
           } else {
-            endpoint = `/api/v1/vendor/reject`;
+            // For other statuses like "rejected" going to "active"
+            endpoint = `/api/v1/vendor/approve`;
           }
           break;
 
@@ -511,12 +527,21 @@ export default function AdminVendorDetailPage() {
           endpoint = `/api/v1/vendor/admin/delete`;
           break;
 
+        case "rejected":
+          // Handle rejection - add reasons to requestData
+          endpoint = `/api/v1/vendor/reject`;
+          requestData = {
+            userId: user.id,
+            reasons: reason || "Rejected by admin", // Add the rejection reason
+          };
+          break;
+
         default:
           console.warn(`No API endpoint defined for status: ${newStatus}`);
       }
 
       if (endpoint) {
-        await api.post(endpoint, { userId: user.id });
+        await api.post(endpoint, requestData);
 
         setVendor((prev: any) =>
           prev ? { ...prev, vendorStatus: newStatus } : null
@@ -672,8 +697,8 @@ export default function AdminVendorDetailPage() {
                                     key={i}
                                     className={`w-5 h-5 ${
                                       i < 0
-                                        ? "fill-orange-400 text-orange-400"
-                                        : "fill-orange-300 text-orange-300"
+                                        ? "fill-gray-400 text-gray-400"
+                                        : "fill-gray-300 text-gray-300"
                                     }`}
                                   />
                                 ))}
@@ -735,6 +760,7 @@ export default function AdminVendorDetailPage() {
                             </h3>
 
                             <div className="space-y-6">
+                              {/* {mockReviews.map((review) => ( */}
                               {mockReviews.map((review) => (
                                 <div key={review.id} className="space-y-3">
                                   <div className="flex items-center justify-between">
@@ -957,7 +983,9 @@ export default function AdminVendorDetailPage() {
                             />
                             <Info
                               label="Last Active"
-                              value={getTimeAgo(vendor.updatedAt || vendor.createdAt)}
+                              value={getTimeAgo(
+                                vendor.updatedAt || vendor.createdAt
+                              )}
                               icon={<Clock className="h-5 w-5" />}
                               iconContainerClassName="w-8 h-8 rounded-md bg-green-100 text-green-600 flex items-center justify-center"
                             />
@@ -1062,7 +1090,8 @@ export default function AdminVendorDetailPage() {
                                       alt={`Identity verification ${index + 1}`}
                                       className="w-full h-full object-cover"
                                       onError={(e) => {
-                                        e.currentTarget.src = images.Placeholder;
+                                        e.currentTarget.src =
+                                          images.Placeholder;
                                       }}
                                     />
                                   </div>
@@ -1070,8 +1099,14 @@ export default function AdminVendorDetailPage() {
                               ))
                             ) : (
                               <>
-                                <ImageUpload onImageChange={() => {}} disabled />
-                                <ImageUpload onImageChange={() => {}} disabled />
+                                <ImageUpload
+                                  onImageChange={() => {}}
+                                  disabled
+                                />
+                                <ImageUpload
+                                  onImageChange={() => {}}
+                                  disabled
+                                />
                               </>
                             )}
                           </div>
@@ -1306,7 +1341,9 @@ export default function AdminVendorDetailPage() {
                                           size="sm"
                                           className="w-full mt-2"
                                           onClick={() =>
-                                            navigate(`/admin/orders/${order.id}`)
+                                            navigate(
+                                              `/admin/orders/${order.id}`
+                                            )
                                           }
                                         >
                                           <EyeIcon className="h-4 w-4 mr-2" />

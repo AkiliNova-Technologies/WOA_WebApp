@@ -290,7 +290,7 @@ export default function AdminWarehouseDetails() {
 
         {/* Content */}
         <div className="max-w-8xl mx-auto px-6 -mt-22 relative">
-          <Card className="p-0 mb-6 shadow-none bg-transparent border-none dark:bg-trandparent">
+          <Card className="py-6 mb-6 shadow-none bg-transparent border-none dark:bg-trandparent">
             <div className="bg-white p-6 rounded-lg rounded-b-none border border-b-0 dark:bg-[#303030]">
               <div className="mb-6">
                 <h1 className="text-3xl font-bold mb-2">
@@ -343,7 +343,7 @@ export default function AdminWarehouseDetails() {
               {activeTab === "details" && (
                 <div className="space-y-6 -mt-6">
                   {/* Basic Information */}
-                  <Card className="px-6 shadow-none rounded-t-none border-t-0">
+                  <Card className="px-6 py-6 shadow-none rounded-t-none border-t-0">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold">
                         Basic Information
@@ -454,7 +454,7 @@ export default function AdminWarehouseDetails() {
                   </Card>
 
                   {/* Operating Hours */}
-                  <Card className="px-6 shadow-none">
+                  <Card className="px-6 py-6 shadow-none">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold">Operating hours</h2>
                       <Button variant="default" size="sm" className="gap-2">
@@ -497,7 +497,7 @@ export default function AdminWarehouseDetails() {
                   </Card>
 
                   {/* Location */}
-                  <Card className="px-6 shadow-none">
+                  <Card className="px-6 py-6 shadow-none">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold">Location</h2>
                       <Button variant="default" size="sm" className="gap-2">
@@ -553,7 +553,7 @@ export default function AdminWarehouseDetails() {
                   </Card>
 
                   {/* Warehouse Status */}
-                  <Card className="px-6 shadow-none">
+                  <Card className="px-6 py-6 shadow-none">
                     <div className="flex items-center justify-between">
                       <div>
                         <h2 className="text-lg font-semibold mb-1">

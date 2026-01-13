@@ -89,7 +89,7 @@ export function EditStore() {
   return (
     <div className="space-y-6">
       {/* ================= STORE DETAILS ================= */}
-      <Card className="min-w-6xl max-w-8xl mx-auto shadow-xs border bg-white">
+      <Card className="min-w-6xl max-w-8xl mx-auto shadow-xs border bg-white py-6">
         <CardContent className="px-6">
           <div className="space-y-6">
             {/* Header */}
@@ -220,7 +220,7 @@ Sarah is known for her responsive customer service, fast order fulfillment, and 
       </Card>
 
       {/* ================= SELLER STORY ================= */}
-      <Card className="max-w-6xl mx-auto shadow-xs border bg-white">
+      <Card className="max-w-6xl mx-auto shadow-xs border bg-white py-6">
         <CardContent className="px-6">
           <h2 className="text-lg font-semibold mb-4">Vendor Story</h2>
 

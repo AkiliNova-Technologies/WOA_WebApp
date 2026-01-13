@@ -486,7 +486,7 @@ export default function AccountSettingsPage() {
   return (
     <div className="space-y-6 p-4 md:p-6">
       {/* Account Settings */}
-      <Card className="shadow-xs">
+      <Card className="shadow-xs py-6">
         <CardHeader className="border-b">
           <CardTitle>
             <h1 className="text-2xl font-medium">Account Settings</h1>
@@ -616,7 +616,7 @@ export default function AccountSettingsPage() {
       </Card>
 
       {/* Change Password */}
-      <Card className="shadow-xs">
+      <Card className="shadow-xs py-6">
         <CardHeader>
           <CardTitle>
             <h1 className="text-2xl font-medium">Change Password</h1>
@@ -699,7 +699,7 @@ export default function AccountSettingsPage() {
       </Card>
 
       {/* Address Information */}
-      <Card className="shadow-xs">
+      <Card className="shadow-xs py-6">
         <CardHeader>
           <CardTitle>
             <h1 className="text-2xl font-medium">Address Information</h1>
@@ -804,7 +804,7 @@ export default function AccountSettingsPage() {
 
       {/* Store Status (For Vendors) */}
       {(user?.userType === "vendor" || profile?.userType === "vendor") && (
-        <Card className="shadow-xs">
+        <Card className="shadow-xs py-6">
           <CardHeader>
             <CardTitle>
               <h1 className="text-2xl font-medium">Store Status</h1>
@@ -832,7 +832,7 @@ export default function AccountSettingsPage() {
       )}
 
       {/* Delete your account */}
-      <Card className="shadow-xs border-red-100">
+      <Card className="shadow-xs py-6 border-red-100">
         <CardHeader>
           <CardTitle>
             <h1 className="text-2xl font-medium text-red-700">Delete your account</h1>

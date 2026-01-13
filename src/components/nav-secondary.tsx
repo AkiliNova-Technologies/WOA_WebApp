@@ -55,7 +55,7 @@ export function NavSecondary({
                       className={cn(
                         "min-h-12 min-w-full text-center justify-center text-white transition-colors duration-200",
                         active 
-                          ? "bg-white border-l-2 border-[#FFB800]" 
+                          ? "bg-white border-l-2 border-[#CC5500]" 
                           : "hover:bg-white"
                       )}
                     >
@@ -69,7 +69,7 @@ export function NavSecondary({
                       className={cn(
                         "h-12 text-white transition-colors duration-200",
                         active 
-                          ? "bg-white border-l-3 border-[#FFB800] text-[#303030]" 
+                          ? "bg-white border-l-3 border-[#CC5500] text-[#303030]" 
                           : "hover:bg-white"
                       )}
                     >

@@ -266,7 +266,7 @@ export default function NavbarSection() {
               {isCategoriesOpen && (
                 <div
                   ref={categoriesRef}
-                  className={`absolute top-full left-0 mt-4 bg-white text-gray-800 rounded-lg shadow-2xl border border-gray-200 z-50 animate-in fade-in-0 zoom-in-95 ${
+                  className={`absolute top-full left-0 mt-4 bg-white text-gray-800 rounded-lg shadow-2xl border border-gray-200 z-99 animate-in fade-in-0 zoom-in-95 ${
                     isMobile ? "w-80" : "min-w-[300px]"
                   }`}
                   onMouseLeave={() => !isMobile && setActiveCategory(null)}

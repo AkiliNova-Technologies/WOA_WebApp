@@ -96,6 +96,11 @@ import AdminHelpDeskPage from "./pages/admin/HelpDesk.tsx";
 import AdminComplianceReportDetailPage from "./pages/admin/ComplianceReportDetails.tsx";
 import AdminHelpDeskCaseDetailPage from "./pages/admin/HelpDeskDetails.tsx";
 import AdminEditCategoryPage from "./pages/admin/EditCategories.tsx";
+import VendorReviewsPage from "./pages/vendor/dashboard/ReviewsAndRatings.tsx";
+import VendorReviewDetailPage from "./pages/vendor/dashboard/ReviewDetails.tsx";
+import VendorOrderDetailsPage from "./pages/vendor/dashboard/OrderDetails.tsx";
+import VendorWishlistDetailsPage from "./pages/vendor/dashboard/WishlistDetails.tsx";
+import VendorInventoryDetailsPage from "./pages/vendor/dashboard/InventoryDetails.tsx";
 
 function App() {
   return (
@@ -193,9 +198,31 @@ function App() {
                 <Route path="detail" element={<VendorProductDetailsPage />} />
               </Route>
               <Route path="revenue" element={<RevenuePage />} />
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="wishlist" element={<VendorWishlistPage />} />
-              <Route path="orders" element={<OrdersPage />} />
+              <Route path="inventory" element={<SimpleLayout />}>
+                <Route index element={<InventoryPage />} />
+                <Route path=":id/details" element={<VendorInventoryDetailsPage />} />
+              </Route>
+              <Route path="wishlist" element={<SimpleLayout />}>
+                <Route index element={<VendorWishlistPage />} />
+                <Route
+                  path=":id/details"
+                  element={<VendorWishlistDetailsPage />}
+                />
+              </Route>
+              <Route path="orders" element={<SimpleLayout />}>
+                <Route index element={<OrdersPage />} />
+                <Route
+                  path=":orderId/details"
+                  element={<VendorOrderDetailsPage />}
+                />
+              </Route>
+              <Route path="reviews" element={<SimpleLayout />}>
+                <Route index element={<VendorReviewsPage />} />
+                <Route
+                  path=":id/details"
+                  element={<VendorReviewDetailPage />}
+                />
+              </Route>
 
               <Route
                 path="settings"

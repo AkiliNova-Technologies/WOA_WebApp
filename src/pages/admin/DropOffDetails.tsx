@@ -397,7 +397,7 @@ export default function AdminDropOffZoneDetailsPage() {
               {activeTab === "details" && (
                 <div className="space-y-6 -mt-6">
                   {/* Basic Information */}
-                  <Card className="px-6 shadow-none rounded-t-none border-t-0">
+                  <Card className="px-6 py-6 shadow-none rounded-t-none border-t-0">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold">
                         Basic Information
@@ -504,7 +504,7 @@ export default function AdminDropOffZoneDetailsPage() {
                   </Card>
 
                   {/* Operating Hours */}
-                  <Card className="px-6 shadow-none">
+                  <Card className="px-6 py-6 shadow-none">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold">Operating hours</h2>
                       <Button variant="default" size="sm" className="gap-2">
@@ -549,7 +549,7 @@ export default function AdminDropOffZoneDetailsPage() {
                   </Card>
 
                   {/* Delivery Fees */}
-                  <Card className="px-6 shadow-none">
+                  <Card className="px-6 py-6 shadow-none">
                     <h2 className="text-lg font-semibold mb-4">Delivery fees</h2>
                     <DataTable<DeliveryFee>
                       data={deliveryFees}
@@ -561,7 +561,7 @@ export default function AdminDropOffZoneDetailsPage() {
                   </Card>
 
                   {/* Location */}
-                  <Card className="px-6 shadow-none">
+                  <Card className="px-6 py-6 shadow-none">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-semibold">Location</h2>
                       <Button variant="default" size="sm" className="gap-2">
@@ -613,7 +613,7 @@ export default function AdminDropOffZoneDetailsPage() {
                   </Card>
 
                   {/* DOZ Status */}
-                  <Card className="px-6 shadow-none">
+                  <Card className="px-6 py-6 shadow-none">
                     <div className="flex items-center justify-between">
                       <div>
                         <h2 className="text-lg font-semibold mb-1">DOZ Status</h2>

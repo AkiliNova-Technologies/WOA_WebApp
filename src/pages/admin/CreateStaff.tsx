@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,8 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import {
   Collapsible,
   CollapsibleContent,
@@ -22,12 +20,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft,
   ChevronDown,
-  ChevronUp,
   Loader2,
+  User,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useReduxAdmin } from "@/hooks/useReduxAdmin";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Department and Role types
 type Department =
@@ -75,10 +74,13 @@ export default function AdminCreateStaffPage() {
     email: "",
     phoneNumber: "",
     department: "",
-    role: "admin",
+    role: "",
     appRoleIds: [],
     permissionIds: [],
   });
+
+  // State for draft saving
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   // Collapsible states - will be dynamic based on permission modules
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -97,13 +99,6 @@ export default function AdminCreateStaffPage() {
     { id: "content", name: "Content & SEO" },
   ];
 
-  // Role types
-  const roleTypes = [
-    { id: "admin", name: "Admin" },
-    { id: "agent", name: "Agent" },
-    { id: "manager", name: "Manager" },
-  ];
-
   // Group permissions by module
   const groupedPermissions = permissions.reduce((acc, permission) => {
     const module = permission.module || "other";
@@ -118,7 +113,7 @@ export default function AdminCreateStaffPage() {
   useEffect(() => {
     if (permissions.length > 0) {
       const sections = Object.keys(groupedPermissions).reduce((acc, module) => {
-        acc[module] = true; // Open all sections by default
+        acc[module] = false; // Closed by default to match screenshot
         return acc;
       }, {} as Record<string, boolean>);
       setOpenSections(sections);
@@ -176,17 +171,20 @@ export default function AdminCreateStaffPage() {
     }));
   };
 
-  // Handle role selection (app roles)
-  const handleRoleChange = (roleId: string) => {
-    setFormData((prev) => {
-      const isSelected = prev.appRoleIds.includes(roleId);
-      return {
-        ...prev,
-        appRoleIds: isSelected
-          ? prev.appRoleIds.filter((id) => id !== roleId)
-          : [...prev.appRoleIds, roleId],
-      };
-    });
+  // Handle save as draft
+  const handleSaveAsDraft = async () => {
+    try {
+      setIsSavingDraft(true);
+      // Implement draft saving logic here
+      // For now, we'll just save to localStorage
+      localStorage.setItem('staffDraft', JSON.stringify(formData));
+      toast.success("Draft saved successfully");
+    } catch (error) {
+      console.error("Failed to save draft:", error);
+      toast.error("Failed to save draft");
+    } finally {
+      setIsSavingDraft(false);
+    }
   };
 
   // Handle form submission
@@ -205,7 +203,7 @@ export default function AdminCreateStaffPage() {
         toast.error("Email is required");
         return;
       }
-      if (!formData.role) {
+      if (!formData.role.trim()) {
         toast.error("Role is required");
         return;
       }
@@ -225,6 +223,9 @@ export default function AdminCreateStaffPage() {
       console.log("Submitting admin data:", adminData);
 
       await createNewAdmin(adminData);
+
+      // Clear draft from localStorage
+      localStorage.removeItem('staffDraft');
 
       toast.success("Staff member created successfully!", {
         description: "An invitation email has been sent to the staff member.",
@@ -266,6 +267,18 @@ export default function AdminCreateStaffPage() {
       }
     };
 
+    // Try to load draft from localStorage
+    const savedDraft = localStorage.getItem('staffDraft');
+    if (savedDraft) {
+      try {
+        const draft = JSON.parse(savedDraft);
+        setFormData(draft);
+        toast.info("Draft loaded");
+      } catch (error) {
+        console.error("Failed to load draft:", error);
+      }
+    }
+
     fetchData();
 
     // Cleanup errors on unmount
@@ -285,26 +298,68 @@ export default function AdminCreateStaffPage() {
   return (
     <>
       <SiteHeader label="Staff Management" />
-      <div className="min-h-screen">
-        <div className="p-6 mx-auto space-y-8">
-          {/* Header with back button */}
-          <Card className="shadow-none border-none">
-            <div className="flex flex-row flex-1 gap-3 items-center px-6">
+      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a]">
+        {/* Header Bar */}
+        <div className="bg-white dark:bg-[#1a1a1a] border-b dark:border-gray-800">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
               <Button
-                variant={"secondary"}
-                className="dark:bg-[#12121240]"
+                variant="ghost"
                 onClick={() => navigate("/admin/users/staff")}
-                disabled={createLoading}
+                disabled={createLoading || isSavingDraft}
+                className="gap-2 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
-                <ArrowLeft />
+                <ArrowLeft className="h-4 w-4" />
+                Back
               </Button>
-              <p>Back to Staff Management</p>
+              
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/admin/users/staff")}
+                  disabled={createLoading || isSavingDraft}
+                  className="border-gray-300 dark:border-gray-700"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleSaveAsDraft}
+                  disabled={createLoading || isSavingDraft}
+                  className="border-gray-300 dark:border-gray-700"
+                >
+                  {isSavingDraft ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save as draft"
+                  )}
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!isFormValid || createLoading || isSavingDraft}
+                  className="bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                >
+                  {createLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Save Staff"
+                  )}
+                </Button>
+              </div>
             </div>
-          </Card>
+          </div>
+        </div>
 
+        <div className="max-w-8xl mx-auto px-6 py-8">
           {/* Loading State */}
           {loading && (
-            <Alert>
+            <Alert className="mb-6">
               <Loader2 className="h-4 w-4 animate-spin" />
               <AlertDescription>
                 Loading roles and permissions...
@@ -312,408 +367,279 @@ export default function AdminCreateStaffPage() {
             </Alert>
           )}
 
-          {/* Main Form Card */}
-          <Card className="shadow-none border">
-            <CardHeader>
-              <div>
-                <div className="space-y-2 mb-8">
-                  <h1 className="text-xl font-semibold">
-                    Create New Staff Member
-                  </h1>
-                  <p className="text-gray-400">
-                    Add a new team member with specific role assignments and
-                    permissions
-                  </p>
-                </div>
-                <h3 className="text-lg font-medium">Staff Profile</h3>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Personal Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label htmlFor="firstName">
-                    First Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="firstName"
-                    placeholder="Enter First Name"
-                    className="h-11"
-                    value={formData.firstName}
-                    onChange={(e) =>
-                      handleInputChange("firstName", e.target.value)
-                    }
-                    disabled={createLoading}
-                  />
-                </div>
+          {/* Main Content */}
+          <div className="space-y-6">
+            {/* Title */}
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                Create new staff member
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Add a new team member with specific role assignments and permissions
+              </p>
+            </div>
 
-                <div className="space-y-3">
-                  <Label htmlFor="lastName">
-                    Last Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Enter Last Name"
-                    className="h-11"
-                    value={formData.lastName}
-                    onChange={(e) =>
-                      handleInputChange("lastName", e.target.value)
-                    }
-                    disabled={createLoading}
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="email">
-                    Email <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter Email Address"
-                    className="h-11"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    disabled={createLoading}
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="phoneNumber">
-                    Phone Number{" "}
-                    <span className="text-gray-500 text-xs">(optional)</span>
-                  </Label>
-                  <Input
-                    id="phoneNumber"
-                    placeholder="+2348012345678"
-                    className="h-11"
-                    value={formData.phoneNumber}
-                    onChange={(e) =>
-                      handleInputChange("phoneNumber", e.target.value)
-                    }
-                    disabled={createLoading}
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <Label>
-                    Department{" "}
-                    <span className="text-gray-500 text-xs">(optional)</span>
-                  </Label>
-                  <Select
-                    value={formData.department}
-                    onValueChange={(value: Department) =>
-                      handleInputChange("department", value)
-                    }
-                    disabled={createLoading}
-                  >
-                    <SelectTrigger className="min-h-11">
-                      <SelectValue placeholder="Select Department e.g Marketing" />
-                    </SelectTrigger>
-                    <SelectContent className="dark:bg-[#303030]">
-                      {departments.map((dept) => (
-                        <SelectItem
-                          key={dept.id}
-                          value={dept.id}
-                          className="h-11"
-                        >
-                          {dept.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-3">
-                  <Label>
-                    Role Type <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(value: string) =>
-                      handleInputChange("role", value)
-                    }
-                    disabled={createLoading}
-                  >
-                    <SelectTrigger className="min-h-11">
-                      <SelectValue placeholder="Select Role Type" />
-                    </SelectTrigger>
-                    <SelectContent className="dark:bg-[#303030]">
-                      {roleTypes.map((roleType) => (
-                        <SelectItem
-                          key={roleType.id}
-                          value={roleType.id}
-                          className="h-11"
-                        >
-                          {roleType.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">
-                    Primary role type for this staff member
-                  </p>
-                </div>
-              </div>
-
-              <Separator className="my-8" />
-
-              {/* Application Roles Assignment */}
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-medium">
-                    Application Roles{" "}
-                    <span className="text-gray-500 text-xs font-normal">
-                      (optional)
-                    </span>
+            {/* Profile Section */}
+            <Card className="border border-gray-200 dark:border-gray-800 ">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900">
+                    <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                    Profile
                   </h2>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Assign pre-defined application roles. Each role contains a
-                    set of permissions.
-                  </p>
                 </div>
 
-                {roles.length === 0 && !loading ? (
-                  <Alert>
-                    <AlertDescription>
-                      No application roles available. You can still assign
-                      individual permissions below.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {roles.map((role) => (
-                      <div
-                        key={role.id}
-                        className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-accent transition-colors"
-                      >
-                        <Switch
-                          id={`role-${role.id}`}
-                          checked={formData.appRoleIds.includes(role.id)}
-                          onCheckedChange={() => handleRoleChange(role.id)}
-                          disabled={createLoading}
-                        />
-                        <div className="flex-1 space-y-1">
-                          <Label
-                            htmlFor={`role-${role.id}`}
-                            className="font-medium cursor-pointer"
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      First Name <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="firstName"
+                      placeholder="e.g. John"
+                      value={formData.firstName}
+                      onChange={(e) => handleInputChange("firstName", e.target.value)}
+                      disabled={createLoading}
+                      className="h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Last Name <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="lastName"
+                      placeholder="e.g. Doe"
+                      value={formData.lastName}
+                      onChange={(e) => handleInputChange("lastName", e.target.value)}
+                      disabled={createLoading}
+                      className="h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Email Address <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="e.g. john.doe@gmail.com"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      disabled={createLoading}
+                      className="h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumber" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Phone Number <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="phoneNumber"
+                      placeholder="e.g. Doe"
+                      value={formData.phoneNumber}
+                      onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
+                      disabled={createLoading}
+                      className="h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Department
+                    </Label>
+                    <Select
+                      value={formData.department}
+                      onValueChange={(value: Department) =>
+                        handleInputChange("department", value)
+                      }
+                      disabled={createLoading}
+                    >
+                      <SelectTrigger className="min-h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700">
+                        <SelectValue placeholder="e.g. Marketing" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-gray-900">
+                        {departments.map((dept) => (
+                          <SelectItem
+                            key={dept.id}
+                            value={dept.id}
+                          >
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Role
+                    </Label>
+                    <Select
+                      value={formData.role}
+                      onValueChange={(value: string) =>
+                        handleInputChange("role", value)
+                      }
+                      disabled={createLoading}
+                    >
+                      <SelectTrigger className="min-h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700">
+                        <SelectValue placeholder="e.g. Junior Marketing" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-gray-900">
+                        {roles.map((role) => (
+                          <SelectItem
+                            key={role.id}
+                            value={role.id}
                           >
                             {role.name}
-                          </Label>
-                          {role.description && (
-                            <p className="text-xs text-muted-foreground">
-                              {role.description}
-                            </p>
-                          )}
-                          {role.permissions && role.permissions.length > 0 && (
-                            <p className="text-xs text-blue-600">
-                              {role.permissions.length} permission
-                              {role.permissions.length !== 1 ? "s" : ""}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
-              </div>
-
-              <Separator className="my-8" />
-
-              {/* Individual Permissions Assignment */}
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-medium">
-                    Individual Permissions{" "}
-                    <span className="text-gray-500 text-xs font-normal">
-                      (optional)
-                    </span>
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Assign specific permissions individually. These will be
-                    added to any permissions from assigned roles.
-                  </p>
                 </div>
+              </CardContent>
+            </Card>
 
-                {permissions.length === 0 && !loading ? (
-                  <Alert>
-                    <AlertDescription>
-                      No permissions available to assign.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <>
-                    {/* Permission Groups by Module */}
-                    {Object.entries(groupedPermissions).map(
-                      ([module, modulePermissions]) => (
-                        <Collapsible
-                          key={module}
-                          open={openSections[module]}
-                          onOpenChange={() => toggleSection(module)}
-                          className="rounded-lg border overflow-hidden"
-                        >
-                          <div className="p-6">
-                            <CollapsibleTrigger asChild>
-                              <div className="flex flex-row justify-between items-center cursor-pointer">
-                                <div className="flex flex-row gap-4 items-center">
-                                  <Switch
-                                    checked={isModuleSelected(module)}
-                                    onCheckedChange={() =>
-                                      handleModuleToggle(module)
-                                    }
-                                    disabled={createLoading}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  <div className="text-left">
-                                    <Label className="font-semibold text-md cursor-pointer">
-                                      {formatModuleName(module)}
-                                    </Label>
-                                    <p className="text-xs text-muted-foreground">
-                                      {modulePermissions.length} permission
-                                      {modulePermissions.length !== 1 ? "s" : ""}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {openSections[module] ? (
-                                    <ChevronUp className="h-5 w-5" />
-                                  ) : (
-                                    <ChevronDown className="h-5 w-5" />
-                                  )}
+            {/* Assign Permissions Section */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Assign Permissions
+              </h2>
+
+              {permissions.length === 0 && !loading ? (
+                <Alert>
+                  <AlertDescription>
+                    No permissions available to assign.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-4">
+                  {/* Permission Modules */}
+                  {Object.entries(groupedPermissions).map(
+                    ([module, modulePermissions]) => (
+                      <Collapsible
+                        key={module}
+                        open={openSections[module]}
+                        onOpenChange={() => toggleSection(module)}
+                      >
+                        <Card className="border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                          <CollapsibleTrigger asChild>
+                            <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <Checkbox
+                                  checked={isModuleSelected(module)}
+                                  onCheckedChange={() => handleModuleToggle(module)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
+                                  aria-label={`Toggle all ${formatModuleName(module)} permissions`}
+                                />
+                                <div>
+                                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {formatModuleName(module)}
+                                  </h3>
                                 </div>
                               </div>
-                            </CollapsibleTrigger>
+                              <ChevronDown
+                                className={`h-4 w-4 text-gray-500 transition-transform ${
+                                  openSections[module] ? "rotate-180" : ""
+                                }`}
+                              />
+                            </div>
+                          </CollapsibleTrigger>
 
-                            <CollapsibleContent className="mt-6">
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {modulePermissions.map((permission) => (
-                                  <div
-                                    key={permission.id}
-                                    className="flex items-start space-x-3 p-3 rounded-lg hover:bg-accent transition-colors"
-                                  >
-                                    <Switch
-                                      id={permission.id}
-                                      checked={formData.permissionIds.includes(
-                                        permission.id
-                                      )}
-                                      onCheckedChange={() =>
-                                        handlePermissionToggle(permission.id)
-                                      }
-                                      disabled={createLoading}
-                                    />
-                                    <div className="flex-1 space-y-1">
-                                      <Label
-                                        htmlFor={permission.id}
-                                        className="font-medium cursor-pointer"
-                                      >
-                                        {permission.name}
-                                      </Label>
-                                      {permission.description && (
-                                        <p className="text-xs text-muted-foreground">
-                                          {permission.description}
-                                        </p>
-                                      )}
-                                      <p className="text-xs text-gray-500 font-mono">
-                                        {permission.key}
-                                      </p>
+                          <CollapsibleContent>
+                            <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/30 p-4">
+                              <div className="space-y-3">
+                                {/* Sub-category headers (if applicable) */}
+                                {modulePermissions.some(p => p.name.includes("Management")) && (
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-3 pb-2">
+                                      <Checkbox
+                                        checked={modulePermissions
+                                          .filter(p => p.name.includes("Management"))
+                                          .every(p => formData.permissionIds.includes(p.id))}
+                                        onCheckedChange={() => {
+                                          const mgmtPerms = modulePermissions
+                                            .filter(p => p.name.includes("Management"))
+                                            .map(p => p.id);
+                                          const allSelected = mgmtPerms.every(id =>
+                                            formData.permissionIds.includes(id)
+                                          );
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            permissionIds: allSelected
+                                              ? prev.permissionIds.filter(id => !mgmtPerms.includes(id))
+                                              : [...prev.permissionIds, ...mgmtPerms.filter(id => !prev.permissionIds.includes(id))]
+                                          }));
+                                        }}
+                                        className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
+                                      />
+                                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {modulePermissions.find(p => p.name.includes("Management"))?.name.split(" ")[0]} Management
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pl-7">
+                                      {modulePermissions
+                                        .filter(p => p.name.includes("Management"))
+                                        .map((permission) => (
+                                          <div key={permission.id} className="flex items-center gap-2">
+                                            <Checkbox
+                                              id={permission.id}
+                                              checked={formData.permissionIds.includes(permission.id)}
+                                              onCheckedChange={() => handlePermissionToggle(permission.id)}
+                                              disabled={createLoading}
+                                              className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
+                                            />
+                                            <Label
+                                              htmlFor={permission.id}
+                                              className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                                            >
+                                              {permission.name.replace(/.*Management\s*/, "")}
+                                            </Label>
+                                          </div>
+                                        ))}
                                     </div>
                                   </div>
-                                ))}
-                              </div>
-                            </CollapsibleContent>
-                          </div>
-                        </Collapsible>
-                      )
-                    )}
-                  </>
-                )}
-              </div>
+                                )}
 
-              {/* Summary Section */}
-              {(formData.appRoleIds.length > 0 ||
-                formData.permissionIds.length > 0) && (
-                <>
-                  <Separator className="my-8" />
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Selection Summary</h3>
-                    
-                    {formData.appRoleIds.length > 0 && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Application Roles ({formData.appRoleIds.length})
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {formData.appRoleIds.map((roleId) => {
-                            const role = roles.find((r) => r.id === roleId);
-                            return (
-                              <div
-                                key={roleId}
-                                className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm"
-                              >
-                                {role?.name}
+                                {/* Regular permissions */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                                  {modulePermissions
+                                    .filter(p => !p.name.includes("Management") || !modulePermissions.some(mp => mp.name.includes("Management")))
+                                    .map((permission) => (
+                                      <div key={permission.id} className="flex items-center gap-2">
+                                        <Checkbox
+                                          id={permission.id}
+                                          checked={formData.permissionIds.includes(permission.id)}
+                                          onCheckedChange={() => handlePermissionToggle(permission.id)}
+                                          disabled={createLoading}
+                                          className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
+                                        />
+                                        <Label
+                                          htmlFor={permission.id}
+                                          className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                                        >
+                                          {permission.name}
+                                        </Label>
+                                      </div>
+                                    ))}
+                                </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.permissionIds.length > 0 && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Individual Permissions ({formData.permissionIds.length})
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {formData.permissionIds.slice(0, 10).map((permId) => {
-                            const perm = permissions.find((p) => p.id === permId);
-                            return (
-                              <div
-                                key={permId}
-                                className="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm"
-                              >
-                                {perm?.name}
-                              </div>
-                            );
-                          })}
-                          {formData.permissionIds.length > 10 && (
-                            <div className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full text-sm">
-                              +{formData.permissionIds.length - 10} more
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
+                          </CollapsibleContent>
+                        </Card>
+                      </Collapsible>
+                    )
+                  )}
+                </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex flex-row items-center justify-between gap-6">
-            <Button
-              variant={"outline"}
-              className="h-11 flex-1 font-semibold text-md"
-              onClick={() => navigate("/admin/users/staff")}
-              disabled={createLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant={"secondary"}
-              className="h-11 flex-1 bg-[#CC5500] hover:bg-[#CC5500]/90 text-white font-semibold text-md disabled:opacity-50"
-              onClick={handleSubmit}
-              disabled={!isFormValid || createLoading}
-            >
-              {createLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Staff Member...
-                </>
-              ) : (
-                "Create Staff Member"
-              )}
-            </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -101,7 +101,7 @@ export function PieDonutChartComponent({
     if (!showKey) return "w-full h-full";
 
     if (effectiveKeyPosition === "right") {
-      return isKeyHorizontal ? "w-full h-3/4" : "w-3/4 h-full";
+      return isKeyHorizontal ? "w-full h-3/4" : "w-3/4 h-full align-center";
     } else {
       return "w-full h-3/4";
     }
@@ -115,7 +115,7 @@ export function PieDonutChartComponent({
     };
 
     if (effectiveKeyPosition === "right") {
-      return `w-1/4 pl-${labelGap / 4} flex flex-col ${
+      return `w-1/4 pl-${labelGap / 4} flex flex-col items-center justify-center ${
         alignmentClasses[keyAlignment]
       }`;
     } else {
@@ -129,7 +129,7 @@ export function PieDonutChartComponent({
     if (isKeyHorizontal) {
       return `flex ${
         keyAlignment === "center"
-          ? "justify-center"
+          ? "justify-center items-center"
           : keyAlignment === "end"
           ? "justify-end"
           : "justify-start"
@@ -148,8 +148,10 @@ export function PieDonutChartComponent({
     return (
       <div
         key={index}
-        className={`flex items-center gap-[${keyItemGap}] ${
-          isKeyHorizontal ? "gap-[${keyItemGap}]" : "justify-between"
+        className={`flex items-center align-center gap-[${keyItemGap}] ${
+          isKeyHorizontal
+            ? `gap-[${keyItemGap}]`
+            : `justify-between gap-[${keyItemGap}]`
         } text-sm`}
       >
         <div className="flex items-center gap-2">
@@ -164,7 +166,7 @@ export function PieDonutChartComponent({
           <span className="truncate">{item.name}</span>
         </div>
         <div
-          className={`flex items-center gap-2 ${isKeyHorizontal ? "ml-1" : ""}`}
+          className={`flex items-center gap-2 ${isKeyHorizontal ? "ml-1" : "ml-16"}`}
         >
           <span className="font-medium">{item.value}</span>
           {showPercentage && (

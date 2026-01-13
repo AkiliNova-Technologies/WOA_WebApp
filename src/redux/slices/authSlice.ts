@@ -3,8 +3,9 @@ import {
   createSlice,
   type PayloadAction,
 } from "@reduxjs/toolkit";
-import api from "@/utils/api";
+import api, { saveAuthData } from "@/utils/api";
 import type { User as FirebaseUser } from "firebase/auth";
+import { getDeviceInfo, getFCMToken } from "@/utils/device";
 
 export interface User {
   id: string;
@@ -15,14 +16,14 @@ export interface User {
   username?: string;
   isActive: boolean;
   emailVerified: boolean;
-  forcePasswordChange: boolean; 
+  forcePasswordChange: boolean;
   permissions: string[];
   roles: string[];
   avatar?: string;
   firebaseUid?: string;
   phoneNumber?: string;
-  accountStatus?: string; 
-  avatarUrl?: string; 
+  accountStatus?: string;
+  avatarUrl?: string;
 }
 
 // Serializable Firebase user interface
@@ -50,6 +51,31 @@ export interface SerializableFirebaseUser {
   tenantId: string | null;
 }
 
+export interface DeviceSession {
+  id: string;
+  deviceId: string;
+  deviceName: string;
+  deviceType: "mobile" | "tablet" | "desktop" | "smart-tv" | "wearable";
+  platform: "android" | "ios" | "windows" | "macos" | "linux" | "web";
+  fcmToken?: string;
+  appVersion: string;
+  osVersion: string;
+  browserName?: string;
+  browserVersion?: string;
+  screenResolution?: string;
+  language: string;
+  timezone: string;
+  lastActiveAt: string;
+  createdAt: string;
+  isActive: boolean;
+  ipAddress?: string;
+  location?: {
+    country?: string;
+    city?: string;
+    region?: string;
+  };
+}
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
@@ -62,6 +88,12 @@ interface AuthState {
     email: string | null;
     lastSentAt: string | null;
     attempts: number;
+  };
+  deviceSessions: {
+    currentSession: DeviceSession | null;
+    allSessions: DeviceSession[];
+    loading: boolean;
+    error: string | null;
   };
 }
 
@@ -77,6 +109,12 @@ const initialState: AuthState = {
     email: null,
     lastSentAt: null,
     attempts: 0,
+  },
+  deviceSessions: {
+    currentSession: null,
+    allSessions: [],
+    loading: false,
+    error: null,
   },
 };
 
@@ -182,23 +220,28 @@ export const refreshAccessToken = createAsyncThunk(
   "auth/refreshToken",
   async (_, { rejectWithValue }) => {
     try {
-      // Get refresh token from localStorage
       if (typeof window !== "undefined") {
         const authData = localStorage.getItem("authData");
         if (!authData) {
           throw new Error("No authentication data found");
         }
 
-        const { refreshToken } = JSON.parse(authData);
+        const parsedData = JSON.parse(authData);
+
+        // CRITICAL: Get refresh token from correct path
+        const refreshToken = parsedData.tokens?.refreshToken;
 
         if (!refreshToken) {
+          console.error("AuthData structure:", parsedData);
           throw new Error("No refresh token available");
         }
 
-        // Send refresh token as Authorization header
+        console.log("🔄 Refreshing token with refresh token");
+
+        // Send refresh token in Authorization header
         const response = await api.post(
           "/api/v1/auth/refresh",
-          {},
+          { refreshToken: refreshToken },
           {
             headers: {
               Authorization: `Bearer ${refreshToken}`,
@@ -206,26 +249,21 @@ export const refreshAccessToken = createAsyncThunk(
           }
         );
 
-        // Update localStorage with new tokens
-        const updatedAuthData = {
-          ...JSON.parse(authData),
-          token: response.data.tokens.accessToken,
-          refreshToken: response.data.tokens.refreshToken || refreshToken,
-        };
-        localStorage.setItem("authData", JSON.stringify(updatedAuthData));
+        console.log("✅ Refresh response received:", response.data);
 
+        // IMPORTANT: Return user data AND tokens
         return {
-          accessToken: response.data.tokens.accessToken,
-          refreshToken: response.data.tokens.refreshToken,
-          user: response.data.user,
+          user: response.data, // Contains userId, email, role, emailVerified
+          tokens: response.data.tokens, // Contains accessToken, refreshToken, etc.
         };
       }
 
       throw new Error("Window is not defined");
     } catch (error: unknown) {
       const errorMessage = handleApiError(error);
+      console.error("❌ Refresh token error:", errorMessage);
 
-      // If refresh token is invalid/expired, clear storage
+      // Clear invalid auth data
       if (typeof window !== "undefined") {
         localStorage.removeItem("authData");
         localStorage.removeItem("user");
@@ -268,7 +306,7 @@ export const login = createAsyncThunk(
   "auth/login",
   async (
     { email, password }: { email: string; password: string },
-    { rejectWithValue }
+    { rejectWithValue, dispatch }
   ) => {
     try {
       console.log("Login - Attempting login for:", email);
@@ -281,64 +319,21 @@ export const login = createAsyncThunk(
       console.log("Login - Response received:", response.data);
 
       if (response.data && response.data.userId) {
-        // First, create a basic user object from login response
-        const basicUser = {
-          id: response.data.userId,
-          email: response.data.email,
-          role: response.data.role,
-          // We don't have emailVerified in login response yet
-        };
+        const user = mapApiResponseToUser(response.data, {}, false);
 
-        // Now fetch the full user profile to get emailVerified status
+        console.log("Login - Mapped user:", user);
+        console.log("Login - Tokens:", response.data.tokens);
+
         try {
-          // Set the token for the profile request
-          if (response.data.tokens?.accessToken) {
-            // You might need to set the token in api headers
-            // This depends on how your api utility is set up
-          }
-
-          // Fetch user profile to get emailVerified status
-          const profileResponse = await api.get("/api/v1/user/profile");
-          console.log("Login - Profile response:", profileResponse.data);
-
-          const combinedData = {
-            ...basicUser,
-            ...profileResponse.data,
-            emailVerified: profileResponse.data.emailVerified || false,
-          };
-
-          const user = mapApiResponseToUser(combinedData, {}, false);
-
-          console.log("Login - Mapped user with profile data:", user);
-
-          if (typeof window !== "undefined") {
-            localStorage.setItem("user", JSON.stringify(user));
-
-            const authData = {
-              user: user,
-              token: response.data.tokens?.accessToken,
-              refreshToken: response.data.tokens?.refreshToken,
-            };
-            localStorage.setItem("authData", JSON.stringify(authData));
-          }
-
-          return { user, tokens: response.data.tokens };
-        } catch (profileError) {
-          console.error("Failed to fetch profile after login:", profileError);
-          const user = mapApiResponseToUser(basicUser, {}, false);
-
-          if (typeof window !== "undefined") {
-            localStorage.setItem("user", JSON.stringify(user));
-            const authData = {
-              user: user,
-              token: response.data.tokens?.accessToken,
-              refreshToken: response.data.tokens?.refreshToken,
-            };
-            localStorage.setItem("authData", JSON.stringify(authData));
-          }
-
-          return { user, tokens: response.data.tokens };
+          await dispatch(registerDeviceSession()).unwrap();
+        } catch (deviceError) {
+          console.warn("Device session registration failed:", deviceError);
         }
+
+        return {
+          user,
+          tokens: response.data.tokens,
+        };
       }
 
       return rejectWithValue("Invalid login response format");
@@ -355,24 +350,19 @@ export const loginWithGoogle = createAsyncThunk(
   "auth/loginWithGoogle",
   async (
     { idToken }: { idToken: string },
-    { rejectWithValue, signal } // Add signal for abort controller
+    { rejectWithValue, signal, dispatch }
   ) => {
     try {
       console.log("Google Login - Sending token to backend");
 
-      // Create a custom axios instance with longer timeout
       const googleAuthApi = api.create({
-        timeout: 45000, // 45 seconds for Google auth
+        timeout: 45000,
       });
 
       const response = await googleAuthApi.post(
         "/api/v1/auth/google",
-        {
-          idToken,
-        },
-        {
-          signal, // Pass the abort signal
-        }
+        { idToken },
+        { signal }
       );
 
       console.log("Google Login - Response received:", response.data);
@@ -380,38 +370,32 @@ export const loginWithGoogle = createAsyncThunk(
       if (response.data && response.data.userId) {
         const user = mapApiResponseToUser(response.data);
 
-        console.log("Google Login - Mapped user:", user);
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem("user", JSON.stringify(user));
-
-          const authData = {
-            user: user,
-            token: response.data.tokens?.accessToken,
-            refreshToken: response.data.tokens?.refreshToken,
-            isGoogleAuth: true,
-          };
-          localStorage.setItem("authData", JSON.stringify(authData));
+        try {
+          await dispatch(registerDeviceSession()).unwrap();
+        } catch (deviceError) {
+          console.warn("Device session registration failed:", deviceError);
         }
 
-        return { user, tokens: response.data.tokens };
+        console.log("Google Login - Mapped user:", user);
+        console.log("Google Login - Tokens:", response.data.tokens);
+
+        return {
+          user,
+          tokens: response.data.tokens,
+        };
       }
 
       return rejectWithValue("Invalid Google login response format");
     } catch (error: unknown) {
       const err = error as any;
 
-      // Handle timeout specifically
       if (err.code === "ECONNABORTED" || err.message?.includes("timeout")) {
-        console.error("Google login timeout - backend not responding");
         return rejectWithValue(
           "Backend server is taking too long to respond. Please try again or contact support."
         );
       }
 
-      // Handle abort (user cancelled)
       if (err.name === "AbortError") {
-        console.error("Google login aborted by user");
         return rejectWithValue("Login cancelled");
       }
 
@@ -427,18 +411,20 @@ export const logoutAsync = createAsyncThunk(
   "auth/logout",
   async (_, { dispatch }) => {
     try {
+      await dispatch(removeCurrentDeviceSession()).unwrap();
+
       if (typeof window !== "undefined") {
         const authData = localStorage.getItem("authData");
 
         if (authData) {
           const parsedData = JSON.parse(authData);
-          if (parsedData.token) {
+          if (parsedData.tokens?.accessToken) {
             await api.post(
               "/api/v1/auth/logout",
               {},
               {
                 headers: {
-                  Authorization: `Bearer ${parsedData.token}`,
+                  Authorization: `Bearer ${parsedData.tokens.accessToken}`,
                 },
               }
             );
@@ -451,7 +437,8 @@ export const logoutAsync = createAsyncThunk(
       if (typeof window !== "undefined") {
         localStorage.removeItem("user");
         localStorage.removeItem("authData");
-        // Also clear any Firebase-related storage
+        localStorage.removeItem("deviceName");
+        localStorage.removeItem("deviceId");
         localStorage.removeItem("firebase_user");
       }
 
@@ -475,10 +462,7 @@ export const register = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      console.log("Register - Sending registration data:", {
-        ...registrationData,
-        password: "***HIDDEN***",
-      });
+      console.log("Register - Sending registration data");
 
       const response = await api.post(
         "/api/v1/auth/register",
@@ -488,28 +472,20 @@ export const register = createAsyncThunk(
       console.log("Register - Response received:", response.data);
 
       if (response.data && response.data.userId) {
-        // IMPORTANT: Pass true as third parameter to indicate this is a registration
         const user = mapApiResponseToUser(
           response.data,
           registrationData,
           true
         );
 
-        console.log("Register - Mapped user (isActive forced to false):", user);
+        console.log("Register - Mapped user:", user);
+        console.log("Register - Tokens:", response.data.tokens);
 
-        if (typeof window !== "undefined") {
-          // Don't save user to localStorage yet - wait for verification
-          // localStorage.setItem("user", JSON.stringify(user));
-
-          const authData = {
-            user: user,
-            token: response.data.tokens?.accessToken,
-            refreshToken: response.data.tokens?.refreshToken,
-          };
-          localStorage.setItem("authData", JSON.stringify(authData));
-        }
-
-        return { user, tokens: response.data.tokens };
+        // CRITICAL: Return both user and tokens
+        return {
+          user,
+          tokens: response.data.tokens,
+        };
       }
 
       return rejectWithValue("Invalid registration response format");
@@ -640,7 +616,6 @@ export const forgotPassword = createAsyncThunk(
 );
 
 // 🔐 Reset Password with OTP
-// 🔐 Reset Password with OTP
 export const resetPassword = createAsyncThunk(
   "auth/resetPassword",
   async (
@@ -753,6 +728,123 @@ export const checkEmailAvailability = createAsyncThunk(
   }
 );
 
+// Register a new device session on login
+export const registerDeviceSession = createAsyncThunk(
+  "auth/registerDeviceSession",
+  async (fcmToken: string | undefined, { rejectWithValue }) => {
+    try {
+      const deviceInfo = getDeviceInfo();
+
+      // Get FCM token if not provided
+      let finalFcmToken = fcmToken;
+      if (!finalFcmToken && typeof window !== "undefined") {
+        const token = await getFCMToken();
+        finalFcmToken = token || undefined;
+      }
+
+      const deviceSessionData = {
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        deviceType: deviceInfo.deviceType,
+        platform: deviceInfo.platform,
+        fcmToken: finalFcmToken, // This can be undefined, which is fine
+        appVersion: deviceInfo.appVersion,
+        osVersion: deviceInfo.osVersion,
+        browserName: deviceInfo.browserName,
+        browserVersion: deviceInfo.browserVersion,
+        screenResolution: deviceInfo.screenResolution,
+        language: deviceInfo.language,
+        timezone: deviceInfo.timezone,
+        manufacturer: deviceInfo.manufacturer,
+        model: deviceInfo.model,
+      };
+
+      const response = await api.post(
+        "/api/v1/device-sessions",
+        deviceSessionData
+      );
+
+      return {
+        session: response.data,
+        deviceId: deviceInfo.deviceId,
+      };
+    } catch (error: unknown) {
+      console.error("Failed to register device session:", error);
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
+// Get all device sessions for current user
+export const fetchDeviceSessions = createAsyncThunk(
+  "auth/fetchDeviceSessions",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get("/api/v1/device-sessions");
+      return response.data;
+    } catch (error: unknown) {
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
+// Update FCM token for current device session
+export const updateDeviceFCMToken = createAsyncThunk(
+  "auth/updateDeviceFCMToken",
+  async (fcmToken: string, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: AuthState };
+      const deviceId = state.auth.deviceSessions.currentSession?.deviceId;
+
+      if (!deviceId) {
+        throw new Error("No active device session");
+      }
+
+      const response = await api.put(
+        `/api/v1/device-sessions/${deviceId}/token`,
+        { fcmToken }
+      );
+
+      return response.data;
+    } catch (error: unknown) {
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
+// Remove a device session (logout from specific device)
+export const removeDeviceSession = createAsyncThunk(
+  "auth/removeDeviceSession",
+  async (deviceId: string, { rejectWithValue }) => {
+    try {
+      await api.delete(`/api/v1/device-sessions/${deviceId}`);
+      return deviceId;
+    } catch (error: unknown) {
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
+// Remove current device session (on logout)
+export const removeCurrentDeviceSession = createAsyncThunk(
+  "auth/removeCurrentDeviceSession",
+  async (_, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: AuthState };
+      const deviceId = state.auth.deviceSessions.currentSession?.deviceId;
+
+      if (deviceId) {
+        await api.delete(`/api/v1/device-sessions/${deviceId}`);
+        return deviceId;
+      }
+
+      return null;
+    } catch (error: unknown) {
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
 // 🧠 Slice logic
 const authSlice = createSlice({
   name: "auth",
@@ -843,6 +935,18 @@ const authSlice = createSlice({
 
         if (typeof window !== "undefined") {
           localStorage.setItem("user", JSON.stringify(state.user));
+
+          // Also update authData if it exists
+          const authDataStr = localStorage.getItem("authData");
+          if (authDataStr) {
+            try {
+              const authData = JSON.parse(authDataStr);
+              authData.emailVerified = state.user.emailVerified;
+              localStorage.setItem("authData", JSON.stringify(authData));
+            } catch (e) {
+              console.error("Error updating authData:", e);
+            }
+          }
         }
       }
     },
@@ -852,72 +956,39 @@ const authSlice = createSlice({
     },
 
     loadUserFromStorage: (state) => {
-      if (typeof window !== "undefined") {
-        try {
-          // Load your app user
-          const userStr = localStorage.getItem("user");
-          if (userStr) {
-            const user = JSON.parse(userStr);
+      // Redux-persist handles rehydration automatically
+      // This reducer now only sets initialLoading to false and validates authData
 
-            // CRITICAL: Check if there's pending verification
+      if (state.user) {
+        console.log("✅ User rehydrated from persist:", state.user.email);
+
+        // Validate that authData exists in localStorage
+        if (typeof window !== "undefined") {
+          const authData = localStorage.getItem("authData");
+          if (!authData) {
+            console.warn("⚠️ User exists but authData missing - clearing user");
+            state.user = null;
+            state.isAuthenticated = false;
+            state.firebaseUser = null;
+          } else {
+            // Check for pending verification
             const hasPendingVerification = localStorage.getItem(
               "pendingVerificationEmail"
             );
-
-            // Check if email is verified
-            const isEmailVerified = user.emailVerified === true;
-
-            // FIX: Always set user as authenticated if we have a user in localStorage
-            // Email verification will be handled separately in the UI
-            state.user = user;
-            state.isAuthenticated = true; 
+            const isEmailVerified = state.user.emailVerified === true;
 
             if (hasPendingVerification || !isEmailVerified) {
-              console.log(
-                "⚠️ User email not verified or has pending verification"
-              );
               state.verification = {
                 pending: true,
-                email: hasPendingVerification || user.email,
+                email: hasPendingVerification || state.user.email,
                 lastSentAt: null,
                 attempts: 0,
               };
-            } else {
-              state.verification = initialState.verification;
-            }
-
-            console.log(
-              "✅ User loaded from localStorage (authenticated: true, email verified:",
-              isEmailVerified,
-              ")"
-            );
-          }
-
-          // Load Firebase user (serializable version)
-          const firebaseUserStr = localStorage.getItem("firebase_user");
-          if (firebaseUserStr) {
-            try {
-              const firebaseUser = JSON.parse(firebaseUserStr);
-              state.firebaseUser = firebaseUser;
-              console.log("✅ Firebase user loaded from localStorage");
-            } catch (e) {
-              console.error("Error parsing Firebase user:", e);
-              localStorage.removeItem("firebase_user");
             }
           }
-
-          const authDataStr = localStorage.getItem("authData");
-          if (authDataStr) {
-            console.log("✅ Auth data loaded from localStorage");
-          }
-        } catch (error) {
-          console.error("Error loading from localStorage:", error);
-          localStorage.removeItem("user");
-          localStorage.removeItem("authData");
-          localStorage.removeItem("firebase_user");
-          localStorage.removeItem("pendingVerificationEmail");
         }
       }
+
       state.initialLoading = false;
     },
 
@@ -941,10 +1012,26 @@ const authSlice = createSlice({
       state.verification.attempts += 1;
       state.verification.lastSentAt = new Date().toISOString();
     },
+
+    setCurrentDeviceSession: (state, action: PayloadAction<DeviceSession>) => {
+      state.deviceSessions.currentSession = action.payload;
+    },
+
+    clearDeviceSessions: (state) => {
+      state.deviceSessions = initialState.deviceSessions;
+    },
+
+    updateFCMTokenLocally: (state, action: PayloadAction<string>) => {
+      if (state.deviceSessions.currentSession) {
+        state.deviceSessions.currentSession.fcmToken = action.payload;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
-      // Login cases
+      // ========================================
+      // Login cases - CORRECTED
+      // ========================================
       .addCase(login.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -952,13 +1039,26 @@ const authSlice = createSlice({
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
-
-        // TEMPORARILY: Don't check emailVerified for login
-        // We'll assume the user can log in, and check emailVerified later
-
         state.isAuthenticated = true;
+        state.error = null;
 
-        // Still set verification state if email is not verified
+        // CRITICAL: Save auth data in correct structure using saveAuthData helper
+        if (typeof window !== "undefined" && action.payload.tokens) {
+          saveAuthData({
+            userId: action.payload.user.id,
+            email: action.payload.user.email,
+            role: action.payload.user.userType,
+            emailVerified: action.payload.user.emailVerified,
+            forcePasswordChange:
+              action.payload.user.forcePasswordChange || false,
+            tokens: action.payload.tokens,
+          });
+
+          // Also save user for convenience
+          localStorage.setItem("user", JSON.stringify(action.payload.user));
+        }
+
+        // Handle verification state
         const isEmailVerified = action.payload.user.emailVerified === true;
         if (!isEmailVerified) {
           state.verification = {
@@ -971,8 +1071,7 @@ const authSlice = createSlice({
           state.verification = initialState.verification;
         }
 
-        state.error = null;
-        console.log("Login - State updated with user:", action.payload.user);
+        console.log("✅ Login successful, auth data saved");
         console.log("Email verified:", isEmailVerified);
       })
       .addCase(login.rejected, (state, action) => {
@@ -983,10 +1082,13 @@ const authSlice = createSlice({
 
         if (typeof window !== "undefined") {
           localStorage.removeItem("user");
+          localStorage.removeItem("authData");
         }
       })
 
-      // Google Login cases
+      // ========================================
+      // Google Login cases - CORRECTED
+      // ========================================
       .addCase(loginWithGoogle.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -994,8 +1096,23 @@ const authSlice = createSlice({
       .addCase(loginWithGoogle.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
+        state.error = null;
 
-        // Check if email is verified before authenticating
+        // CRITICAL: Save auth data in correct structure using saveAuthData helper
+        if (typeof window !== "undefined" && action.payload.tokens) {
+          saveAuthData({
+            userId: action.payload.user.id,
+            email: action.payload.user.email,
+            role: action.payload.user.userType,
+            emailVerified: action.payload.user.emailVerified,
+            forcePasswordChange:
+              action.payload.user.forcePasswordChange || false,
+            tokens: action.payload.tokens,
+          });
+
+          localStorage.setItem("user", JSON.stringify(action.payload.user));
+        }
+
         const isEmailVerified = action.payload.user.emailVerified === true;
         state.isAuthenticated = isEmailVerified;
 
@@ -1010,11 +1127,7 @@ const authSlice = createSlice({
           state.verification = initialState.verification;
         }
 
-        state.error = null;
-        console.log(
-          "Google Login - State updated with user:",
-          action.payload.user
-        );
+        console.log("✅ Google login successful, auth data saved");
         console.log("Email verified:", isEmailVerified);
       })
       .addCase(loginWithGoogle.rejected, (state, action) => {
@@ -1025,10 +1138,13 @@ const authSlice = createSlice({
 
         if (typeof window !== "undefined") {
           localStorage.removeItem("user");
+          localStorage.removeItem("authData");
         }
       })
 
-      // Register cases
+      // ========================================
+      // Register cases - CORRECTED
+      // ========================================
       .addCase(register.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -1044,7 +1160,22 @@ const authSlice = createSlice({
 
         state.user = user;
 
-        // Set verification as pending
+        // CRITICAL: Save auth data even for unverified users using saveAuthData helper
+        if (typeof window !== "undefined" && action.payload.tokens) {
+          saveAuthData({
+            userId: user.id,
+            email: user.email,
+            role: user.userType,
+            emailVerified: false,
+            forcePasswordChange: user.forcePasswordChange || false,
+            tokens: action.payload.tokens,
+          });
+
+          // DON'T save user until verified
+          // localStorage.setItem("user", JSON.stringify(user));
+        }
+
+        // Set verification pending
         state.verification = {
           pending: true,
           email: user.email,
@@ -1053,16 +1184,9 @@ const authSlice = createSlice({
         };
 
         state.isAuthenticated = false;
-
-        // DO NOT save to localStorage yet - wait for verification
-        // if (typeof window !== "undefined") {
-        //   localStorage.setItem("user", JSON.stringify(user));
-        // }
-
         state.error = null;
-        console.log(
-          "Register - User registered, email verification pending, NOT authenticated"
-        );
+
+        console.log("✅ Registration successful, awaiting email verification");
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
@@ -1079,6 +1203,7 @@ const authSlice = createSlice({
         state.error = null;
         state.loading = false;
         state.verification = initialState.verification;
+        state.deviceSessions = initialState.deviceSessions;
       })
 
       // Check auth cases
@@ -1119,18 +1244,34 @@ const authSlice = createSlice({
         }
       })
 
-      // Refresh token cases
+      // ========================================
+      // Refresh token cases - CORRECTED
+      // ========================================
       .addCase(refreshAccessToken.pending, (state) => {
         state.loading = true;
       })
       .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.loading = false;
-        if (action.payload.user.userId) {
-          const user = mapApiResponseToUser(action.payload);
 
-          // Check if email is verified before authenticating
-          const isEmailVerified = user.emailVerified === true;
+        if (action.payload.user) {
+          const user = mapApiResponseToUser(action.payload.user);
           state.user = user;
+
+          // CRITICAL: Update auth data with new tokens using saveAuthData helper
+          if (typeof window !== "undefined" && action.payload.tokens) {
+            saveAuthData({
+              userId: user.id,
+              email: user.email,
+              role: user.userType,
+              emailVerified: user.emailVerified,
+              forcePasswordChange: user.forcePasswordChange || false,
+              tokens: action.payload.tokens,
+            });
+
+            localStorage.setItem("user", JSON.stringify(user));
+          }
+
+          const isEmailVerified = user.emailVerified === true;
           state.isAuthenticated = isEmailVerified;
 
           if (!isEmailVerified) {
@@ -1144,10 +1285,7 @@ const authSlice = createSlice({
             state.verification = initialState.verification;
           }
 
-          console.log(
-            "Token refresh successful, email verified:",
-            isEmailVerified
-          );
+          console.log("✅ Token refreshed successfully");
         }
       })
       .addCase(refreshAccessToken.rejected, (state, action) => {
@@ -1158,6 +1296,7 @@ const authSlice = createSlice({
 
         if (typeof window !== "undefined") {
           localStorage.removeItem("user");
+          localStorage.removeItem("authData");
         }
       })
 
@@ -1185,11 +1324,8 @@ const authSlice = createSlice({
             if (authDataStr) {
               try {
                 const authData = JSON.parse(authDataStr);
-                if (authData.user) {
-                  authData.user.emailVerified = true;
-                  authData.user.isActive = true;
-                  localStorage.setItem("authData", JSON.stringify(authData));
-                }
+                authData.emailVerified = true;
+                localStorage.setItem("authData", JSON.stringify(authData));
               } catch (error) {
                 console.error("Error updating authData:", error);
               }
@@ -1284,6 +1420,85 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
         console.error("Email availability check failed:", action.payload);
+      })
+
+      // Register device session
+      .addCase(registerDeviceSession.pending, (state) => {
+        state.deviceSessions.loading = true;
+        state.deviceSessions.error = null;
+      })
+      .addCase(registerDeviceSession.fulfilled, (state, action) => {
+        state.deviceSessions.loading = false;
+        state.deviceSessions.currentSession = action.payload.session;
+
+        // Add to all sessions if not already present
+        const exists = state.deviceSessions.allSessions.some(
+          (session) => session.deviceId === action.payload.session.deviceId
+        );
+        if (!exists) {
+          state.deviceSessions.allSessions.push(action.payload.session);
+        }
+      })
+      .addCase(registerDeviceSession.rejected, (state, action) => {
+        state.deviceSessions.loading = false;
+        state.deviceSessions.error = action.payload as string;
+      })
+
+      // Fetch device sessions
+      .addCase(fetchDeviceSessions.pending, (state) => {
+        state.deviceSessions.loading = true;
+        state.deviceSessions.error = null;
+      })
+      .addCase(fetchDeviceSessions.fulfilled, (state, action) => {
+        state.deviceSessions.loading = false;
+        state.deviceSessions.allSessions = action.payload;
+
+        // Update current session from list
+        const deviceId = localStorage.getItem("deviceId");
+        if (deviceId) {
+          const current = action.payload.find(
+            (session: DeviceSession) => session.deviceId === deviceId
+          );
+          if (current) {
+            state.deviceSessions.currentSession = current;
+          }
+        }
+      })
+      .addCase(fetchDeviceSessions.rejected, (state, action) => {
+        state.deviceSessions.loading = false;
+        state.deviceSessions.error = action.payload as string;
+      })
+
+      // Update FCM token
+      .addCase(updateDeviceFCMToken.fulfilled, (state, action) => {
+        if (state.deviceSessions.currentSession) {
+          state.deviceSessions.currentSession.fcmToken =
+            action.payload.fcmToken;
+        }
+      })
+
+      // Remove device session
+      .addCase(removeDeviceSession.fulfilled, (state, action) => {
+        state.deviceSessions.allSessions =
+          state.deviceSessions.allSessions.filter(
+            (session) => session.deviceId !== action.payload
+          );
+
+        // If removing current session, clear it
+        if (state.deviceSessions.currentSession?.deviceId === action.payload) {
+          state.deviceSessions.currentSession = null;
+        }
+      })
+
+      // Remove current device session
+      .addCase(removeCurrentDeviceSession.fulfilled, (state, action) => {
+        if (action.payload) {
+          state.deviceSessions.allSessions =
+            state.deviceSessions.allSessions.filter(
+              (session) => session.deviceId !== action.payload
+            );
+        }
+        state.deviceSessions.currentSession = null;
       });
   },
 });
@@ -1300,6 +1515,9 @@ export const {
   setVerificationPending,
   clearVerification,
   incrementVerificationAttempts,
+  setCurrentDeviceSession,
+  clearDeviceSessions,
+  updateFCMTokenLocally,
 } = authSlice.actions;
 
 // Keep setFirebaseUser as an alias for backward compatibility
@@ -1329,3 +1547,11 @@ export const selectVerificationLastSent = (state: { auth: AuthState }) =>
   state.auth.verification.lastSentAt;
 export const selectVerificationAttempts = (state: { auth: AuthState }) =>
   state.auth.verification.attempts;
+export const selectCurrentDeviceSession = (state: { auth: AuthState }) =>
+  state.auth.deviceSessions.currentSession;
+export const selectAllDeviceSessions = (state: { auth: AuthState }) =>
+  state.auth.deviceSessions.allSessions;
+export const selectDeviceSessionsLoading = (state: { auth: AuthState }) =>
+  state.auth.deviceSessions.loading;
+export const selectDeviceSessionsError = (state: { auth: AuthState }) =>
+  state.auth.deviceSessions.error;
