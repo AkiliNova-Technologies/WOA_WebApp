@@ -1,33 +1,35 @@
-// hooks/useCategories.ts
+// hooks/useReduxCategories.ts
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
-  // Public endpoints
+  // Category endpoints
   fetchCategories,
+  fetchCategoryFeed,
+  fetchPopularCategories,
   fetchCategory,
-  fetchSubcategories,
-  fetchSubcategory,
-
-  // Admin endpoints
   createCategory,
   updateCategory,
   deleteCategory,
-  fetchAdminCategories,
-  // fetchAdminCategory,
+
+  // Subcategory endpoints
+  fetchSubcategoriesByCategory,
+  fetchSubcategory,
   createSubcategory,
   updateSubcategory,
   deleteSubcategory,
-  fetchAdminSubcategories,
-  // fetchAdminSubcategory,
 
-  // Other endpoints
+  // Attribute endpoints
   fetchAttributes,
+  fetchAttributesByCategory,
+  fetchAttribute,
   createAttribute,
+  updateAttribute,
+  deleteAttribute,
   assignAttributesToSubcategory,
+
+  // Product type endpoints
   fetchProductTypes,
   createProductType,
-  updateProductType,
-  deleteProductType,
 
   // Selectors
   selectCategories,
@@ -36,6 +38,8 @@ import {
   selectProductTypes,
   selectSelectedCategory,
   selectSelectedSubcategory,
+  selectCategoryFeed,
+  selectPopularCategories,
   selectCategoriesLoading,
   selectCategoriesError,
   selectCreateCategoryLoading,
@@ -46,6 +50,8 @@ import {
   setSelectedSubcategory,
   clearSelected,
   clearError as clearCategoriesError,
+  clearCategoryFeed,
+  clearPopularCategories,
 
   // Types
   type Category,
@@ -64,17 +70,20 @@ export function useReduxCategories() {
   const productTypes = useAppSelector(selectProductTypes);
   const selectedCategory = useAppSelector(selectSelectedCategory);
   const selectedSubcategory = useAppSelector(selectSelectedSubcategory);
+  const categoryFeed = useAppSelector(selectCategoryFeed);
+  const popularCategories = useAppSelector(selectPopularCategories);
   const loading = useAppSelector(selectCategoriesLoading);
   const error = useAppSelector(selectCategoriesError);
   const createLoading = useAppSelector(selectCreateCategoryLoading);
   const createError = useAppSelector(selectCreateCategoryError);
 
-  // Public category actions
+  // ==================== CATEGORY ACTIONS ====================
+
+  // Get all categories
   const getCategories = useCallback(
-    async (params?: { skip?: number; take?: number; search?: string }) => {
+    async () => {
       try {
-        // Pass empty object if params is undefined
-        return await dispatch(fetchCategories(params || {})).unwrap();
+        return await dispatch(fetchCategories()).unwrap();
       } catch (error) {
         console.error("Failed to fetch categories:", error);
         throw error;
@@ -83,6 +92,33 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Get category feed for home screen
+  const getCategoryFeed = useCallback(
+    async () => {
+      try {
+        return await dispatch(fetchCategoryFeed()).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch category feed:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // Get popular categories
+  const getPopularCategories = useCallback(
+    async () => {
+      try {
+        return await dispatch(fetchPopularCategories()).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch popular categories:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // Get a category by ID
   const getCategory = useCallback(
     async (id: string) => {
       try {
@@ -95,16 +131,7 @@ export function useReduxCategories() {
     [dispatch]
   );
 
-  // Admin category actions
-  const getAdminCategories = useCallback(async () => {
-    try {
-      return await dispatch(fetchAdminCategories()).unwrap();
-    } catch (error) {
-      console.error("Failed to fetch admin categories:", error);
-      throw error;
-    }
-  }, [dispatch]);
-
+  // Create a new category
   const createNewCategory = useCallback(
     async (categoryData: {
       name: string;
@@ -121,6 +148,7 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Update a category
   const updateExistingCategory = useCallback(
     async (id: string, data: Partial<Category>) => {
       try {
@@ -133,6 +161,7 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Delete a category
   const removeCategory = useCallback(
     async (id: string) => {
       try {
@@ -146,17 +175,13 @@ export function useReduxCategories() {
     [dispatch]
   );
 
-  // Public subcategory actions
-  const getSubcategories = useCallback(
-    async (params?: {
-      categoryId?: string;
-      skip?: number;
-      take?: number;
-      search?: string;
-    }) => {
+  // ==================== SUBCATEGORY ACTIONS ====================
+
+  // Get all subcategories for a category
+  const getSubcategoriesByCategory = useCallback(
+    async (categoryId: string) => {
       try {
-        // Pass empty object if params is undefined
-        return await dispatch(fetchSubcategories(params || {})).unwrap();
+        return await dispatch(fetchSubcategoriesByCategory(categoryId)).unwrap();
       } catch (error) {
         console.error("Failed to fetch subcategories:", error);
         throw error;
@@ -165,10 +190,11 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Get a subcategory by ID under a specific category
   const getSubcategory = useCallback(
-    async (id: string) => {
+    async (categoryId: string, id: string) => {
       try {
-        return await dispatch(fetchSubcategory(id)).unwrap();
+        return await dispatch(fetchSubcategory({ categoryId, id })).unwrap();
       } catch (error) {
         console.error("Failed to fetch subcategory:", error);
         throw error;
@@ -177,19 +203,7 @@ export function useReduxCategories() {
     [dispatch]
   );
 
-  // Admin subcategory actions
-  const getAdminSubcategories = useCallback(
-    async (categoryId: string) => {
-      try {
-        return await dispatch(fetchAdminSubcategories({ categoryId })).unwrap();
-      } catch (error) {
-        console.error("Failed to fetch admin subcategories:", error);
-        throw error;
-      }
-    },
-    [dispatch]
-  );
-
+  // Create a new subcategory
   const createNewSubcategory = useCallback(
     async (
       categoryId: string,
@@ -214,6 +228,7 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Update a subcategory
   const updateExistingSubcategory = useCallback(
     async (categoryId: string, id: string, data: Partial<SubCategory>) => {
       try {
@@ -226,6 +241,7 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Delete a subcategory
   const removeSubcategory = useCallback(
     async (categoryId: string, id: string) => {
       try {
@@ -239,7 +255,9 @@ export function useReduxCategories() {
     [dispatch]
   );
 
-  // Attribute actions
+  // ==================== ATTRIBUTE ACTIONS ====================
+
+  // Get all attributes
   const getAttributes = useCallback(async () => {
     try {
       return await dispatch(fetchAttributes()).unwrap();
@@ -249,17 +267,40 @@ export function useReduxCategories() {
     }
   }, [dispatch]);
 
+  // Get attributes by category
+  const getAttributesByCategory = useCallback(
+    async (categoryId: string) => {
+      try {
+        return await dispatch(fetchAttributesByCategory(categoryId)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch category attributes:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // Get an attribute by ID
+  const getAttribute = useCallback(
+    async (id: string) => {
+      try {
+        return await dispatch(fetchAttribute(id)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch attribute:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // Create a new attribute for a category
   const createNewAttribute = useCallback(
     async (
       categoryId: string,
       data: Omit<Attribute, "id" | "createdAt" | "updatedAt">
     ) => {
       try {
-        const attributeData = {
-          ...data,
-          categoryId: categoryId,
-        };
-        return await dispatch(createAttribute(attributeData)).unwrap();
+        return await dispatch(createAttribute({ categoryId, data })).unwrap();
       } catch (error) {
         console.error("Failed to create attribute:", error);
         throw error;
@@ -268,6 +309,34 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Update an attribute
+  const updateExistingAttribute = useCallback(
+    async (id: string, data: Partial<Attribute>) => {
+      try {
+        return await dispatch(updateAttribute({ id, data })).unwrap();
+      } catch (error) {
+        console.error("Failed to update attribute:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // Delete an attribute
+  const removeAttribute = useCallback(
+    async (id: string) => {
+      try {
+        await dispatch(deleteAttribute(id)).unwrap();
+        return true;
+      } catch (error) {
+        console.error("Failed to delete attribute:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // Assign attributes to subcategory
   const assignAttributes = useCallback(
     async (subcategoryId: string, attributeIds: string[]) => {
       try {
@@ -282,7 +351,9 @@ export function useReduxCategories() {
     [dispatch]
   );
 
-  // Product type actions
+  // ==================== PRODUCT TYPE ACTIONS ====================
+
+  // Get all product types
   const getProductTypes = useCallback(async () => {
     try {
       return await dispatch(fetchProductTypes()).unwrap();
@@ -292,6 +363,7 @@ export function useReduxCategories() {
     }
   }, [dispatch]);
 
+  // Create a new product type
   const createNewProductType = useCallback(
     async (
       subcategoryId: string,
@@ -309,39 +381,20 @@ export function useReduxCategories() {
     [dispatch]
   );
 
-  const updateExistingProductType = useCallback(
-    async (id: string, data: Partial<ProductType>) => {
-      try {
-        return await dispatch(updateProductType({ id, data })).unwrap();
-      } catch (error) {
-        console.error("Failed to update product type:", error);
-        throw error;
-      }
-    },
-    [dispatch]
-  );
+  // Note: updateProductType and deleteProductType were not in Swagger
+  // They have been removed from the slice
 
-  const removeProductType = useCallback(
-    async (id: string) => {
-      try {
-        await dispatch(deleteProductType(id)).unwrap();
-        return true;
-      } catch (error) {
-        console.error("Failed to delete product type:", error);
-        throw error;
-      }
-    },
-    [dispatch]
-  );
+  // ==================== HELPER FUNCTIONS ====================
 
-  // Helper functions
-  const getSubcategoriesByCategory = useCallback(
+  // Get subcategories for a category from local state
+  const getSubcategoriesForCategory = useCallback(
     (categoryId: string): SubCategory[] => {
       return subcategories.filter((subcat) => subcat.categoryId === categoryId);
     },
     [subcategories]
   );
 
+  // Get category name by ID
   const getCategoryName = useCallback(
     (categoryId: string): string => {
       const category = categories.find((cat) => cat.id === categoryId);
@@ -350,6 +403,7 @@ export function useReduxCategories() {
     [categories]
   );
 
+  // Get subcategory name by ID
   const getSubcategoryName = useCallback(
     (subcategoryId: string): string => {
       const subcategory = subcategories.find(
@@ -360,7 +414,25 @@ export function useReduxCategories() {
     [subcategories]
   );
 
-  // Utility actions
+  // Get attributes for a category from local state
+  const getAttributesForCategory = useCallback(
+    (categoryId: string): Attribute[] => {
+      return attributes.filter((attr) => attr.categoryId === categoryId);
+    },
+    [attributes]
+  );
+
+  // Get attributes for a subcategory from local state
+  const getAttributesForSubcategory = useCallback(
+    (subcategoryId: string): Attribute[] => {
+      return attributes.filter((attr) => attr.subcategoryId === subcategoryId);
+    },
+    [attributes]
+  );
+
+  // ==================== UTILITY ACTIONS ====================
+
+  // Set selected category
   const selectCategory = useCallback(
     (category: Category) => {
       dispatch(setSelectedCategory(category));
@@ -368,6 +440,7 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Set selected subcategory
   const selectSubcategory = useCallback(
     (subcategory: SubCategory) => {
       dispatch(setSelectedSubcategory(subcategory));
@@ -375,67 +448,91 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Clear selected items
   const clearSelectedItems = useCallback(() => {
     dispatch(clearSelected());
   }, [dispatch]);
 
+  // Clear category errors
   const clearCategoriesErrors = useCallback(() => {
     dispatch(clearCategoriesError());
   }, [dispatch]);
 
+  // Clear category feed
+  const clearCategoryFeedData = useCallback(() => {
+    dispatch(clearCategoryFeed());
+  }, [dispatch]);
+
+  // Clear popular categories
+  const clearPopularCategoriesData = useCallback(() => {
+    dispatch(clearPopularCategories());
+  }, [dispatch]);
+
   return {
-    // State
+    // ==================== STATE ====================
     categories,
     subcategories,
     attributes,
     productTypes,
     selectedCategory,
     selectedSubcategory,
+    categoryFeed,
+    popularCategories,
     loading,
     error,
     createLoading,
     createError,
 
-    // Public category actions
+    // ==================== CATEGORY ACTIONS ====================
     getCategories,
+    getCategoryFeed,
+    getPopularCategories,
     getCategory,
-
-    // Admin category actions
-    getAdminCategories,
     createNewCategory,
     updateExistingCategory,
     removeCategory,
 
-    // Public subcategory actions
-    getSubcategories,
+    // ==================== SUBCATEGORY ACTIONS ====================
+    getSubcategoriesByCategory,
     getSubcategory,
-
-    // Admin subcategory actions
-    getAdminSubcategories,
     createNewSubcategory,
     updateExistingSubcategory,
     removeSubcategory,
 
-    // Attribute actions
+    // ==================== ATTRIBUTE ACTIONS ====================
     getAttributes,
+    getAttributesByCategory,
+    getAttribute,
     createNewAttribute,
+    updateExistingAttribute,
+    removeAttribute,
     assignAttributes,
 
-    // Product type actions
+    // ==================== PRODUCT TYPE ACTIONS ====================
     getProductTypes,
     createNewProductType,
-    updateExistingProductType,
-    removeProductType,
 
-    // Helper functions
-    getSubcategoriesByCategory,
+    // ==================== HELPER FUNCTIONS ====================
+    getSubcategoriesForCategory,
     getCategoryName,
     getSubcategoryName,
+    getAttributesForCategory,
+    getAttributesForSubcategory,
 
-    // Utility actions
+    // ==================== UTILITY ACTIONS ====================
     selectCategory,
     selectSubcategory,
     clearSelectedItems,
     clearCategoriesErrors,
+    clearCategoryFeedData,
+    clearPopularCategoriesData,
   };
 }
+
+// Export types for convenience
+export type {
+  Category,
+  SubCategory,
+  Attribute,
+  ProductType,
+} from "@/redux/slices/categoriesSlice";

@@ -12,7 +12,7 @@ export default function FooterSection() {
     { name: "Order History", path: "/orders" },
     { name: "Shopping Cart", path: "/cart" },
     { name: "Wishlist", path: "/wishlist" },
-    { name: "Become a Vendor", path: "/kyc" },
+    { name: "Become a Vendor", path: "/become-seller" },
     { name: "Vendor Hub", path: "/vendor/auth/signin" },
   ];
 

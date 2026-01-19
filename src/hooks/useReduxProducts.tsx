@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import {
   // Public Products
   fetchPublicProducts,
+  fetchAllProducts,
   fetchPublicProduct,
   fetchRelatedProducts,
   
@@ -24,18 +25,28 @@ import {
   submitForReview,
   uploadProductMedia,
   
+  // New Additions
+  softDeleteProduct,
+  fetchProductReviews,
+  fetchVendorReviews,
+  
   // Selectors
   selectProducts,
   selectPublicProducts,
+  selectAllProducts,
   selectSearchResults,
   selectRelatedProducts,
   selectRecentlyViewedProducts,
   selectProduct,
+  selectProductReviews,
+  selectVendorReviews,
   selectSearchSuggestions,
   selectAvailableFilters,
   selectProductsLoading,
+  selectAllProductsLoading,
   selectSearchLoading,
   selectRecentlyViewedLoading,
+  selectReviewsLoading,
   selectProductsError,
   selectCreateProductLoading,
   selectCreateProductError,
@@ -66,15 +77,20 @@ export function useReduxProducts() {
   // ====================== SELECTORS ======================
   const products = useAppSelector(selectProducts);
   const publicProducts = useAppSelector(selectPublicProducts);
+  const allProducts = useAppSelector(selectAllProducts); // New
   const searchResults = useAppSelector(selectSearchResults);
   const relatedProducts = useAppSelector(selectRelatedProducts);
   const recentlyViewedProducts = useAppSelector(selectRecentlyViewedProducts);
   const product = useAppSelector(selectProduct);
+  const productReviews = useAppSelector(selectProductReviews); // New
+  const vendorReviews = useAppSelector(selectVendorReviews); // New
   const searchSuggestions = useAppSelector(selectSearchSuggestions);
   const availableFilters = useAppSelector(selectAvailableFilters);
   const loading = useAppSelector(selectProductsLoading);
+  const allProductsLoading = useAppSelector(selectAllProductsLoading); // New
   const searchLoading = useAppSelector(selectSearchLoading);
   const recentlyViewedLoading = useAppSelector(selectRecentlyViewedLoading);
+  const reviewsLoading = useAppSelector(selectReviewsLoading); // New
   const error = useAppSelector(selectProductsError);
   const createLoading = useAppSelector(selectCreateProductLoading);
   const createError = useAppSelector(selectCreateProductError);
@@ -91,6 +107,22 @@ export function useReduxProducts() {
       return await dispatch(fetchPublicProducts(params || {})).unwrap();
     } catch (error) {
       console.error('Failed to fetch public products:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  /**
+   * Get all products (any status) with filtering and pagination
+   * For vendor/admin use only - requires authentication
+   */
+  const getAllProducts = useCallback(async (params?: ProductListParams & { 
+    productTypeId?: string;
+    sellerId?: string;
+  }) => {
+    try {
+      return await dispatch(fetchAllProducts(params || {})).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch all products:', error);
       throw error;
     }
   }, [dispatch]);
@@ -117,6 +149,32 @@ export function useReduxProducts() {
       return await dispatch(fetchRelatedProducts(productId)).unwrap();
     } catch (error) {
       console.error('Failed to fetch related products:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  // ====================== REVIEWS ======================
+
+  /**
+   * Get reviews for a specific product
+   */
+  const getProductReviews = useCallback(async (productId: string) => {
+    try {
+      return await dispatch(fetchProductReviews(productId)).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch product reviews:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  /**
+   * Get all reviews for a vendor's products
+   */
+  const getVendorReviews = useCallback(async (vendorId: string) => {
+    try {
+      return await dispatch(fetchVendorReviews(vendorId)).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch vendor reviews:', error);
       throw error;
     }
   }, [dispatch]);
@@ -259,7 +317,7 @@ export function useReduxProducts() {
   }, [dispatch]);
 
   /**
-   * Delete a product
+   * Delete a product permanently
    */
   const removeProduct = useCallback(async (id: string) => {
     try {
@@ -267,6 +325,18 @@ export function useReduxProducts() {
       return true;
     } catch (error) {
       console.error('Failed to delete product:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  /**
+   * Soft delete a product (status -> deleted)
+   */
+  const softDelete = useCallback(async (id: string) => {
+    try {
+      return await dispatch(softDeleteProduct(id)).unwrap();
+    } catch (error) {
+      console.error('Failed to soft delete product:', error);
       throw error;
     }
   }, [dispatch]);
@@ -385,8 +455,38 @@ export function useReduxProducts() {
    * Get products by status (for vendor dashboard)
    */
   const getProductsByStatus = useCallback((status: Product['status']): Product[] => {
-    return products.filter(product => product.status === status);
-  }, [products]);
+    return allProducts.filter(product => product.status === status);
+  }, [allProducts]);
+
+  /**
+   * Get products that need review/approval (for admin)
+   */
+  const getProductsNeedingReview = useCallback((): Product[] => {
+    return allProducts.filter(product => 
+      ['pending_approval', 'RE_EVALUATION'].includes(product.status)
+    );
+  }, [allProducts]);
+
+  /**
+   * Get approved products from all products list
+   */
+  const getApprovedProductsFromAll = useCallback((): Product[] => {
+    return allProducts.filter(product => product.status === 'approved');
+  }, [allProducts]);
+
+  /**
+   * Get draft products for vendor
+   */
+  const getDraftProducts = useCallback((): Product[] => {
+    return allProducts.filter(product => product.status === 'draft');
+  }, [allProducts]);
+
+  /**
+   * Get deleted products (soft-deleted)
+   */
+  const getDeletedProducts = useCallback((): Product[] => {
+    return allProducts.filter(product => product.status === 'deleted');
+  }, [allProducts]);
 
   // ====================== UTILITY ACTIONS ======================
 
@@ -426,6 +526,15 @@ export function useReduxProducts() {
   }, [dispatch]);
 
   /**
+   * Clear all products (vendor/admin) list
+   */
+  const clearAllProductsList = useCallback(() => {
+    // Note: You might need to add this action to your slice
+    // For now, we'll use clearProducts as it clears everything
+    dispatch(clearProducts());
+  }, [dispatch]);
+
+  /**
    * Clear search results
    */
   const clearSearchResultsList = useCallback(() => {
@@ -443,15 +552,20 @@ export function useReduxProducts() {
     // ====================== STATE ======================
     products,
     publicProducts,
+    allProducts, // New
     searchResults,
     relatedProducts,
     recentlyViewedProducts,
     product,
+    productReviews, // New
+    vendorReviews, // New
     searchSuggestions,
     availableFilters,
     loading,
+    allProductsLoading, // New
     searchLoading,
     recentlyViewedLoading,
+    reviewsLoading, // New
     error,
     createLoading,
     createError,
@@ -459,8 +573,13 @@ export function useReduxProducts() {
     
     // ====================== PUBLIC PRODUCTS ======================
     getPublicProducts,
+    getAllProducts, // New
     getPublicProduct,
     getRelatedProducts,
+    
+    // ====================== REVIEWS ======================
+    getProductReviews, // New
+    getVendorReviews, // New
     
     // ====================== SEARCH & FILTERING ======================
     searchProductsCatalog,
@@ -478,6 +597,7 @@ export function useReduxProducts() {
     getProduct,
     updateExistingProduct,
     removeProduct,
+    softDelete, // New
     submitProductForReview,
     uploadMedia,
     
@@ -494,6 +614,10 @@ export function useReduxProducts() {
     getProductsWithStock,
     getSearchResultsCount,
     getProductsByStatus,
+    getProductsNeedingReview, // New
+    getApprovedProductsFromAll, // New
+    getDraftProducts, // New
+    getDeletedProducts, // New
     
     // ====================== UTILITY ACTIONS ======================
     setCurrentProduct,
@@ -501,6 +625,7 @@ export function useReduxProducts() {
     clearProductsErrors,
     clearAllProducts,
     clearPublicProductsList,
+    clearAllProductsList, // New
     clearSearchResultsList,
     clearRelatedProductsList,
   };

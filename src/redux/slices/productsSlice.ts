@@ -52,15 +52,11 @@ export interface Product {
   id: string;
   name: string;
   description?: string;
-  
-  // Base pricing (template for variants)
   basePrice: number;
   baseCompareAtPrice?: number;
-  
-  // Display pricing (from first active variant)
   price: number;
   compareAtPrice?: number;
-  
+
   // Product status
   status:
     | "draft"
@@ -69,12 +65,13 @@ export interface Product {
     | "rejected"
     | "RE_EVALUATION"
     | "published"
-    | "archived";
-  
+    | "archived"
+    | "deleted";
+
   // Attributes and variants
-  attributes: Record<string, string>; // Vendor-provided attribute values
+  attributes: Record<string, string>; 
   variants: ProductVariant[];
-  
+
   // Relations
   sellerId: string;
   seller?: Seller;
@@ -84,29 +81,17 @@ export interface Product {
   subcategory?: SubCategory;
   productTypeId?: string;
   productType?: ProductType;
-  
-  // Media
-  image?: string; // First gallery image
+  image?: string;
   images: ProductImage[];
   gallery?: string[];
-  
-  // Ratings & Reviews (from verified purchasers)
   averageRating: number;
   reviewCount: number;
-  
-  // Wishlist status (when authenticated)
   isInWishlist?: boolean;
-  
-  // Recently viewed tracking
   viewCount?: number;
   lastViewed?: string;
-  
-  // Vendor info shortcuts
   vendorId?: string;
   vendorName?: string;
   sellerName?: string;
-  
-  // Timestamps
   createdAt: string;
   updatedAt: string;
 }
@@ -116,7 +101,7 @@ export interface CreateProductData {
   description?: string;
   basePrice: number;
   baseCompareAtPrice?: number;
-  attributes: Record<string, string>; // e.g., { "size": "S,M,L", "color": "red,blue" }
+  attributes: Record<string, string>;
   categoryId: string;
   subcategoryId: string;
   productTypeId: string;
@@ -134,11 +119,11 @@ export interface UpdateProductData {
 }
 
 export interface ProductSearchParams {
-  q?: string; // Keyword search
+  q?: string; 
   categoryId?: string;
   subcategoryId?: string;
   productTypeId?: string;
-  filters?: Record<string, string | string[]>; // Attribute filters
+  filters?: Record<string, string | string[]>;
   sort?: "price_asc" | "price_desc" | "created_asc" | "created_desc";
   page?: number;
   limit?: number;
@@ -186,29 +171,36 @@ export interface AvailableFilters {
 
 interface ProductsState {
   // Product lists
+  allProducts: Product[];
   products: Product[];
   publicProducts: Product[];
   relatedProducts: Product[];
   recentlyViewedProducts: Product[];
   searchResults: Product[];
-  
+  productReviews: any[];
+  vendorReviews: any[];
+
   // Single product
   product: Product | null;
-  
+
   // Search helpers
   searchSuggestions: SearchSuggestion[];
   availableFilters: AvailableFilters | null;
-  
+
   // Loading states
   loading: boolean;
   createLoading: boolean;
   recentlyViewedLoading: boolean;
   searchLoading: boolean;
-  
+  allProductsLoading: boolean;
+  reviewsLoading: boolean;
+
+  // Loading states
+
   // Error states
   error: string | null;
   createError: string | null;
-  
+
   // Pagination
   currentPage: number;
   totalPages: number;
@@ -218,6 +210,11 @@ interface ProductsState {
 const initialState: ProductsState = {
   products: [],
   publicProducts: [],
+  allProducts: [],
+  productReviews: [],
+  vendorReviews: [],
+  allProductsLoading: false,
+  reviewsLoading: false,
   relatedProducts: [],
   recentlyViewedProducts: [],
   searchResults: [],
@@ -242,43 +239,100 @@ const initialState: ProductsState = {
  */
 const enrichProduct = (product: any): Product => {
   // Get first active variant for display pricing
-  const firstActiveVariant = product.variants?.find((v: any) => v.isActive !== false) || product.variants?.[0];
-  
+  const firstActiveVariant =
+    product.variants?.find((v: any) => v.isActive !== false) ||
+    product.variants?.[0];
+
   return {
     ...product,
     // Ensure price fields exist (from first variant or base)
     price: firstActiveVariant?.price || product.basePrice || 0,
-    compareAtPrice: firstActiveVariant?.compareAtPrice || product.baseCompareAtPrice,
-    
+    compareAtPrice:
+      firstActiveVariant?.compareAtPrice || product.baseCompareAtPrice,
+
     // Ensure rating fields exist
     averageRating: product.averageRating || 0,
     reviewCount: product.reviewCount || 0,
-    
+
     // Ensure image field exists
-    image: product.image || 
-           product.images?.find((img: any) => img.isPrimary)?.url ||
-           product.images?.[0]?.url ||
-           "",
-    
+    image:
+      product.image ||
+      product.images?.find((img: any) => img.isPrimary)?.url ||
+      product.images?.[0]?.url ||
+      "",
+
     // Ensure variants array exists
     variants: product.variants || [],
-    
+
     // Ensure images array exists
     images: product.images || [],
-    
+
     // Add vendor name shortcut
-    vendorName: product.seller?.businessName || 
-                `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() ||
-                "Unknown Vendor",
-    
+    vendorName:
+      product.seller?.businessName ||
+      `${product.seller?.firstName || ""} ${
+        product.seller?.lastName || ""
+      }`.trim() ||
+      "Unknown Vendor",
+
     // Add seller name shortcut
-    sellerName: `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() ||
-                product.seller?.businessName ||
-                "Unknown Seller",
+    sellerName:
+      `${product.seller?.firstName || ""} ${
+        product.seller?.lastName || ""
+      }`.trim() ||
+      product.seller?.businessName ||
+      "Unknown Seller",
   };
 };
 
 // ====================== ASYNC THUNKS ======================
+
+// ========== ADMIN PRODUCT LISTING ==========
+
+export const fetchAllProducts = createAsyncThunk(
+  "products/fetchAllProducts",
+  async (
+    params: ProductListParams & {
+      productTypeId?: string;
+      sellerId?: string;
+    } = {},
+    { rejectWithValue }
+  ) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.page) queryParams.append("page", params.page.toString());
+      if (params.limit) queryParams.append("limit", params.limit.toString());
+      if (params.categoryId)
+        queryParams.append("categoryId", params.categoryId);
+      if (params.subcategoryId)
+        queryParams.append("subcategoryId", params.subcategoryId);
+      if (params.sellerId) queryParams.append("sellerId", params.sellerId);
+      if (params.productTypeId)
+        queryParams.append("productTypeId", params.productTypeId);
+
+      const url = `/api/v1/products/all${
+        queryParams.toString() ? `?${queryParams.toString()}` : ""
+      }`;
+      const response = await api.get(url);
+
+      console.log("📦 fetchAllProducts response:", response.data);
+
+      // Use 'response.data' directly
+      return {
+        data: response.data.data || [],
+        total: response.data.total || 0,
+        page: response.data.page || 1,
+        limit: response.data.limit || 20,
+        totalPages: response.data.totalPages || 1,
+      };
+    } catch (error: any) {
+      console.error("❌ fetchAllProducts error:", error);
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch all products"
+      );
+    }
+  }
+);
 
 // ========== PUBLIC PRODUCT LISTING ==========
 
@@ -289,26 +343,27 @@ export const fetchPublicProducts = createAsyncThunk(
       const queryParams = new URLSearchParams();
       if (params.page) queryParams.append("page", params.page.toString());
       if (params.limit) queryParams.append("limit", params.limit.toString());
-      if (params.categoryId) queryParams.append("categoryId", params.categoryId);
-      if (params.subcategoryId) queryParams.append("subcategoryId", params.subcategoryId);
+      if (params.categoryId)
+        queryParams.append("categoryId", params.categoryId);
+      if (params.subcategoryId)
+        queryParams.append("subcategoryId", params.subcategoryId);
       if (params.sellerId) queryParams.append("sellerId", params.sellerId);
 
-      // const url = `/api/v1/products/all${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-      const url = `/api/v1/products/all`;
+      // CHANGE HERE: Use 'approved' endpoint instead of 'all'
+      const url = `/api/v1/products/approved${
+        queryParams.toString() ? `?${queryParams.toString()}` : ""
+      }`;
       const response = await api.get(url);
-      
+
       console.log("📦 fetchPublicProducts response:", response.data);
-      
-      // Handle the actual API response structure
-      const responseData = response.data;
-      
-      // The API returns: { data: [...], total: 5, page: 1, limit: 100, totalPages: 1 }
+
+      // CORRECTION: Use 'response.data' instead of 'responseData'
       return {
-        data: responseData.data || [],
-        total: responseData.total || 0,
-        page: responseData.page || 1,
-        limit: responseData.limit || 20,
-        totalPages: responseData.totalPages || 1,
+        data: response.data.data || [],
+        total: response.data.total || 0,
+        page: response.data.page || 1,
+        limit: response.data.limit || 20,
+        totalPages: response.data.totalPages || 1,
       };
     } catch (error: any) {
       console.error("❌ fetchPublicProducts error:", error);
@@ -363,21 +418,10 @@ export const searchProducts = createAsyncThunk(
       if (params.page) queryParams.append("page", params.page.toString());
       if (params.limit) queryParams.append("limit", params.limit.toString());
       
-      // Add attribute filters
-      if (params.filters) {
-        Object.entries(params.filters).forEach(([key, value]) => {
-          if (Array.isArray(value)) {
-            value.forEach(v => queryParams.append(`filters[${key}]`, v));
-          } else {
-            queryParams.append(`filters[${key}]`, value);
-          }
-        });
-      }
-
-      const response = await api.get(`/api/v1/public/products/search?${queryParams.toString()}`);
+      const response = await api.get(`/api/v1/products/approved?${queryParams.toString()}`);
       
       return {
-        data: response.data.data || response.data,
+        data: response.data.data || [],
         total: response.data.total || 0,
         page: response.data.page || 1,
         limit: response.data.limit || 20,
@@ -393,13 +437,19 @@ export const searchProducts = createAsyncThunk(
 
 export const fetchSearchFilters = createAsyncThunk(
   "products/fetchSearchFilters",
-  async (params: { q?: string; categoryId?: string } = {}, { rejectWithValue }) => {
+  async (
+    params: { q?: string; categoryId?: string } = {},
+    { rejectWithValue }
+  ) => {
     try {
       const queryParams = new URLSearchParams();
       if (params.q) queryParams.append("q", params.q);
-      if (params.categoryId) queryParams.append("categoryId", params.categoryId);
+      if (params.categoryId)
+        queryParams.append("categoryId", params.categoryId);
 
-      const response = await api.get(`/api/v1/public/search/filters?${queryParams.toString()}`);
+      const response = await api.get(
+        `/api/v1/public/search/filters?${queryParams.toString()}`
+      );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -417,7 +467,9 @@ export const fetchSearchSuggestions = createAsyncThunk(
       queryParams.append("q", params.q);
       if (params.limit) queryParams.append("limit", params.limit.toString());
 
-      const response = await api.get(`/api/v1/public/search/suggestions?${queryParams.toString()}`);
+      const response = await api.get(
+        `/api/v1/public/search/suggestions?${queryParams.toString()}`
+      );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -433,7 +485,9 @@ export const trackProductView = createAsyncThunk(
   "products/trackView",
   async (productId: string, { rejectWithValue }) => {
     try {
-      const response = await api.post(`/api/v1/products/recently-viewed/${productId}`);
+      const response = await api.post(
+        `/api/v1/products/recently-viewed/${productId}`
+      );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -452,18 +506,27 @@ export const fetchRecentlyViewedProducts = createAsyncThunk(
       if (params.limit) queryParams.append("limit", params.limit.toString());
       if (params.sortBy) queryParams.append("sortBy", params.sortBy);
       if (params.order) queryParams.append("order", params.order);
-      if (params.minPrice) queryParams.append("minPrice", params.minPrice.toString());
-      if (params.maxPrice) queryParams.append("maxPrice", params.maxPrice.toString());
-      if (params.minRating) queryParams.append("minRating", params.minRating.toString());
+      if (params.minPrice)
+        queryParams.append("minPrice", params.minPrice.toString());
+      if (params.maxPrice)
+        queryParams.append("maxPrice", params.maxPrice.toString());
+      if (params.minRating)
+        queryParams.append("minRating", params.minRating.toString());
 
-      const url = `/api/v1/products/recently-viewed${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+      const url = `/api/v1/products/recently-viewed${
+        queryParams.toString() ? `?${queryParams.toString()}` : ""
+      }`;
       const response = await api.get(url);
-      
+
       const data = response.data;
       return {
-        data: Array.isArray(data) ? data :
-               Array.isArray(data?.products) ? data.products :
-               Array.isArray(data?.data) ? data.data : [],
+        data: Array.isArray(data)
+          ? data
+          : Array.isArray(data?.products)
+          ? data.products
+          : Array.isArray(data?.data)
+          ? data.data
+          : [],
         total: data?.total || 0,
         page: data?.page || 1,
         limit: data?.limit || 10,
@@ -471,7 +534,8 @@ export const fetchRecentlyViewedProducts = createAsyncThunk(
       };
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch recently viewed products"
+        error.response?.data?.message ||
+          "Failed to fetch recently viewed products"
       );
     }
   }
@@ -486,6 +550,38 @@ export const removeFromRecentlyViewed = createAsyncThunk(
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || "Failed to remove from recently viewed"
+      );
+    }
+  }
+);
+
+// ========== PRODUCT REVIEW MANAGEMENT ==========
+
+export const fetchProductReviews = createAsyncThunk(
+  "products/fetchProductReviews",
+  async (productId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/products/${productId}/reviews`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch product reviews"
+      );
+    }
+  }
+);
+
+export const fetchVendorReviews = createAsyncThunk(
+  "products/fetchVendorReviews",
+  async (vendorId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(
+        `/api/v1/products/vendor/${vendorId}/reviews`
+      );
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch vendor reviews"
       );
     }
   }
@@ -552,11 +648,27 @@ export const deleteProduct = createAsyncThunk(
   }
 );
 
+export const softDeleteProduct = createAsyncThunk(
+  "products/softDelete",
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(`/api/v1/product/status/delete/${id}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to soft delete product"
+      );
+    }
+  }
+);
+
 export const submitForReview = createAsyncThunk(
   "products/submitForReview",
   async (id: string, { rejectWithValue }) => {
     try {
-      const response = await api.post(`/api/v1/products/${id}/submit-for-review`);
+      const response = await api.post(
+        `/api/v1/products/${id}/submit-for-review`
+      );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -671,7 +783,7 @@ const productsSlice = createSlice({
       })
       .addCase(fetchRelatedProducts.fulfilled, (state, action) => {
         state.loading = false;
-        state.relatedProducts = Array.isArray(action.payload) 
+        state.relatedProducts = Array.isArray(action.payload)
           ? action.payload.map(enrichProduct)
           : [];
       })
@@ -846,6 +958,57 @@ const productsSlice = createSlice({
       .addCase(uploadProductMedia.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
+      })
+      // ========== ALL PRODUCTS (VENDOR/ADMIN) ==========
+      .addCase(fetchAllProducts.pending, (state) => {
+        state.allProductsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllProducts.fulfilled, (state, action) => {
+        state.allProductsLoading = false;
+        state.allProducts = action.payload.data.map(enrichProduct);
+      })
+      .addCase(fetchAllProducts.rejected, (state, action) => {
+        state.allProductsLoading = false;
+        state.error = action.payload as string;
+      })
+
+      // ========== REVIEWS ==========
+      .addCase(fetchProductReviews.pending, (state) => {
+        state.reviewsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchProductReviews.fulfilled, (state, action) => {
+        state.reviewsLoading = false;
+        state.productReviews = action.payload;
+      })
+      .addCase(fetchProductReviews.rejected, (state, action) => {
+        state.reviewsLoading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(fetchVendorReviews.pending, (state) => {
+        state.reviewsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchVendorReviews.fulfilled, (state, action) => {
+        state.reviewsLoading = false;
+        state.vendorReviews = action.payload;
+      })
+      .addCase(fetchVendorReviews.rejected, (state, action) => {
+        state.reviewsLoading = false;
+        state.error = action.payload as string;
+      })
+
+      // ========== SOFT DELETE ==========
+      .addCase(softDeleteProduct.fulfilled, (state, action) => {
+        const enrichedProduct = enrichProduct(action.payload);
+        state.allProducts = state.allProducts.map((product) =>
+          product.id === enrichedProduct.id ? enrichedProduct : product
+        );
+        if (state.product?.id === enrichedProduct.id) {
+          state.product = enrichedProduct;
+        }
       });
   },
 });
@@ -912,5 +1075,16 @@ export const selectProductsPagination = createSelector(
     hasPreviousPage: currentPage > 1,
   })
 );
+
+export const selectAllProducts = (state: { products: ProductsState }) =>
+  state.products.allProducts;
+export const selectProductReviews = (state: { products: ProductsState }) =>
+  state.products.productReviews;
+export const selectVendorReviews = (state: { products: ProductsState }) =>
+  state.products.vendorReviews;
+export const selectAllProductsLoading = (state: { products: ProductsState }) =>
+  state.products.allProductsLoading;
+export const selectReviewsLoading = (state: { products: ProductsState }) =>
+  state.products.reviewsLoading;
 
 export default productsSlice.reducer;

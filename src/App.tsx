@@ -101,6 +101,7 @@ import VendorReviewDetailPage from "./pages/vendor/dashboard/ReviewDetails.tsx";
 import VendorOrderDetailsPage from "./pages/vendor/dashboard/OrderDetails.tsx";
 import VendorWishlistDetailsPage from "./pages/vendor/dashboard/WishlistDetails.tsx";
 import VendorInventoryDetailsPage from "./pages/vendor/dashboard/InventoryDetails.tsx";
+import BecomeSellerPage from "./pages/vendor/BecomeSeller.tsx";
 
 function App() {
   return (
@@ -131,6 +132,7 @@ function App() {
               </Route>
 
               <Route path="/wishlist" element={<WishListPage />} />
+              <Route path="/become-seller" element={<BecomeSellerPage />} />
 
               <Route path="/cart" element={<SimpleLayout />}>
                 <Route index element={<CartPage />} />

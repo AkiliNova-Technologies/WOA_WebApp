@@ -1,3 +1,5 @@
+import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Menu,
   Heart,
@@ -10,19 +12,21 @@ import {
 import { Button } from "../components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
+import { SearchInputHome, type Suggestion } from "./ui/search-input-home";
+import { cn } from "../lib/utils";
 import images from "../assets/images";
-import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useReduxAuth } from "../hooks/useReduxAuth";
 import { useReduxUsers } from "../hooks/useReduxUsers";
 import { useReduxCart } from "../hooks/useReduxCart";
 import { useReduxWishlist } from "../hooks/useReduxWishlists";
-import { SearchInputHome, type Suggestion } from "./ui/search-input-home";
-import { cn } from "../lib/utils";
+import { useReduxCategories } from "../hooks/useReduxCategories"; 
 
 interface Category {
   id: string;
   name: string;
+  description?: string;
+  icon?: string;
+  isActive: boolean;
 }
 
 export default function NavbarHomeSection() {
@@ -31,6 +35,13 @@ export default function NavbarHomeSection() {
   const { profile, getUserProfile } = useReduxUsers();
   const { itemCount: cartCount, getCart } = useReduxCart();
   const { getWishlistCount, getWishlist } = useReduxWishlist();
+  
+  const { 
+    categories: backendCategories, // Renamed for clarity
+    loading: categoriesLoading, 
+    error: categoriesError, 
+    getCategories 
+  } = useReduxCategories();
   
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -60,6 +71,19 @@ export default function NavbarHomeSection() {
     fetchUserData();
   }, [isAuthenticated, user, getUserProfile, getCart, getWishlist]);
 
+  // Fetch categories from backend on component mount
+  useEffect(() => {
+    const fetchCategoriesFromBackend = async () => {
+      try {
+        await getCategories();
+      } catch (error) {
+        console.error("Failed to fetch categories from backend:", error);
+      }
+    };
+
+    fetchCategoriesFromBackend();
+  }, [getCategories]);
+
   // Update wishlist count
   useEffect(() => {
     if (isAuthenticated) {
@@ -80,16 +104,30 @@ export default function NavbarHomeSection() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Categories data
-  const categories: Category[] = [
-    { id: "fashion", name: "Fashion & Apparel" },
-    { id: "home", name: "Home & Living" },
-    { id: "jewelry", name: "Jewelry & Accessories" },
-    { id: "art", name: "Art & Crafts" },
-    { id: "beauty", name: "Beauty & Wellness" },
-    { id: "food", name: "Food & Beverages" },
-    { id: "tourism", name: "Tourism & Experiences" },
+  // Mock categories data (fallback)
+  const getMockCategories = (): Category[] => [
+    { id: "fashion", name: "Fashion & Apparel", isActive: true },
+    { id: "home", name: "Home & Living", isActive: true },
+    { id: "jewelry", name: "Jewelry & Accessories", isActive: true },
+    { id: "art", name: "Art & Crafts", isActive: true },
+    { id: "beauty", name: "Beauty & Wellness", isActive: true },
+    { id: "food", name: "Food & Beverages", isActive: true },
+    { id: "tourism", name: "Tourism & Experiences", isActive: true },
   ];
+
+  // Use categories from hook, fallback to mock if empty
+  const displayCategories = backendCategories && backendCategories.length > 0 
+    ? backendCategories.filter((cat: any) => cat.isActive !== false)
+    : getMockCategories();
+
+  // Transform backend categories to match our interface if needed
+  const transformedCategories = displayCategories.map((cat: any) => ({
+    id: cat.id || cat._id || "",
+    name: cat.name || "Unnamed Category",
+    description: cat.description || "",
+    icon: cat.icon || "",
+    isActive: cat.isActive !== undefined ? cat.isActive : true,
+  }));
 
   // Mock suggestions data
   const mockSuggestions: Suggestion[] = [
@@ -210,6 +248,9 @@ export default function NavbarHomeSection() {
     return getFullName();
   };
 
+  // Loading state for categories
+  const isLoadingCategories = categoriesLoading && transformedCategories.length === 0;
+
   return (
     <nav className="max-w-8xl w-full flex flex-1 px-4 absolute py-2 top-0 z-50">
       <div className="text-white bg-white flex items-center justify-between w-full max-w-7xl mx-auto gap-4 px-4 sm:px-12 py-4 sticky top-0 z-50 shadow-lg rounded-xl">
@@ -235,6 +276,9 @@ export default function NavbarHomeSection() {
               >
                 <Menu className="h-5 w-5" />
                 <span className="hidden sm:inline font-medium">Categories</span>
+                {isLoadingCategories && (
+                  <span className="ml-2 animate-spin h-4 w-4 border-2 border-[#C75A00] border-t-transparent rounded-full"></span>
+                )}
               </button>
             </div>
 
@@ -251,6 +295,11 @@ export default function NavbarHomeSection() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-gray-900">
                       All Categories
+                      {isLoadingCategories && (
+                        <span className="ml-2 text-sm font-normal text-gray-500">
+                          Loading...
+                        </span>
+                      )}
                     </h3>
                     {isMobile && (
                       <button
@@ -263,29 +312,49 @@ export default function NavbarHomeSection() {
                   </div>
                 </div>
                 <div className="py-2 max-h-96 overflow-y-auto">
-                  {categories.map((category) => (
-                    <div
-                      key={category.id}
-                      className="border-b border-gray-100 last:border-b-0"
-                      onMouseEnter={() => handleCategoryHover(category.id)}
-                    >
-                      <button
-                        onClick={() => handleCategoryClick(category)}
-                        className={`w-full text-left px-4 py-3 text-sm transition-all duration-200 flex items-center justify-between group ${
-                          activeCategory === category.id
-                            ? "bg-[#FFF5E6] text-[#C75A00] font-medium"
-                            : "hover:bg-gray-50 text-gray-700"
-                        }`}
-                      >
-                        <span>{category.name}</span>
-                        <ChevronRight
-                          className={`h-4 w-4 text-gray-400 group-hover:text-[#C75A00] transition-colors ${
-                            activeCategory === category.id ? "text-[#C75A00]" : ""
-                          }`}
-                        />
-                      </button>
+                  {isLoadingCategories ? (
+                    <div className="flex justify-center items-center py-8">
+                      <div className="animate-spin h-8 w-8 border-2 border-[#C75A00] border-t-transparent rounded-full"></div>
                     </div>
-                  ))}
+                  ) : transformedCategories.length > 0 ? (
+                    transformedCategories.map((category) => (
+                      <div
+                        key={category.id}
+                        className="border-b border-gray-100 last:border-b-0"
+                        onMouseEnter={() => handleCategoryHover(category.id)}
+                      >
+                        <button
+                          onClick={() => handleCategoryClick(category)}
+                          className={`w-full text-left px-4 py-3 text-sm transition-all duration-200 flex items-center justify-between group ${
+                            activeCategory === category.id
+                              ? "bg-[#FFF5E6] text-[#C75A00] font-medium"
+                              : "hover:bg-gray-50 text-gray-700"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            {category.icon && (
+                              <span className="text-lg">{category.icon}</span>
+                            )}
+                            <span>{category.name}</span>
+                          </div>
+                          <ChevronRight
+                            className={`h-4 w-4 text-gray-400 group-hover:text-[#C75A00] transition-colors ${
+                              activeCategory === category.id ? "text-[#C75A00]" : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No categories available</p>
+                      {categoriesError && (
+                        <p className="text-sm text-red-500 mt-2">
+                          Error: {categoriesError}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

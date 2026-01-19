@@ -14,6 +14,10 @@ export interface Category {
   createdAt: string;
   updatedAt: string;
   subcategories?: SubCategory[];
+  // Add fields for popular categories
+  productCount?: number;
+  viewCount?: number;
+  popularityScore?: number;
 }
 
 export interface SubCategory {
@@ -69,6 +73,8 @@ interface CategoriesState {
   productTypes: ProductType[];
   selectedCategory: Category | null;
   selectedSubcategory: SubCategory | null;
+  categoryFeed: Category[]; // New state for home screen feed
+  popularCategories: Category[]; // New state for popular categories
   loading: boolean;
   error: string | null;
   createLoading: boolean;
@@ -82,23 +88,22 @@ const initialState: CategoriesState = {
   productTypes: [],
   selectedCategory: null,
   selectedSubcategory: null,
+  categoryFeed: [], // New
+  popularCategories: [], // New
   loading: false,
   error: null,
   createLoading: false,
   createError: null,
 };
 
-// ==================== PUBLIC ENDPOINTS ====================
+// ==================== CATEGORY ENDPOINTS ====================
 
-// Public Category Endpoints
+// Get all categories
 export const fetchCategories = createAsyncThunk(
   "categories/fetchAll",
-  async (
-    params: { skip?: number; take?: number; search?: string } = {},
-    { rejectWithValue }
-  ) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/api/v1/categories", { params });
+      const response = await api.get("/api/v1/categories");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -108,6 +113,37 @@ export const fetchCategories = createAsyncThunk(
   }
 );
 
+// Get category feed for home screen
+export const fetchCategoryFeed = createAsyncThunk(
+  "categories/fetchFeed",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get("/api/v1/categories/feed");
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch category feed"
+      );
+    }
+  }
+);
+
+// Get categories sorted by popularity
+export const fetchPopularCategories = createAsyncThunk(
+  "categories/fetchPopular",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get("/api/v1/categories/popular");
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch popular categories"
+      );
+    }
+  }
+);
+
+// Get a category by ID
 export const fetchCategory = createAsyncThunk(
   "categories/fetchOne",
   async (id: string, { rejectWithValue }) => {
@@ -122,20 +158,14 @@ export const fetchCategory = createAsyncThunk(
   }
 );
 
-// Public SubCategory Endpoints
-export const fetchSubcategories = createAsyncThunk(
-  "subcategories/fetchAll",
-  async (
-    params: {
-      categoryId?: string;
-      skip?: number;
-      take?: number;
-      search?: string;
-    } = {},
-    { rejectWithValue }
-  ) => {
+// ==================== SUBCATEGORY ENDPOINTS ====================
+
+// Get all subcategories for a category
+export const fetchSubcategoriesByCategory = createAsyncThunk(
+  "subcategories/fetchByCategory",
+  async (categoryId: string, { rejectWithValue }) => {
     try {
-      const response = await api.get("/api/v1/subcategories", { params });
+      const response = await api.get(`/api/v1/categories/${categoryId}/subcategories`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -145,11 +175,15 @@ export const fetchSubcategories = createAsyncThunk(
   }
 );
 
+// Get a subcategory by ID under a specific category
 export const fetchSubcategory = createAsyncThunk(
   "subcategories/fetchOne",
-  async (id: string, { rejectWithValue }) => {
+  async (
+    { categoryId, id }: { categoryId: string; id: string },
+    { rejectWithValue }
+  ) => {
     try {
-      const response = await api.get(`/api/v1/subcategories/${id}`);
+      const response = await api.get(`/api/v1/categories/${categoryId}/subcategories/${id}`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -159,9 +193,139 @@ export const fetchSubcategory = createAsyncThunk(
   }
 );
 
-// ==================== ADMIN ENDPOINTS ====================
+// ==================== ATTRIBUTE ENDPOINTS ====================
 
-// Admin Category Endpoints
+// Get all attributes
+export const fetchAttributes = createAsyncThunk(
+  "attributes/fetchAll",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get("/api/v1/attributes");
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch attributes"
+      );
+    }
+  }
+);
+
+// Get attributes by category
+export const fetchAttributesByCategory = createAsyncThunk(
+  "attributes/fetchByCategory",
+  async (categoryId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/attributes/category/${categoryId}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch category attributes"
+      );
+    }
+  }
+);
+
+// Get an attribute by ID
+export const fetchAttribute = createAsyncThunk(
+  "attributes/fetchOne",
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/attributes/${id}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch attribute"
+      );
+    }
+  }
+);
+
+// Create a new attribute for a category
+export const createAttribute = createAsyncThunk(
+  "attributes/create",
+  async (
+    { 
+      categoryId, 
+      data 
+    }: { 
+      categoryId: string; 
+      data: Omit<Attribute, "id" | "createdAt" | "updatedAt">
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.post(`/api/v1/attributes/category/${categoryId}`, data);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to create attribute"
+      );
+    }
+  }
+);
+
+// Update an attribute
+export const updateAttribute = createAsyncThunk(
+  "attributes/update",
+  async (
+    { id, data }: { id: string; data: Partial<Attribute> },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.patch(`/api/v1/attributes/${id}`, data);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update attribute"
+      );
+    }
+  }
+);
+
+// Delete an attribute
+export const deleteAttribute = createAsyncThunk(
+  "attributes/delete",
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await api.delete(`/api/v1/attributes/${id}`);
+      return id;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to delete attribute"
+      );
+    }
+  }
+);
+
+// Assign attributes to subcategory
+export const assignAttributesToSubcategory = createAsyncThunk(
+  "attributes/assignToSubcategory",
+  async (
+    {
+      subcategoryId,
+      attributeIds,
+    }: { subcategoryId: string; attributeIds: string[] },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.post(
+        `/api/v1/attributes/subcategory/${subcategoryId}/assign`,
+        { attributeIds }
+      );
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to assign attributes"
+      );
+    }
+  }
+);
+
+// ==================== ADMIN ENDPOINTS (Based on common patterns) ====================
+
+// Note: Swagger doesn't show admin endpoints. These are based on typical REST patterns.
+// You may need to adjust based on actual API.
+
 export const createCategory = createAsyncThunk(
   "categories/create",
   async (
@@ -169,7 +333,7 @@ export const createCategory = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await api.post("/api/v1/admin/categories", categoryData);
+      const response = await api.post("/api/v1/categories", categoryData);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -186,7 +350,7 @@ export const updateCategory = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await api.patch(`/api/v1/admin/categories/${id}`, data);
+      const response = await api.patch(`/api/v1/categories/${id}`, data);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -200,7 +364,7 @@ export const deleteCategory = createAsyncThunk(
   "categories/delete",
   async (id: string, { rejectWithValue }) => {
     try {
-      await api.delete(`/api/v1/admin/categories/${id}`);
+      await api.delete(`/api/v1/categories/${id}`);
       return id;
     } catch (error: any) {
       return rejectWithValue(
@@ -210,35 +374,6 @@ export const deleteCategory = createAsyncThunk(
   }
 );
 
-export const fetchAdminCategories = createAsyncThunk(
-  "categories/fetchAdminAll",
-  async (_, { rejectWithValue }) => {
-    try {
-      const response = await api.get("/api/v1/admin/categories");
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch admin categories"
-      );
-    }
-  }
-);
-
-export const fetchAdminCategory = createAsyncThunk(
-  "categories/fetchAdminOne",
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(`/api/v1/admin/categories/${id}`);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch admin category"
-      );
-    }
-  }
-);
-
-// Admin SubCategory Endpoints
 export const createSubcategory = createAsyncThunk(
   "subcategories/create",
   async (
@@ -253,7 +388,7 @@ export const createSubcategory = createAsyncThunk(
   ) => {
     try {
       const response = await api.post(
-        `/api/v1/admin/categories/${data.categoryId}/subcategories`,
+        `/api/v1/categories/${data.categoryId}/subcategories`,
         {
           name: data.name,
           description: data.description,
@@ -285,7 +420,7 @@ export const updateSubcategory = createAsyncThunk(
   ) => {
     try {
       const response = await api.patch(
-        `/api/v1/admin/categories/${categoryId}/subcategories/${id}`,
+        `/api/v1/categories/${categoryId}/subcategories/${id}`,
         data
       );
       return response.data;
@@ -305,7 +440,7 @@ export const deleteSubcategory = createAsyncThunk(
   ) => {
     try {
       await api.delete(
-        `/api/v1/admin/categories/${categoryId}/subcategories/${id}`
+        `/api/v1/categories/${categoryId}/subcategories/${id}`
       );
       return id;
     } catch (error: any) {
@@ -316,102 +451,14 @@ export const deleteSubcategory = createAsyncThunk(
   }
 );
 
-export const fetchAdminSubcategories = createAsyncThunk(
-  "subcategories/fetchAdminAll",
-  async (
-    { categoryId }: { categoryId: string },
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.get(
-        `/api/v1/admin/categories/${categoryId}/subcategories`
-      );
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch admin subcategories"
-      );
-    }
-  }
-);
-
-export const fetchAdminSubcategory = createAsyncThunk(
-  "subcategories/fetchAdminOne",
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(`/api/v1/admin/subcategories/${id}`);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch admin subcategory"
-      );
-    }
-  }
-);
-
-// ==================== ATTRIBUTE ENDPOINTS ====================
-
-export const fetchAttributes = createAsyncThunk(
-  "attributes/fetchAll",
-  async (_, { rejectWithValue }) => {
-    try {
-      const response = await api.get("/api/v1/attributes");
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch attributes"
-      );
-    }
-  }
-);
-
-export const createAttribute = createAsyncThunk(
-  "attributes/create",
-  async (
-    data: Omit<Attribute, "id" | "createdAt" | "updatedAt">,
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.post("/api/v1/attributes", data);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to create attribute"
-      );
-    }
-  }
-);
-
-export const assignAttributesToSubcategory = createAsyncThunk(
-  "attributes/assignToSubcategory",
-  async (
-    {
-      subcategoryId,
-      attributeIds,
-    }: { subcategoryId: string; attributeIds: string[] },
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.post(
-        `/api/v1/subcategories/${subcategoryId}/attributes/assign`,
-        { attributeIds }
-      );
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to assign attributes"
-      );
-    }
-  }
-);
-
 // ==================== PRODUCT TYPE ENDPOINTS ====================
 
+// Note: These aren't in Swagger, but you may still need them
 export const fetchProductTypes = createAsyncThunk(
   "productTypes/fetchAll",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/api/v1/product-types");
+      const response = await api.get("/api/v1/product-types"); // Adjust endpoint as needed
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -435,44 +482,13 @@ export const createProductType = createAsyncThunk(
   ) => {
     try {
       const response = await api.post(
-        `/api/v1/product-types/subcategory/${subcategoryId}`,
+        `/api/v1/product-types/subcategory/${subcategoryId}`, // Adjust endpoint as needed
         data
       );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || "Failed to create product type"
-      );
-    }
-  }
-);
-
-export const updateProductType = createAsyncThunk(
-  "productTypes/update",
-  async (
-    { id, data }: { id: string; data: Partial<ProductType> },
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.patch(`/api/v1/product-types/${id}`, data);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to update product type"
-      );
-    }
-  }
-);
-
-export const deleteProductType = createAsyncThunk(
-  "productTypes/delete",
-  async (id: string, { rejectWithValue }) => {
-    try {
-      await api.delete(`/api/v1/product-types/${id}`);
-      return id;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to delete product type"
       );
     }
   }
@@ -496,10 +512,16 @@ const categoriesSlice = createSlice({
       state.error = null;
       state.createError = null;
     },
+    clearCategoryFeed: (state) => {
+      state.categoryFeed = [];
+    },
+    clearPopularCategories: (state) => {
+      state.popularCategories = [];
+    },
   },
   extraReducers: (builder) => {
     builder
-      // Public categories
+      // ==================== CATEGORIES ====================
       .addCase(fetchCategories.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -513,7 +535,32 @@ const categoriesSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // Fetch single category
+      .addCase(fetchCategoryFeed.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchCategoryFeed.fulfilled, (state, action) => {
+        state.loading = false;
+        state.categoryFeed = action.payload;
+      })
+      .addCase(fetchCategoryFeed.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(fetchPopularCategories.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPopularCategories.fulfilled, (state, action) => {
+        state.loading = false;
+        state.popularCategories = action.payload;
+      })
+      .addCase(fetchPopularCategories.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
       .addCase(fetchCategory.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -527,63 +574,6 @@ const categoriesSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // Public subcategories
-      .addCase(fetchSubcategories.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchSubcategories.fulfilled, (state, action) => {
-        state.loading = false;
-        state.subcategories = action.payload;
-      })
-      .addCase(fetchSubcategories.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Fetch single subcategory
-      .addCase(fetchSubcategory.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchSubcategory.fulfilled, (state, action) => {
-        state.loading = false;
-        state.selectedSubcategory = action.payload;
-      })
-      .addCase(fetchSubcategory.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Admin categories
-      .addCase(fetchAdminCategories.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchAdminCategories.fulfilled, (state, action) => {
-        state.loading = false;
-        state.categories = action.payload;
-      })
-      .addCase(fetchAdminCategories.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Fetch single admin category
-      .addCase(fetchAdminCategory.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchAdminCategory.fulfilled, (state, action) => {
-        state.loading = false;
-        state.selectedCategory = action.payload;
-      })
-      .addCase(fetchAdminCategory.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
-      // Create category
       .addCase(createCategory.pending, (state) => {
         state.createLoading = true;
         state.createError = null;
@@ -597,7 +587,6 @@ const categoriesSlice = createSlice({
         state.createError = action.payload as string;
       })
 
-      // Update category
       .addCase(updateCategory.fulfilled, (state, action) => {
         const index = state.categories.findIndex(
           (cat) => cat.id === action.payload.id
@@ -616,7 +605,6 @@ const categoriesSlice = createSlice({
         }
       })
 
-      // Delete category
       .addCase(deleteCategory.fulfilled, (state, action) => {
         state.categories = state.categories.filter(
           (cat) => cat.id !== action.payload
@@ -626,35 +614,33 @@ const categoriesSlice = createSlice({
         }
       })
 
-      // Admin subcategories
-      .addCase(fetchAdminSubcategories.pending, (state) => {
+      // ==================== SUBCATEGORIES ====================
+      .addCase(fetchSubcategoriesByCategory.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(fetchAdminSubcategories.fulfilled, (state, action) => {
+      .addCase(fetchSubcategoriesByCategory.fulfilled, (state, action) => {
         state.loading = false;
         state.subcategories = action.payload;
       })
-      .addCase(fetchAdminSubcategories.rejected, (state, action) => {
+      .addCase(fetchSubcategoriesByCategory.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
 
-      // Fetch single admin subcategory
-      .addCase(fetchAdminSubcategory.pending, (state) => {
+      .addCase(fetchSubcategory.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(fetchAdminSubcategory.fulfilled, (state, action) => {
+      .addCase(fetchSubcategory.fulfilled, (state, action) => {
         state.loading = false;
         state.selectedSubcategory = action.payload;
       })
-      .addCase(fetchAdminSubcategory.rejected, (state, action) => {
+      .addCase(fetchSubcategory.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
 
-      // Create subcategory
       .addCase(createSubcategory.pending, (state) => {
         state.createLoading = true;
         state.createError = null;
@@ -668,7 +654,6 @@ const categoriesSlice = createSlice({
         state.createError = action.payload as string;
       })
 
-      // Update subcategory
       .addCase(updateSubcategory.fulfilled, (state, action) => {
         const index = state.subcategories.findIndex(
           (sub) => sub.id === action.payload.id
@@ -687,7 +672,6 @@ const categoriesSlice = createSlice({
         }
       })
 
-      // Delete subcategory
       .addCase(deleteSubcategory.fulfilled, (state, action) => {
         state.subcategories = state.subcategories.filter(
           (sub) => sub.id !== action.payload
@@ -697,7 +681,7 @@ const categoriesSlice = createSlice({
         }
       })
 
-      // Fetch attributes
+      // ==================== ATTRIBUTES ====================
       .addCase(fetchAttributes.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -711,7 +695,39 @@ const categoriesSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // Create attribute
+      .addCase(fetchAttributesByCategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAttributesByCategory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.attributes = action.payload;
+      })
+      .addCase(fetchAttributesByCategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(fetchAttribute.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAttribute.fulfilled, (state, action) => {
+        state.loading = false;
+        // You might want to handle this differently
+        // For now, just update the attributes array
+        const index = state.attributes.findIndex(attr => attr.id === action.payload.id);
+        if (index !== -1) {
+          state.attributes[index] = action.payload;
+        } else {
+          state.attributes.push(action.payload);
+        }
+      })
+      .addCase(fetchAttribute.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
       .addCase(createAttribute.pending, (state) => {
         state.createLoading = true;
         state.createError = null;
@@ -725,7 +741,24 @@ const categoriesSlice = createSlice({
         state.createError = action.payload as string;
       })
 
-      // Assign attributes to subcategory
+      .addCase(updateAttribute.fulfilled, (state, action) => {
+        const index = state.attributes.findIndex(
+          (attr) => attr.id === action.payload.id
+        );
+        if (index !== -1) {
+          state.attributes[index] = {
+            ...state.attributes[index],
+            ...action.payload,
+          };
+        }
+      })
+
+      .addCase(deleteAttribute.fulfilled, (state, action) => {
+        state.attributes = state.attributes.filter(
+          (attr) => attr.id !== action.payload
+        );
+      })
+
       .addCase(assignAttributesToSubcategory.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -742,7 +775,7 @@ const categoriesSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // Fetch product types
+      // ==================== PRODUCT TYPES ====================
       .addCase(fetchProductTypes.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -756,7 +789,6 @@ const categoriesSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      // Create product type
       .addCase(createProductType.pending, (state) => {
         state.createLoading = true;
         state.createError = null;
@@ -768,26 +800,6 @@ const categoriesSlice = createSlice({
       .addCase(createProductType.rejected, (state, action) => {
         state.createLoading = false;
         state.createError = action.payload as string;
-      })
-
-      // Update product type
-      .addCase(updateProductType.fulfilled, (state, action) => {
-        const index = state.productTypes.findIndex(
-          (pt) => pt.id === action.payload.id
-        );
-        if (index !== -1) {
-          state.productTypes[index] = {
-            ...state.productTypes[index],
-            ...action.payload,
-          };
-        }
-      })
-
-      // Delete product type
-      .addCase(deleteProductType.fulfilled, (state, action) => {
-        state.productTypes = state.productTypes.filter(
-          (pt) => pt.id !== action.payload
-        );
       });
   },
 });
@@ -797,6 +809,8 @@ export const {
   setSelectedSubcategory,
   clearSelected,
   clearError,
+  clearCategoryFeed,
+  clearPopularCategories,
 } = categoriesSlice.actions;
 
 // Selectors
@@ -814,6 +828,10 @@ export const selectSelectedCategory = (state: {
 export const selectSelectedSubcategory = (state: {
   categories: CategoriesState;
 }) => state.categories.selectedSubcategory;
+export const selectCategoryFeed = (state: { categories: CategoriesState }) =>
+  state.categories.categoryFeed;
+export const selectPopularCategories = (state: { categories: CategoriesState }) =>
+  state.categories.popularCategories;
 export const selectCategoriesLoading = (state: {
   categories: CategoriesState;
 }) => state.categories.loading;
