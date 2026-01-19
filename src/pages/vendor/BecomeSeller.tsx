@@ -421,9 +421,11 @@ export default function BecomeSellerPage() {
           {/* Timeline */}
           <div className="relative mt-28">
             {/* Curved Line */}
+
+            <div className=" z-index-10">
             <svg
               viewBox="0 0 1200 300"
-              className="absolute top-0 left-0 w-full hidden lg:block"
+              className="absolute -top-43 left-0 w-full hidden lg:block"
               fill="none"
             >
               <path
@@ -433,19 +435,21 @@ export default function BecomeSellerPage() {
                 strokeLinecap="round"
               />
             </svg>
+              
+            </div>
 
             {/* Steps */}
             <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-y-24 gap-x-20">
               {/* Step 1 */}
               <div className="relative">
-                <span className="absolute -top-24 -left-8 text-[180px] font-bold text-slate-100 select-none">
+                <span className="absolute -top-14 left-16 text-[180px] font-bold text-slate-100 select-none">
                   1
                 </span>
-
-                <div className="relative z-10">
-                  <div className="w-12 h-12 bg-white rounded-full shadow flex items-center justify-center mb-6">
+                  <div className="absolute -left-2 w-12 h-12 bg-white rounded-full shadow flex items-center justify-center mb-6">
                     <div className="w-3 h-3 bg-orange-600 rounded-full" />
                   </div>
+
+                <div className="relative z-10 mt-42">
 
                   <h3 className="text-2xl font-bold text-slate-900 mb-4">
                     Create Your Storefront
@@ -461,14 +465,14 @@ export default function BecomeSellerPage() {
 
               {/* Step 2 */}
               <div className="relative lg:mt-20">
-                <span className="absolute -top-28 -left-8 text-[180px] font-bold text-slate-100 select-none">
+                <span className="absolute -top-14 left-38 text-[180px] font-bold text-slate-100 select-none">
                   2
                 </span>
-
-                <div className="relative z-10">
-                  <div className="w-12 h-12 bg-white rounded-full shadow flex items-center justify-center mb-6">
+                  <div className="absolute -top-15 left-26 w-12 h-12 bg-white rounded-full shadow flex items-center justify-center mb-6">
                     <div className="w-3 h-3 bg-orange-600 rounded-full" />
                   </div>
+
+                <div className="relative z-10 mt-44">
 
                   <h3 className="text-2xl font-bold text-slate-900 mb-4">
                     Undergo Curation Review
@@ -484,14 +488,14 @@ export default function BecomeSellerPage() {
 
               {/* Step 3 */}
               <div className="relative lg:mt-6">
-                <span className="absolute -top-28 -left-8 text-[180px] font-bold text-slate-100 select-none">
+                <span className="absolute -top-42 left-50 text-[180px] font-bold text-slate-100 select-none">
                   3
                 </span>
-
-                <div className="relative z-10">
-                  <div className="w-12 h-12 bg-white rounded-full shadow flex items-center justify-center mb-6">
+                  <div className="absolute -top-45 left-80 w-12 h-12 bg-white rounded-full shadow flex items-center justify-center mb-6">
                     <div className="w-3 h-3 bg-orange-600 rounded-full" />
                   </div>
+
+                <div className="relative z-10 mt-20">
 
                   <h3 className="text-2xl font-bold text-slate-900 mb-4">
                     List Your Products & Go Live
