@@ -84,12 +84,12 @@ export default function AdminEditCategoryPage() {
   // Use the Redux categories hook
   const {
     getCategory,
-    getAdminSubcategories,
+    getSubcategoriesForCategory,
     updateExistingCategory,
     createNewSubcategory,
     removeSubcategory,
     createNewProductType,
-    removeProductType,
+    // removeProductType,
     createNewAttribute,
 
     getAttributes,
@@ -127,7 +127,7 @@ export default function AdminEditCategoryPage() {
         );
 
         // Fetch subcategories
-        const subcategoriesData = await getAdminSubcategories(categoryId);
+        const subcategoriesData = await getSubcategoriesForCategory(categoryId);
         const transformedSubcategories: SubCategory[] = subcategoriesData.map(
           (subcat: any) => ({
             id: subcat.id,
@@ -433,12 +433,14 @@ export default function AdminEditCategoryPage() {
   };
 
   const handleRemoveSubCategoryType = async (id: string) => {
+    if(!categoryId) return;
+    
     if (
       window.confirm("Are you sure you want to delete this subcategory type?")
     ) {
       try {
         toast.loading("Removing subcategory type...", { id: "remove-type" });
-        await removeProductType(id);
+        await removeSubcategory(categoryId, id);
 
         setSubCategoryTypes((prev) => prev.filter((type) => type.id !== id));
         toast.success("Subcategory type removed", { id: "remove-type" });
