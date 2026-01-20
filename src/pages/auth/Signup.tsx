@@ -50,6 +50,8 @@ export default function SignUpPage() {
     checkEmailAvailability,
   } = useReduxAuth();
 
+
+
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {

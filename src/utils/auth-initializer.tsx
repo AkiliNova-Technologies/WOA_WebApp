@@ -321,7 +321,7 @@ export function AuthInitializer({ children }: { children: React.ReactNode }) {
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center space-y-8">
           <MorphingSpinner size="lg" />
-          <p className="text-gray-600">Loading</p>
+          {/* <p className="text-gray-600">Loading</p> */}
         </div>
       </div>
     );

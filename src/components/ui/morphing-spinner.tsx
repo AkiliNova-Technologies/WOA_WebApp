@@ -14,7 +14,7 @@ export function MorphingSpinner({ size = "md", className }: MorphingSpinnerProps
 
   return (
     <div className={cn("relative", sizeClasses[size], className)}>
-      <div className="absolute inset-0 animate-[smoothMorph_3s_ease-in-out_infinite] bg-primary" />
+      <div className="absolute inset-0 animate-[smoothMorph_3s_ease-in-out_infinite] bg-[#CC5500]" />
 
       <style>{`
         @keyframes smoothMorph {

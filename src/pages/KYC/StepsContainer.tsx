@@ -10,9 +10,8 @@ import Step5 from "./Step5";
 import { CheckCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-// Comment out real API imports
-// import api from "@/utils/api";
-// import kycApi from "@/utils/kyc-api";
+import api from "@/utils/api";
+import kycApi from "@/utils/kyc-api";
 
 // Define the form data type
 export interface FormData {
@@ -166,45 +165,6 @@ const getInitialCompletedSteps = (): number[] => {
   return [0];
 };
 
-// Mock API function for simulation
-const mockApiCall = async (endpoint: string, data?: any) => {
-  console.log(`Mock API call to ${endpoint}:`, data);
-  
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // Return mock responses based on endpoint
-  switch (endpoint) {
-    case "/api/v1/vendor/kyc":
-      return {
-        data: {
-          kycStatus: "draft",
-          emailVerified: false,
-          email: "",
-          sessionId: null
-        }
-      };
-    case "/api/v1/vendor/kyc/start":
-      return {
-        data: {
-          otpSent: true,
-          sessionId: `mock-session-${Date.now()}`,
-          message: "Verification code sent to your email"
-        }
-      };
-    case "/api/v1/vendor/kyc/submit":
-      return {
-        data: {
-          success: true,
-          message: "KYC submitted successfully",
-          kycId: `mock-kyc-${Date.now()}`
-        }
-      };
-    default:
-      return { data: { success: true } };
-  }
-};
-
 export default function StepsContainer() {
   const navigate = useNavigate();
   
@@ -266,12 +226,9 @@ export default function StepsContainer() {
     const checkExistingKYCStatus = async () => {
       setIsLoading(true);
       try {
-        // Comment out real API call and use mock
-        // const response = await kycApi.get("/api/v1/vendor/kyc");
-        const response = await mockApiCall("/api/v1/vendor/kyc");
-        
+        const response = await kycApi.get("/api/v1/vendor/kyc");
         if (response.data) {
-          setKycStatus(response.data.kycStatus as "draft" | "email_pending" | "email_verified" | "submitted");
+          setKycStatus(response.data.kycStatus);
           
           // If KYC is already submitted, redirect or show message
           if (response.data.kycStatus === 'submitted' || response.data.kycStatus === 'approved') {
@@ -384,13 +341,8 @@ export default function StepsContainer() {
     try {
       setIsStartingKYC(true);
 
-      // Call the backend endpoint to start KYC - using mock API
-      // const response = await api.post("/api/v1/vendor/kyc/start", {
-      //   email: formData.email,
-      //   phone_number: formData.phoneNumber,
-      // });
-      
-      const response = await mockApiCall("/api/v1/vendor/kyc/start", {
+      // Call the backend endpoint to start KYC
+      const response = await api.post("/api/v1/vendor/kyc/start", {
         email: formData.email,
         phone_number: formData.phoneNumber,
       });
@@ -561,15 +513,10 @@ export default function StepsContainer() {
         swift_code: formData.swiftCode || undefined,
       };
 
-      // Submit full KYC to the new endpoint - using mock API
-      // await api.post("/api/v1/vendor/kyc/submit", {
-      //   ...kycData,
-      //   email: formData.email, // Include email to match with verified user
-      // });
-      
-      await mockApiCall("/api/v1/vendor/kyc/submit", {
+      // Submit full KYC to the new endpoint
+      await api.post("/api/v1/vendor/kyc/submit", {
         ...kycData,
-        email: formData.email,
+        email: formData.email, // Include email to match with verified user
       });
 
       // Update local state

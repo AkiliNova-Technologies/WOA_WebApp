@@ -1,5 +1,4 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
-import { auth } from "@/config/firebase";
 
 const BASE_URL = "https://woa-backend.onrender.com";
 
@@ -24,24 +23,22 @@ const api = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
   headers: { "Content-Type": "application/json" },
-  withCredentials: true, // CRITICAL: Enable sending cookies
+  withCredentials: false,
 });
 
 const refreshApi = axios.create({
   baseURL: BASE_URL,
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
-  withCredentials: true, // CRITICAL: Enable sending cookies
+  withCredentials: false,
 });
 
-// Interface for auth data - UPDATED: No refresh token stored
 interface AuthData {
   userId: string;
   email: string;
   role: string;
   emailVerified: boolean;
   forcePasswordChange?: boolean;
-  accessToken: string; // Only access token in memory/storage
   tokenExpiry: number;
 }
 
@@ -56,10 +53,10 @@ interface AuthState {
   emailVerified?: boolean;
 }
 
-// In-memory token storage - MORE SECURE than localStorage
+
 let inMemoryAccessToken: string | null = null;
 
-// Function to set access token in memory
+
 export const setAccessToken = (token: string | null) => {
   inMemoryAccessToken = token;
   if (token) {
@@ -69,60 +66,28 @@ export const setAccessToken = (token: string | null) => {
   }
 };
 
-// Function to get access token from memory
+
 export const getAccessToken = (): string | null => {
   return inMemoryAccessToken;
 };
 
-// Function to get current auth state
+
 export const getAuthState = (): AuthState => {
   if (typeof window === "undefined") {
-    return {
-      hasToken: false,
-      accessToken: null,
-      user: null,
-    };
+    return { hasToken: false, accessToken: null, user: null };
   }
 
   try {
-    // Try in-memory first
-    if (inMemoryAccessToken) {
-      const authData = localStorage.getItem("authData");
-      if (authData) {
-        const parsedData: AuthData = JSON.parse(authData);
-        return {
-          hasToken: true,
-          accessToken: inMemoryAccessToken,
-          tokenExpiry: parsedData.tokenExpiry,
-          userId: parsedData.userId,
-          email: parsedData.email,
-          role: parsedData.role,
-          emailVerified: parsedData.emailVerified,
-          user: parsedData,
-        };
-      }
+    const authDataStr = localStorage.getItem("authData");
+    if (!authDataStr) {
+      return { hasToken: false, accessToken: null, user: null };
     }
 
-    // Fallback to localStorage (for page refresh scenarios)
-    const authData = localStorage.getItem("authData");
-    if (!authData) {
-      return {
-        hasToken: false,
-        accessToken: null,
-        user: null,
-      };
-    }
-
-    const parsedData: AuthData = JSON.parse(authData);
-    
-    // Restore to memory if found in localStorage
-    if (parsedData.accessToken) {
-      setAccessToken(parsedData.accessToken);
-    }
+    const parsedData: AuthData = JSON.parse(authDataStr);
 
     return {
-      hasToken: !!parsedData.accessToken,
-      accessToken: parsedData.accessToken || null,
+      hasToken: !!inMemoryAccessToken,
+      accessToken: inMemoryAccessToken,
       tokenExpiry: parsedData.tokenExpiry,
       userId: parsedData.userId,
       email: parsedData.email,
@@ -132,11 +97,7 @@ export const getAuthState = (): AuthState => {
     };
   } catch (error) {
     console.error("Error getting auth state:", error);
-    return {
-      hasToken: false,
-      accessToken: null,
-      user: null,
-    };
+    return { hasToken: false, accessToken: null, user: null };
   }
 };
 
@@ -163,172 +124,49 @@ export const saveAuthData = (loginResponse: {
   forcePasswordChange?: boolean;
   tokens: {
     accessToken: string;
-    tokenType: string;
     expiresInSec: number;
   };
 }) => {
   if (typeof window === "undefined") return;
 
-  try {
-    const authData: AuthData = {
-      userId: loginResponse.userId,
-      email: loginResponse.email,
-      role: loginResponse.role,
-      emailVerified: loginResponse.emailVerified,
-      forcePasswordChange: loginResponse.forcePasswordChange,
-      accessToken: loginResponse.tokens.accessToken,
-      tokenExpiry: Date.now() + loginResponse.tokens.expiresInSec * 1000,
-    };
+  const authData: AuthData = {
+    userId: loginResponse.userId,
+    email: loginResponse.email,
+    role: loginResponse.role,
+    emailVerified: loginResponse.emailVerified,
+    forcePasswordChange: loginResponse.forcePasswordChange,
+    tokenExpiry: Date.now() + loginResponse.tokens.expiresInSec * 1000,
+  };
 
-    // Store minimal data in localStorage (for persistence across page refresh)
-    localStorage.setItem("authData", JSON.stringify(authData));
-
-    // Set token in memory and axios headers
-    setAccessToken(loginResponse.tokens.accessToken);
-
-    console.log("✅ Auth data saved successfully (access token in memory)");
-  } catch (error) {
-    console.error("Error saving auth data:", error);
-  }
+  localStorage.setItem("authData", JSON.stringify(authData));
+  setAccessToken(loginResponse.tokens.accessToken);
 };
 
 // Function to refresh backend token - UPDATED: No manual refresh token handling
 const refreshBackendToken = async (): Promise<string> => {
-  try {
-    console.log("🔄 Attempting to refresh backend token via HttpOnly cookie...");
+  const response = await refreshApi.post("/api/v1/auth/refresh");
 
-    // CRITICAL: Just call refresh endpoint - cookie is sent automatically
-    // No need to manually send refresh token!
-    const response = await refreshApi.post("/api/v1/auth/refresh", {});
+  const { accessToken, expiresInSec } = response.data.tokens;
 
-    if (response.data.tokens?.accessToken) {
-      const newAccessToken = response.data.tokens.accessToken;
-
-      // Update in-memory token
-      setAccessToken(newAccessToken);
-
-      // Update localStorage with new token and expiry
-      if (typeof window !== "undefined") {
-        const authData = localStorage.getItem("authData");
-        if (authData) {
-          const parsedData: AuthData = JSON.parse(authData);
-          const updatedAuthData: AuthData = {
-            userId: response.data.userId || parsedData.userId,
-            email: response.data.email || parsedData.email,
-            role: response.data.role || parsedData.role,
-            emailVerified: response.data.emailVerified ?? parsedData.emailVerified,
-            forcePasswordChange: parsedData.forcePasswordChange,
-            accessToken: newAccessToken,
-            tokenExpiry: Date.now() + (response.data.tokens.expiresInSec || 900) * 1000,
-          };
-
-          localStorage.setItem("authData", JSON.stringify(updatedAuthData));
-
-          // Also update user in localStorage if needed
-          const userStr = localStorage.getItem("user");
-          if (userStr) {
-            try {
-              const user = JSON.parse(userStr);
-              user.emailVerified = response.data.emailVerified ?? user.emailVerified;
-              localStorage.setItem("user", JSON.stringify(user));
-            } catch (e) {
-              console.error("Error updating user data:", e);
-            }
-          }
-        }
-      }
-
-      console.log("✅ Backend token refreshed successfully");
-      return newAccessToken;
-    }
-
-    throw new Error("Invalid refresh response format");
-  } catch (error: any) {
-    console.error("❌ Backend token refresh failed:", error);
-
-    if (error.response) {
-      console.error("Response status:", error.response.status);
-      console.error("Response data:", error.response.data);
-    }
-
-    // Clear invalid auth data
-    if (typeof window !== "undefined") {
-      clearAuthData();
-    }
-
-    throw error;
+  const authDataStr = localStorage.getItem("authData");
+  if (authDataStr) {
+    const authData: AuthData = JSON.parse(authDataStr);
+    authData.tokenExpiry = Date.now() + expiresInSec * 1000;
+    localStorage.setItem("authData", JSON.stringify(authData));
   }
+
+  setAccessToken(accessToken);
+  return accessToken;
 };
 
 // Request interceptor to add auth token
-api.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
-    // Skip auth for refresh endpoint
-    if (config.url?.includes("/auth/refresh")) {
-      return config;
-    }
-
-    // Get token from memory first
-    let token = getAccessToken();
-
-    // If not in memory, try to restore from localStorage
-    if (!token && typeof window !== "undefined") {
-      try {
-        const authData = localStorage.getItem("authData");
-        if (authData) {
-          const parsedData: AuthData = JSON.parse(authData);
-          if (parsedData.accessToken) {
-            token = parsedData.accessToken;
-            setAccessToken(token); // Restore to memory
-          }
-        }
-      } catch (error) {
-        console.error("Error reading auth token from localStorage:", error);
-      }
-    }
-
-    if (token) {
-      // Check if token is expired or about to expire
-      if (isTokenExpired(token, 5)) {
-        console.log("⚠️ Token expired or about to expire, refreshing...");
-
-        // If not already refreshing, trigger refresh
-        if (!isRefreshing) {
-          try {
-            const newToken = await refreshBackendToken();
-            config.headers.Authorization = `Bearer ${newToken}`;
-            return config;
-          } catch (error) {
-            console.error("Failed to refresh token in request interceptor:", error);
-            // Continue with existing token, let response interceptor handle it
-          }
-        }
-      }
-
-      config.headers.Authorization = `Bearer ${token}`;
-      return config;
-    }
-
-    // Fallback to Firebase auth for specific endpoints
-    const isAuthEndpoint = config.url?.includes("/auth/");
-    if (isAuthEndpoint && auth.currentUser) {
-      try {
-        const firebaseToken = await auth.currentUser.getIdToken();
-        if (firebaseToken) {
-          config.headers.Authorization = `Bearer ${firebaseToken}`;
-        }
-      } catch (error) {
-        console.error("Error getting Firebase token:", error);
-      }
-    }
-
-    return config;
-  },
-  (error) => {
-    console.error("❌ Request interceptor error:", error);
-    return Promise.reject(error);
+api.interceptors.request.use(async (config) => {
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
 // Response interceptor with enhanced token refresh
 api.interceptors.response.use(
@@ -391,7 +229,9 @@ api.interceptors.response.use(
         // Dispatch logout event
         window.dispatchEvent(new CustomEvent("auth:logout"));
 
-        return Promise.reject(new Error("Session expired. Please login again."));
+        return Promise.reject(
+          new Error("Session expired. Please login again."),
+        );
       } finally {
         isRefreshing = false;
       }
@@ -409,20 +249,23 @@ api.interceptors.response.use(
           const retryDelay = originalRequest._retryCount * 1000;
 
           return new Promise((resolve) => {
-            setTimeout(() => {
-              resolve(api(originalRequest));
-            }, Math.min(retryDelay, 5000));
+            setTimeout(
+              () => {
+                resolve(api(originalRequest));
+              },
+              Math.min(retryDelay, 5000),
+            );
           });
         }
       }
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 // Track if scheduler is running
-let schedulerInterval: NodeJS.Timeout | null = null;
+let schedulerInterval: ReturnType<typeof setInterval> | null = null;
 
 // Function to proactively refresh token before expiry
 export const startTokenRefreshScheduler = (): (() => void) | null => {
@@ -488,30 +331,10 @@ export const checkAuthSession = (): boolean => {
 
   const token = getAccessToken();
   if (!token) {
-    // Try to restore from localStorage
-    const authData = localStorage.getItem("authData");
-    if (!authData) return false;
-
-    try {
-      const parsedData: AuthData = JSON.parse(authData);
-      if (!parsedData.accessToken) return false;
-
-      // Check if token is expired (with no buffer)
-      if (isTokenExpired(parsedData.accessToken, 0)) {
-        console.log("❌ Access token expired");
-        return false;
-      }
-
-      // Restore to memory
-      setAccessToken(parsedData.accessToken);
-      return true;
-    } catch (error) {
-      console.error("Error checking auth session:", error);
-      return false;
-    }
+    // No in-memory token — session may still be valid via refresh cookie
+    return true; // allow app to attempt silent refresh
   }
 
-  // Check if token in memory is expired
   if (isTokenExpired(token, 0)) {
     console.log("❌ Access token expired");
     return false;

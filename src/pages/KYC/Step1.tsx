@@ -5,13 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import type { FormData } from "./StepsContainer";
-// import api from "@/utils/api";
+import api from "@/utils/api";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { Loader2, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle } from "lucide-react"
 import { Progress } from "@/components/ui/progress";
 import images from "@/assets/images";
 import { toast } from "sonner";
@@ -35,7 +35,7 @@ interface Step1Props {
   onEmailVerified?: () => void;
   requestVerification: boolean;
   onVerificationStarted: () => void;
-  kycStatus?: "draft" | "email_pending" | "email_verified" | "submitted";
+  kycStatus?: 'draft' | 'email_pending' | 'email_verified' | 'submitted';
 }
 
 export default function Step1({
@@ -44,7 +44,7 @@ export default function Step1({
   onEmailVerified,
   requestVerification,
   onVerificationStarted,
-  kycStatus = "draft",
+  kycStatus = 'draft',
 }: Step1Props) {
   const [showVerification, setShowVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
@@ -65,7 +65,7 @@ export default function Step1({
 
   // Auto-show verification if KYC is in email_pending status
   useEffect(() => {
-    if (kycStatus === "email_pending" && !showVerification) {
+    if (kycStatus === 'email_pending' && !showVerification) {
       setShowVerification(true);
       setTimeLeft(60);
     }
@@ -92,23 +92,17 @@ export default function Step1({
 
   // Auto-verify when all 5 digits are entered
   useEffect(() => {
-    if (
-      showVerification &&
-      verificationCode.length === 5 &&
-      !isVerifying &&
-      !isAutoVerifying
-    ) {
+    if (showVerification && verificationCode.length === 5 && !isVerifying && !isAutoVerifying) {
       // Small delay to allow user to see the full code
       const timer = setTimeout(() => {
         handleAutoVerify();
       }, 300);
-
+      
       return () => clearTimeout(timer);
     }
   }, [verificationCode, showVerification, isVerifying, isAutoVerifying]);
 
   // Debounced email availability check using auth hook
-  // Replace the real email availability check with mock
   const checkEmailAvailabilityDebounced = useCallback(
     debounce(async (email: string) => {
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -124,14 +118,13 @@ export default function Step1({
 
       setCheckingEmail(true);
       setEmailError("");
-
+      
       try {
-        // 🔒 COMMENTED OUT REAL API CALL
-        // const result = await checkEmailAvailability(email);
-        // const available = result.available || false;
-
-        // 🔧 MOCK DATA: Always return true for simulation
-        const available = true; // Mock: email is always available
+        // Use the auth hook to check email availability
+        const result = await checkEmailAvailability(email);
+        
+        // Assuming the API returns { available: boolean }
+        const available = result.available || false;
         setEmailAvailable(available);
 
         if (!available) {
@@ -140,35 +133,31 @@ export default function Step1({
       } catch (error: any) {
         console.error("Email check failed:", error);
         setEmailAvailable(null);
-
-        // 🔒 COMMENTED OUT FALLBACK API CALL
-        /*
-      if (error.response?.status === 404) {
-        console.log("Email availability check endpoint not available");
-        try {
-          const fallbackResponse = await api.post("/api/v1/auth/email-availability", {
-            email: email,
-          });
-          setEmailAvailable(fallbackResponse.data.available);
-          if (!fallbackResponse.data.available) {
-            setEmailError("This email is already registered");
+        
+        // Handle specific error cases
+        if (error.response?.status === 404) {
+          console.log("Email availability check endpoint not available");
+          // Fallback to direct API call if needed
+          try {
+            const fallbackResponse = await api.post("/api/v1/auth/email-availability", {
+              email: email,
+            });
+            setEmailAvailable(fallbackResponse.data.available);
+            if (!fallbackResponse.data.available) {
+              setEmailError("This email is already registered");
+            }
+          } catch (fallbackError) {
+            console.error("Fallback email check failed:", fallbackError);
+            setEmailError("Could not verify email availability");
           }
-        } catch (fallbackError) {
-          console.error("Fallback email check failed:", fallbackError);
-          setEmailError("Could not verify email availability");
+        } else {
+          setEmailError(error.message || "Could not verify email availability");
         }
-      } else {
-        setEmailError(error.message || "Could not verify email availability");
-      }
-      */
-
-        // 🔧 MOCK DATA: Simulate network error
-        setEmailError("Could not verify email availability (simulated)");
       } finally {
         setCheckingEmail(false);
       }
     }, 500),
-    [formData.emailVerified, checkEmailAvailability],
+    [formData.emailVerified, checkEmailAvailability]
   );
 
   const handleInputChange = (field: keyof FormData, value: string) => {
@@ -178,15 +167,15 @@ export default function Step1({
     if (field === "email") {
       setEmailError("");
       setEmailAvailable(null);
-
+      
       // Cancel any pending debounced check
       checkEmailAvailabilityDebounced.cancel?.();
-
+      
       // Check immediately if email is empty or invalid
       if (!value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         return;
       }
-
+      
       checkEmailAvailabilityDebounced(value);
     }
   };
@@ -205,15 +194,13 @@ export default function Step1({
   useEffect(() => {
     if (!requestVerification) return;
 
-    console.log(
-      "📧 Parent requested verification - showing UI (OTP already sent by parent)",
-    );
-
+    console.log("📧 Parent requested verification - showing UI (OTP already sent by parent)");
+    
     // Parent has already sent the OTP via startKYCProcess()
     // We just need to show the verification UI
     setShowVerification(true);
     setTimeLeft(60);
-
+    
     // Reset parent flag immediately to prevent loops
     onVerificationStarted();
   }, [requestVerification, onVerificationStarted]);
@@ -235,15 +222,13 @@ export default function Step1({
     setVerificationError("");
 
     try {
-      // 🔒 COMMENTED OUT REAL API CALL
-      // const response = await api.post("/api/v1/vendor/kyc/email/verify", {
-      //   email: formData.email,
-      //   code: verificationCode,
-      // });
+      // Verify code with the NEW KYC email verification endpoint
+      const response = await api.post("/api/v1/vendor/kyc/email/verify", {
+        email: formData.email,
+        code: verificationCode,
+      });
 
-      // 🔧 MOCK DATA: Simulate successful verification
-      // For simulation, accept any code that's exactly 5 digits
-      if (verificationCode.length === 5) {
+      if (response.data.emailVerified) {
         // On success, update form data and call callback
         updateFormData({ emailVerified: true });
         if (onEmailVerified) {
@@ -252,27 +237,13 @@ export default function Step1({
         toast.success("Email verified successfully!");
         setShowVerification(false);
       } else {
-        throw new Error("Invalid verification code");
+        throw new Error("Email verification failed");
       }
-
-      /*
-    if (response.data.emailVerified) {
-      // On success, update form data and call callback
-      updateFormData({ emailVerified: true });
-      if (onEmailVerified) {
-        onEmailVerified();
-      }
-      toast.success("Email verified successfully!");
-      setShowVerification(false);
-    } else {
-      throw new Error("Email verification failed");
-    }
-    */
     } catch (error: any) {
       console.error("Error verifying code:", error);
-      setVerificationAttempts((prev) => prev + 1);
-      // 🔧 MOCK DATA: Show mock error
-      const errorMessage = "Invalid verification code. Please try again.";
+      setVerificationAttempts(prev => prev + 1);
+      const errorMessage = error?.response?.data?.message ||
+        "Invalid verification code. Please try again.";
       setVerificationError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -281,50 +252,46 @@ export default function Step1({
     }
   };
 
- const handleResend = async () => {
-  // Check cooldown
-  if (timeLeft > 0) {
-    const errorMessage = `Please wait ${timeLeft} seconds before resending`;
-    setVerificationError(errorMessage);
-    toast.error(errorMessage);
-    return;
-  }
+  const handleResend = async () => {
+    // Check cooldown
+    if (timeLeft > 0) {
+      const errorMessage = `Please wait ${timeLeft} seconds before resending`;
+      setVerificationError(errorMessage);
+      toast.error(errorMessage);
+      return;
+    }
 
-  // Check attempts limit
-  if (verificationAttempts >= 3) {
-    const errorMessage = "Too many attempts. Please try again later.";
-    setVerificationError(errorMessage);
-    toast.error(errorMessage);
-    return;
-  }
+    // Check attempts limit
+    if (verificationAttempts >= 3) {
+      const errorMessage = "Too many attempts. Please try again later.";
+      setVerificationError(errorMessage);
+      toast.error(errorMessage);
+      return;
+    }
 
-  try {
-    setIsSendingCode(true);
-    
-    console.log("📧 Resending OTP via /api/v1/vendor/kyc/email/otp");
-    
-    // 🔒 COMMENTED OUT REAL API CALL
-    // await api.post("/api/v1/vendor/kyc/email/otp", {
-    //   email: formData.email
-    // });
-    
-    // 🔧 MOCK DATA: Simulate successful resend
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+    try {
+      setIsSendingCode(true);
+      
+      console.log("📧 Resending OTP via /api/v1/vendor/kyc/email/otp");
+      
+      // Use the KYC OTP endpoint for resending
+      await api.post("/api/v1/vendor/kyc/email/otp", {
+        email: formData.email
+      });
 
-    setTimeLeft(60);
-    setVerificationCode("");
-    setVerificationError("");
-    toast.success("Verification code resent to your email (Simulated)");
-  } catch (error: any) {
-    console.error("Error resending code:", error);
-    // 🔧 MOCK DATA: Show mock error
-    const errorMessage = "Failed to resend verification code (simulated)";
-    setVerificationError(errorMessage);
-    toast.error(errorMessage);
-  } finally {
-    setIsSendingCode(false);
-  }
-};
+      setTimeLeft(60);
+      setVerificationCode("");
+      setVerificationError("");
+      toast.success("Verification code resent to your email");
+    } catch (error: any) {
+      console.error("Error resending code:", error);
+      const errorMessage = error?.response?.data?.message || "Failed to resend verification code";
+      setVerificationError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
 
   // Show email verification status if already verified
   useEffect(() => {
@@ -418,14 +385,12 @@ export default function Step1({
                       Checking...
                     </span>
                   )}
-                  {emailAvailable === true &&
-                    !checkingEmail &&
-                    !formData.emailVerified && (
-                      <span className="text-xs text-green-600 flex items-center gap-1">
-                        <CheckCircle className="h-3 w-3" />
-                        Available
-                      </span>
-                    )}
+                  {emailAvailable === true && !checkingEmail && !formData.emailVerified && (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Available
+                    </span>
+                  )}
                 </div>
                 <Input
                   id="email"
@@ -442,7 +407,9 @@ export default function Step1({
                   </p>
                 )}
                 {emailError && !formData.emailVerified && (
-                  <p className="text-xs text-red-600 mt-1">{emailError}</p>
+                  <p className="text-xs text-red-600 mt-1">
+                    {emailError}
+                  </p>
                 )}
               </div>
               <div>
@@ -524,22 +491,22 @@ export default function Step1({
                 </span>{" "}
                 to verify your account.
               </p>
-
+              
               {/* Attempts counter */}
               {verificationAttempts > 0 && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                   Attempts: {verificationAttempts}/3
                 </p>
               )}
-
+              
               {/* Cooldown indicator */}
               {timeLeft > 0 && (
                 <div className="w-full max-w-xs mt-2">
                   <p className="text-xs text-gray-400 dark:text-gray-500 text-center mb-1">
                     You can resend in {timeLeft}s
                   </p>
-                  <Progress
-                    value={((60 - timeLeft) / 60) * 100}
+                  <Progress 
+                    value={((60 - timeLeft) / 60) * 100} 
                     className="h-1 bg-gray-200 dark:bg-gray-700"
                   />
                 </div>
@@ -561,19 +528,21 @@ export default function Step1({
                 >
                   <InputOTPGroup>
                     {[...Array(5)].map((_, index) => (
-                      <InputOTPSlot
-                        key={index}
+                      <InputOTPSlot 
+                        key={index} 
                         index={index}
                         className="border-gray-300 dark:border-gray-600 h-14 w-12 text-xl"
                       />
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
+                
+                
               </div>
-
+              
               <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                {isVerifying
-                  ? "Verifying your code..."
+                {isVerifying 
+                  ? "Verifying your code..." 
                   : "Enter the 5-digit code sent to your email (auto-verifies when complete)"}
               </p>
             </div>
@@ -582,11 +551,7 @@ export default function Step1({
             <div className="mb-4">
               <Button
                 onClick={handleManualVerify}
-                disabled={
-                  verificationCode.length !== 5 ||
-                  isVerifying ||
-                  verificationAttempts >= 3
-                }
+                disabled={verificationCode.length !== 5 || isVerifying || verificationAttempts >= 3}
                 className="w-full h-11 bg-[#CC5500] hover:bg-[#b04f00] text-white rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isVerifying ? (
@@ -611,18 +576,13 @@ export default function Step1({
               <Button
                 type="button"
                 onClick={handleResend}
-                disabled={
-                  timeLeft > 0 || isSendingCode || verificationAttempts >= 3
-                }
+                disabled={timeLeft > 0 || isSendingCode || verificationAttempts >= 3}
                 className="text-[#1B84FF] text-md bg-transparent border-none hover:bg-transparent p-0 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSendingCode
-                  ? "Sending..."
-                  : timeLeft > 0
-                    ? `Resend (${timeLeft}s)`
-                    : verificationAttempts >= 3
-                      ? "Too many attempts"
-                      : "Resend"}
+                {isSendingCode ? "Sending..." : 
+                 timeLeft > 0 ? `Resend (${timeLeft}s)` : 
+                 verificationAttempts >= 3 ? "Too many attempts" : 
+                 "Resend"}
               </Button>
             </div>
 

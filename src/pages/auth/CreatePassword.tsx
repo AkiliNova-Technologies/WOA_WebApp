@@ -25,7 +25,7 @@ interface PasswordRequirements {
   hasUppercase: boolean;
   hasNumber: boolean;
   hasSpecialChar: boolean;
-  specialChars: string[]; // Track which special characters are actually present
+  specialChars: string[];
 }
 
 export default function CreatePasswordPage() {

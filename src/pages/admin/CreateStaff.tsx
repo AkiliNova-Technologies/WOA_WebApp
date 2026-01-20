@@ -17,12 +17,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  ArrowLeft,
-  ChevronDown,
-  Loader2,
-  User,
-} from "lucide-react";
+import { ArrowLeft, ChevronDown, Loader2, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useReduxAdmin } from "@/hooks/useReduxAdmin";
 import { toast } from "sonner";
@@ -100,22 +95,28 @@ export default function AdminCreateStaffPage() {
   ];
 
   // Group permissions by module
-  const groupedPermissions = permissions.reduce((acc, permission) => {
-    const module = permission.module || "other";
-    if (!acc[module]) {
-      acc[module] = [];
-    }
-    acc[module].push(permission);
-    return acc;
-  }, {} as Record<string, typeof permissions>);
+  const groupedPermissions = permissions.reduce(
+    (acc, permission) => {
+      const module = permission.module || "other";
+      if (!acc[module]) {
+        acc[module] = [];
+      }
+      acc[module].push(permission);
+      return acc;
+    },
+    {} as Record<string, typeof permissions>,
+  );
 
   // Initialize collapsible sections when permissions load
   useEffect(() => {
     if (permissions.length > 0) {
-      const sections = Object.keys(groupedPermissions).reduce((acc, module) => {
-        acc[module] = false; // Closed by default to match screenshot
-        return acc;
-      }, {} as Record<string, boolean>);
+      const sections = Object.keys(groupedPermissions).reduce(
+        (acc, module) => {
+          acc[module] = false; // Closed by default to match screenshot
+          return acc;
+        },
+        {} as Record<string, boolean>,
+      );
       setOpenSections(sections);
     }
   }, [permissions.length]);
@@ -123,7 +124,7 @@ export default function AdminCreateStaffPage() {
   // Handle form input changes
   const handleInputChange = (
     field: keyof FormData,
-    value: string | string[]
+    value: string | string[],
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -145,9 +146,9 @@ export default function AdminCreateStaffPage() {
   const handleModuleToggle = (module: string) => {
     const modulePermissions = groupedPermissions[module] || [];
     const modulePermissionIds = modulePermissions.map((p) => p.id);
-    
+
     const allModulePermissionsSelected = modulePermissionIds.every((id) =>
-      formData.permissionIds.includes(id)
+      formData.permissionIds.includes(id),
     );
 
     setFormData((prev) => ({
@@ -157,7 +158,7 @@ export default function AdminCreateStaffPage() {
         : [
             ...prev.permissionIds,
             ...modulePermissionIds.filter(
-              (id) => !prev.permissionIds.includes(id)
+              (id) => !prev.permissionIds.includes(id),
             ),
           ],
     }));
@@ -177,7 +178,7 @@ export default function AdminCreateStaffPage() {
       setIsSavingDraft(true);
       // Implement draft saving logic here
       // For now, we'll just save to localStorage
-      localStorage.setItem('staffDraft', JSON.stringify(formData));
+      localStorage.setItem("staffDraft", JSON.stringify(formData));
       toast.success("Draft saved successfully");
     } catch (error) {
       console.error("Failed to save draft:", error);
@@ -216,8 +217,12 @@ export default function AdminCreateStaffPage() {
         phoneNumber: formData.phoneNumber || undefined,
         department: formData.department || undefined,
         role: formData.role,
-        appRoleIds: formData.appRoleIds.length > 0 ? formData.appRoleIds : undefined,
-        permissionIds: formData.permissionIds.length > 0 ? formData.permissionIds : undefined,
+        appRoleIds:
+          formData.appRoleIds.length > 0 ? formData.appRoleIds : undefined,
+        permissionIds:
+          formData.permissionIds.length > 0
+            ? formData.permissionIds
+            : undefined,
       };
 
       console.log("Submitting admin data:", adminData);
@@ -225,7 +230,7 @@ export default function AdminCreateStaffPage() {
       await createNewAdmin(adminData);
 
       // Clear draft from localStorage
-      localStorage.removeItem('staffDraft');
+      localStorage.removeItem("staffDraft");
 
       toast.success("Staff member created successfully!", {
         description: "An invitation email has been sent to the staff member.",
@@ -245,7 +250,7 @@ export default function AdminCreateStaffPage() {
     if (modulePermissions.length === 0) return false;
 
     return modulePermissions.every((p) =>
-      formData.permissionIds.includes(p.id)
+      formData.permissionIds.includes(p.id),
     );
   };
 
@@ -268,7 +273,7 @@ export default function AdminCreateStaffPage() {
     };
 
     // Try to load draft from localStorage
-    const savedDraft = localStorage.getItem('staffDraft');
+    const savedDraft = localStorage.getItem("staffDraft");
     if (savedDraft) {
       try {
         const draft = JSON.parse(savedDraft);
@@ -300,61 +305,59 @@ export default function AdminCreateStaffPage() {
       <SiteHeader label="Staff Management" />
       <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a]">
         {/* Header Bar */}
-        <div className="bg-white dark:bg-[#1a1a1a] border-b dark:border-gray-800">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
+        <Card className="my-6 mx-6 py-4 px-6">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/admin/users/staff")}
+              disabled={createLoading || isSavingDraft}
+              className="gap-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+
+            <div className="flex items-center gap-3">
               <Button
-                variant="ghost"
+                variant="outline"
                 onClick={() => navigate("/admin/users/staff")}
                 disabled={createLoading || isSavingDraft}
-                className="gap-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="border-gray-300 dark:border-gray-700"
               >
-                <ArrowLeft className="h-4 w-4" />
-                Back
+                Cancel
               </Button>
-              
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/admin/users/staff")}
-                  disabled={createLoading || isSavingDraft}
-                  className="border-gray-300 dark:border-gray-700"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleSaveAsDraft}
-                  disabled={createLoading || isSavingDraft}
-                  className="border-gray-300 dark:border-gray-700"
-                >
-                  {isSavingDraft ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save as draft"
-                  )}
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={!isFormValid || createLoading || isSavingDraft}
-                  className="bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
-                >
-                  {createLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Save Staff"
-                  )}
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                onClick={handleSaveAsDraft}
+                disabled={createLoading || isSavingDraft}
+                className="border-gray-300 dark:border-gray-700"
+              >
+                {isSavingDraft ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save as draft"
+                )}
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={!isFormValid || createLoading || isSavingDraft}
+                className="bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200"
+              >
+                {createLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Save Staff"
+                )}
+              </Button>
             </div>
           </div>
-        </div>
+        </Card>
 
         <div className="max-w-8xl mx-auto px-6 py-8">
           {/* Loading State */}
@@ -375,7 +378,8 @@ export default function AdminCreateStaffPage() {
                 Create new staff member
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Add a new team member with specific role assignments and permissions
+                Add a new team member with specific role assignments and
+                permissions
               </p>
             </div>
 
@@ -393,35 +397,48 @@ export default function AdminCreateStaffPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label
+                      htmlFor="firstName"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
                       First Name <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="firstName"
                       placeholder="e.g. John"
                       value={formData.firstName}
-                      onChange={(e) => handleInputChange("firstName", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("firstName", e.target.value)
+                      }
                       disabled={createLoading}
                       className="h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="lastName" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label
+                      htmlFor="lastName"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
                       Last Name <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="lastName"
                       placeholder="e.g. Doe"
                       value={formData.lastName}
-                      onChange={(e) => handleInputChange("lastName", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("lastName", e.target.value)
+                      }
                       disabled={createLoading}
                       className="h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label
+                      htmlFor="email"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
                       Email Address <span className="text-red-500">*</span>
                     </Label>
                     <Input
@@ -429,21 +446,28 @@ export default function AdminCreateStaffPage() {
                       type="email"
                       placeholder="e.g. john.doe@gmail.com"
                       value={formData.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("email", e.target.value)
+                      }
                       disabled={createLoading}
                       className="h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phoneNumber" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label
+                      htmlFor="phoneNumber"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
                       Phone Number <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="phoneNumber"
                       placeholder="e.g. Doe"
                       value={formData.phoneNumber}
-                      onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("phoneNumber", e.target.value)
+                      }
                       disabled={createLoading}
                       className="h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700"
                     />
@@ -465,10 +489,7 @@ export default function AdminCreateStaffPage() {
                       </SelectTrigger>
                       <SelectContent className="bg-white dark:bg-gray-900">
                         {departments.map((dept) => (
-                          <SelectItem
-                            key={dept.id}
-                            value={dept.id}
-                          >
+                          <SelectItem key={dept.id} value={dept.id}>
                             {dept.name}
                           </SelectItem>
                         ))}
@@ -492,10 +513,7 @@ export default function AdminCreateStaffPage() {
                       </SelectTrigger>
                       <SelectContent className="bg-white dark:bg-gray-900">
                         {roles.map((role) => (
-                          <SelectItem
-                            key={role.id}
-                            value={role.id}
-                          >
+                          <SelectItem key={role.id} value={role.id}>
                             {role.name}
                           </SelectItem>
                         ))}
@@ -534,7 +552,9 @@ export default function AdminCreateStaffPage() {
                               <div className="flex items-center gap-3">
                                 <Checkbox
                                   checked={isModuleSelected(module)}
-                                  onCheckedChange={() => handleModuleToggle(module)}
+                                  onCheckedChange={() =>
+                                    handleModuleToggle(module)
+                                  }
                                   onClick={(e) => e.stopPropagation()}
                                   className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
                                   aria-label={`Toggle all ${formatModuleName(module)} permissions`}
@@ -557,42 +577,84 @@ export default function AdminCreateStaffPage() {
                             <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/30 p-4">
                               <div className="space-y-3">
                                 {/* Sub-category headers (if applicable) */}
-                                {modulePermissions.some(p => p.name.includes("Management")) && (
+                                {modulePermissions.some((p) =>
+                                  p.name.includes("Management"),
+                                ) && (
                                   <div className="space-y-3">
                                     <div className="flex items-center gap-3 pb-2">
                                       <Checkbox
                                         checked={modulePermissions
-                                          .filter(p => p.name.includes("Management"))
-                                          .every(p => formData.permissionIds.includes(p.id))}
+                                          .filter((p) =>
+                                            p.name.includes("Management"),
+                                          )
+                                          .every((p) =>
+                                            formData.permissionIds.includes(
+                                              p.id,
+                                            ),
+                                          )}
                                         onCheckedChange={() => {
                                           const mgmtPerms = modulePermissions
-                                            .filter(p => p.name.includes("Management"))
-                                            .map(p => p.id);
-                                          const allSelected = mgmtPerms.every(id =>
-                                            formData.permissionIds.includes(id)
+                                            .filter((p) =>
+                                              p.name.includes("Management"),
+                                            )
+                                            .map((p) => p.id);
+                                          const allSelected = mgmtPerms.every(
+                                            (id) =>
+                                              formData.permissionIds.includes(
+                                                id,
+                                              ),
                                           );
-                                          setFormData(prev => ({
+                                          setFormData((prev) => ({
                                             ...prev,
                                             permissionIds: allSelected
-                                              ? prev.permissionIds.filter(id => !mgmtPerms.includes(id))
-                                              : [...prev.permissionIds, ...mgmtPerms.filter(id => !prev.permissionIds.includes(id))]
+                                              ? prev.permissionIds.filter(
+                                                  (id) =>
+                                                    !mgmtPerms.includes(id),
+                                                )
+                                              : [
+                                                  ...prev.permissionIds,
+                                                  ...mgmtPerms.filter(
+                                                    (id) =>
+                                                      !prev.permissionIds.includes(
+                                                        id,
+                                                      ),
+                                                  ),
+                                                ],
                                           }));
                                         }}
                                         className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
                                       />
                                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                        {modulePermissions.find(p => p.name.includes("Management"))?.name.split(" ")[0]} Management
+                                        {
+                                          modulePermissions
+                                            .find((p) =>
+                                              p.name.includes("Management"),
+                                            )
+                                            ?.name.split(" ")[0]
+                                        }{" "}
+                                        Management
                                       </span>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pl-7">
                                       {modulePermissions
-                                        .filter(p => p.name.includes("Management"))
+                                        .filter((p) =>
+                                          p.name.includes("Management"),
+                                        )
                                         .map((permission) => (
-                                          <div key={permission.id} className="flex items-center gap-2">
+                                          <div
+                                            key={permission.id}
+                                            className="flex items-center gap-2"
+                                          >
                                             <Checkbox
                                               id={permission.id}
-                                              checked={formData.permissionIds.includes(permission.id)}
-                                              onCheckedChange={() => handlePermissionToggle(permission.id)}
+                                              checked={formData.permissionIds.includes(
+                                                permission.id,
+                                              )}
+                                              onCheckedChange={() =>
+                                                handlePermissionToggle(
+                                                  permission.id,
+                                                )
+                                              }
                                               disabled={createLoading}
                                               className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
                                             />
@@ -600,7 +662,10 @@ export default function AdminCreateStaffPage() {
                                               htmlFor={permission.id}
                                               className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
                                             >
-                                              {permission.name.replace(/.*Management\s*/, "")}
+                                              {permission.name.replace(
+                                                /.*Management\s*/,
+                                                "",
+                                              )}
                                             </Label>
                                           </div>
                                         ))}
@@ -611,13 +676,28 @@ export default function AdminCreateStaffPage() {
                                 {/* Regular permissions */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                                   {modulePermissions
-                                    .filter(p => !p.name.includes("Management") || !modulePermissions.some(mp => mp.name.includes("Management")))
+                                    .filter(
+                                      (p) =>
+                                        !p.name.includes("Management") ||
+                                        !modulePermissions.some((mp) =>
+                                          mp.name.includes("Management"),
+                                        ),
+                                    )
                                     .map((permission) => (
-                                      <div key={permission.id} className="flex items-center gap-2">
+                                      <div
+                                        key={permission.id}
+                                        className="flex items-center gap-2"
+                                      >
                                         <Checkbox
                                           id={permission.id}
-                                          checked={formData.permissionIds.includes(permission.id)}
-                                          onCheckedChange={() => handlePermissionToggle(permission.id)}
+                                          checked={formData.permissionIds.includes(
+                                            permission.id,
+                                          )}
+                                          onCheckedChange={() =>
+                                            handlePermissionToggle(
+                                              permission.id,
+                                            )
+                                          }
                                           disabled={createLoading}
                                           className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
                                         />
@@ -635,7 +715,7 @@ export default function AdminCreateStaffPage() {
                           </CollapsibleContent>
                         </Card>
                       </Collapsible>
-                    )
+                    ),
                   )}
                 </div>
               )}
