@@ -169,7 +169,7 @@ export const fetchPermissions = createAsyncThunk(
   "admin/fetchPermissions",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/api/v1/admin/permissions");
+      const response = await api.get("/api/v1/permissions/all");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -192,7 +192,7 @@ export const createPermission = createAsyncThunk(
   ) => {
     try {
       const response = await api.post(
-        "/api/v1/admin/create/permission",
+        "/api/v1/permissions",
         permissionData
       );
       return response.data;

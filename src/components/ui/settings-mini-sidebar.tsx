@@ -1,17 +1,22 @@
 import { cn } from "@/lib/utils";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useReduxAuth } from "@/hooks/useReduxAuth";
+import { useState } from "react";
+import { Button } from "@/components/ui/button"; 
 
 function SettingsMiniSidebarDrawer() {
   const location = useLocation();
   const currentPath = location.pathname;
-
   const navigate = useNavigate();
+  
+  // Use the auth hook
+  const { signout, loading: authLoading } = useReduxAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const menuItems = [
-    { label: "My Account", href: "/vendor/settings" },
-    { label: "Edit Store Information", href: "/vendor/settings/edit-store" },
-    { label: "Change Password", href: "/vendor/settings/change-password" },
-    { label: "Log-out", href: "/logout" },
+    { label: "My Account", href: "/vendor/settings", icon: null },
+    { label: "Edit Store Information", href: "/vendor/settings/edit-store", icon: null },
+    { label: "Change Password", href: "/vendor/settings/change-password", icon: null },
   ];
 
   // Function to check if a menu item is active
@@ -21,16 +26,18 @@ function SettingsMiniSidebarDrawer() {
     return false;
   };
 
-  // Handle logout separately
-  const handleLogout = (e: React.MouseEvent, href: string) => {
-    if (href === "/logout") {
-      e.preventDefault();
-      // Add your logout logic here
-      console.log("Logout clicked");
-      navigate("/auth/signin")
-      // Example: clear storage, redirect to login, etc.
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await signout();
+      navigate("/vendor/auth");
+    } catch (error) {
+      console.error("Logout failed:", error);
+      // Error is already handled by the signout function
+    } finally {
+      setIsLoggingOut(false);
     }
-    // For all other links, let the Link component handle navigation
   };
 
   return (
@@ -57,7 +64,6 @@ function SettingsMiniSidebarDrawer() {
                         ? "bg-white border-l-3 border-[#FFB800] text-gray-900 shadow-sm" 
                         : "text-white hover:bg-gray-100 hover:text-gray-900" 
                     )}
-                    onClick={(e) => handleLogout(e, item.href)}
                   >
                     <div
                       className={cn(
@@ -71,6 +77,27 @@ function SettingsMiniSidebarDrawer() {
                 </li>
               );
             })}
+            
+            {/* Logout Button - Separate from other menu items */}
+            <li>
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                disabled={isLoggingOut || authLoading}
+                className={cn(
+                  "w-full h-11 rounded-none flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium transition-all duration-200 group",
+                  "text-white hover:bg-red-500 hover:text-white bg-transparent hover:border-red-500",
+                  (isLoggingOut || authLoading) && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <span>Log-out</span>
+                </div>
+                {(isLoggingOut || authLoading) && (
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                )}
+              </Button>
+            </li>
           </ul>
         </nav>
       </div>

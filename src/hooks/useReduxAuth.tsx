@@ -203,7 +203,6 @@ export function useReduxAuth() {
       // Logout from Redux/backend
       await dispatch(logoutAsync()).unwrap();
       toast.success("Logged out successfully");
-      navigate("/login");
     } catch (error) {
       console.error("Logout failed:", error);
       dispatch(logout());
