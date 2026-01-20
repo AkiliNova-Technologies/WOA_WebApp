@@ -9,7 +9,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { countriesApi, type Country } from "@/lib/countries";
+import {
+  // countriesApi,
+  type Country,
+} from "@/lib/countries";
 import React, { useEffect } from "react";
 import type { FormData } from "./StepsContainer";
 import { toast } from "sonner";
@@ -46,18 +49,31 @@ export default function Step2({
   const [detectedAddress, setDetectedAddress] = React.useState("");
   const [locationProgress, setLocationProgress] = React.useState(0);
   const [currentAccuracy, setCurrentAccuracy] = React.useState<number | null>(
-    null
+    null,
   );
   const [bestLocation, setBestLocation] =
     React.useState<LocationAccuracy | null>(null);
 
-  // Fetch countries on component mount
   useEffect(() => {
     const fetchCountries = async () => {
       try {
         setLoading(true);
-        const countriesData = await countriesApi.getAfricanCountries();
-        setCountries(countriesData);
+        // 🔒 COMMENTED OUT REAL API CALL
+        // const countriesData = await countriesApi.getAfricanCountries();
+
+        // 🔧 MOCK DATA: African countries with all required properties
+        const mockCountries: Country[] = [
+          { code: "UG", name: "Uganda", dialCode: "+256", flag: "🇺🇬" },
+          { code: "KE", name: "Kenya", dialCode: "+254", flag: "🇰🇪" },
+          { code: "TZ", name: "Tanzania", dialCode: "+255", flag: "🇹🇿" },
+          { code: "RW", name: "Rwanda", dialCode: "+250", flag: "🇷🇼" },
+          { code: "NG", name: "Nigeria", dialCode: "+234", flag: "🇳🇬" },
+          { code: "GH", name: "Ghana", dialCode: "+233", flag: "🇬🇭" },
+          { code: "ZA", name: "South Africa", dialCode: "+27", flag: "🇿🇦" },
+          { code: "ET", name: "Ethiopia", dialCode: "+251", flag: "🇪🇹" },
+        ];
+
+        setCountries(mockCountries);
       } catch (error) {
         console.error("Error fetching countries:", error);
       } finally {
@@ -110,57 +126,61 @@ export default function Step2({
    * Reverse geocode using the free BigDataCloud API
    * This is a reliable free alternative to Nominatim with better rate limits
    */
+  /**
+   * Reverse geocode using mock data instead of real API
+   */
   const reverseGeocode = async (
     latitude: number,
-    longitude: number
+    longitude: number,
   ): Promise<string> => {
     try {
-      // BigDataCloud free API - no API key required, generous rate limits
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-      );
+      // 🔧 MOCK DATA: Return a simulated address
+      const mockAddresses = [
+        `Kampala, Central Region, Uganda`,
+        `Nairobi, Nairobi County, Kenya`,
+        `Dar es Salaam, Dar es Salaam Region, Tanzania`,
+        `Kigali, Kigali City, Rwanda`,
+        `Accra, Greater Accra Region, Ghana`,
+        `Johannesburg, Gauteng, South Africa`,
+        `Addis Ababa, Addis Ababa, Ethiopia`,
+        `Lagos, Lagos State, Nigeria`,
+      ];
 
-      if (!response.ok) {
-        throw new Error("Geocoding failed");
-      }
+      // Pick a random mock address or use coordinates
+      const randomIndex = Math.floor(Math.random() * mockAddresses.length);
+      return mockAddresses[randomIndex];
 
-      const data = await response.json();
+      /*
+    // 🔒 COMMENTED OUT REAL API CALL
+    const response = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+    );
 
-      // Build a comprehensive address from the response
-      const addressParts = [
-        data.locality || data.city,
-        data.principalSubdivision,
-        data.countryName,
-      ].filter(Boolean);
+    if (!response.ok) {
+      throw new Error("Geocoding failed");
+    }
 
-      return addressParts.length > 0
-        ? addressParts.join(", ")
-        : `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    const data = await response.json();
+
+    // Build a comprehensive address from the response
+    const addressParts = [
+      data.locality || data.city,
+      data.principalSubdivision,
+      data.countryName,
+    ].filter(Boolean);
+
+    return addressParts.length > 0
+      ? addressParts.join(", ")
+      : `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    */
     } catch (error) {
-      console.error("Error with BigDataCloud geocoding:", error);
-
-      // Fallback to Nominatim if BigDataCloud fails
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-          {
-            headers: {
-              "User-Agent": "ShopRegistration/1.0", // Nominatim requires a user agent
-            },
-          }
-        );
-        const data = await response.json();
-        return (
-          data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-        );
-      } catch (fallbackError) {
-        console.error("Fallback geocoding also failed:", fallbackError);
-        return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-      }
+      console.error("Error with geocoding:", error);
+      // Return coordinates as fallback
+      return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     }
   };
 
-   const handleVerifyLocation = async () => {
+  const handleVerifyLocation = async () => {
     if (!navigator.geolocation) {
       toast.error("Geolocation is not supported by your browser");
       return;
@@ -171,129 +191,71 @@ export default function Step2({
     setCurrentAccuracy(null);
     setBestLocation(null);
 
-    const COLLECTION_DURATION = 8000; // 8 seconds to collect readings
-    const PROGRESS_INTERVAL = 100; // Update progress every 100ms
+    const COLLECTION_DURATION = 3000; // Reduced to 3 seconds for simulation
+    const PROGRESS_INTERVAL = 100;
     const startTime = Date.now();
-    let watchId: number;
     let progressInterval: NodeJS.Timeout;
 
-    // ✅ FIX: Use a local variable to track best location instead of relying on state
-    let currentBestLocation: {
-      latitude: number;
-      longitude: number;
-      accuracy: number;
-      timestamp: number;
-    } | null = null;
-
-    // Progress bar animation
+    // 🔧 MOCK DATA: Simulate location verification without actual GPS
     progressInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min((elapsed / COLLECTION_DURATION) * 100, 100);
       setLocationProgress(progress);
+
+      // Simulate improving accuracy
+      if (elapsed < COLLECTION_DURATION) {
+        const simulatedAccuracy = Math.max(5, 100 - (progress / 100) * 95);
+        setCurrentAccuracy(simulatedAccuracy);
+      }
     }, PROGRESS_INTERVAL);
 
     try {
-      // Use watchPosition to continuously improve accuracy
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const newLocation = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            timestamp: position.timestamp,
-          };
-
-          setCurrentAccuracy(newLocation.accuracy);
-
-          // ✅ FIX: Update both state AND local variable
-          if (
-            !currentBestLocation ||
-            newLocation.accuracy < currentBestLocation.accuracy
-          ) {
-            currentBestLocation = newLocation;
-            setBestLocation(newLocation);
-          }
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          clearInterval(progressInterval);
-          navigator.geolocation.clearWatch(watchId);
-
-          let errorMessage = "Failed to get your location. ";
-
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage +=
-                "Please enable location services in your browser settings.";
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage += "Location information is unavailable.";
-              break;
-            case error.TIMEOUT:
-              errorMessage += "Location request timed out. Please try again.";
-              break;
-            default:
-              errorMessage += "Please enable location services.";
-          }
-
-          toast.error(errorMessage);
-          setIsVerifyingLocation(false);
-          setLocationProgress(0);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 30000,
-          maximumAge: 0,
-        }
-      );
-
-      // After collection duration, process the best location
+      // 🔧 MOCK DATA: Simulate location collection
       setTimeout(async () => {
         clearInterval(progressInterval);
-        navigator.geolocation.clearWatch(watchId);
         setLocationProgress(100);
 
-        // ✅ FIX: Use the local variable instead of state
-        if (currentBestLocation) {
-          try {
-            // Reverse geocode the best location
-            const address = await reverseGeocode(
-              currentBestLocation.latitude,
-              currentBestLocation.longitude
-            );
+        // Generate mock coordinates (Kampala, Uganda coordinates)
+        const mockCoordinates = {
+          latitude: 0.3476 + (Math.random() * 0.01 - 0.005), // Small random variation
+          longitude: 32.5825 + (Math.random() * 0.01 - 0.005),
+          accuracy: 5 + Math.random() * 10,
+          timestamp: Date.now(),
+        };
 
-            setDetectedAddress(address);
+        setBestLocation(mockCoordinates);
 
-            // Store coordinates in form data
-            const coordinates = {
-              latitude: currentBestLocation.latitude,
-              longitude: currentBestLocation.longitude,
-            };
-            updateFormData({ gpsCoordinates: coordinates });
+        try {
+          // Reverse geocode with mock data
+          const address = await reverseGeocode(
+            mockCoordinates.latitude,
+            mockCoordinates.longitude,
+          );
 
-            // Show success message with accuracy info
-            toast.success(
-              `Location captured with ${currentBestLocation.accuracy.toFixed(
-                0
-              )}m accuracy`
-            );
+          setDetectedAddress(address);
 
-            // Transition to address confirmation
-            setTimeout(() => {
-              setShowLocationVerification(false);
-              setShowAddressConfirmation(true);
-              setIsVerifyingLocation(false);
-              setLocationProgress(0);
-            }, 500);
-          } catch (error) {
-            console.error("Error processing location:", error);
-            toast.error("Failed to process location. Please try again.");
+          // Store coordinates in form data
+          const coordinates = {
+            latitude: mockCoordinates.latitude,
+            longitude: mockCoordinates.longitude,
+          };
+          updateFormData({ gpsCoordinates: coordinates });
+
+          // Show success message with accuracy info
+          toast.success(
+            `Location captured with ${mockCoordinates.accuracy.toFixed(0)}m accuracy (Simulated)`,
+          );
+
+          // Transition to address confirmation
+          setTimeout(() => {
+            setShowLocationVerification(false);
+            setShowAddressConfirmation(true);
             setIsVerifyingLocation(false);
             setLocationProgress(0);
-          }
-        } else {
-          console.error("No location data collected");
-          toast.error("Unable to get accurate location. Please try again.");
+          }, 500);
+        } catch (error) {
+          console.error("Error processing location:", error);
+          toast.error("Failed to process location. Please try again.");
           setIsVerifyingLocation(false);
           setLocationProgress(0);
         }
@@ -668,7 +630,8 @@ export default function Step2({
             <div className="flex items-start gap-2">
               <span>•</span>
               <span>
-                If everything looks correct, click the main "Save and continue" button below to proceed.
+                If everything looks correct, click the main "Save and continue"
+                button below to proceed.
               </span>
             </div>
             <div className="flex items-start gap-2">
