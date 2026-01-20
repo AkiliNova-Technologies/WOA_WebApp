@@ -14,40 +14,60 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
-import { useReduxProducts } from "@/hooks/useReduxProducts";
-import { useReduxCategories } from "@/hooks/useReduxCategories";
+// Comment out the Redux hooks
+// import { useReduxProducts } from "@/hooks/useReduxProducts";
+// import { useReduxCategories } from "@/hooks/useReduxCategories";
+
+// Import the mock data hooks
+import { useProducts } from "@/hooks/useProducts";
+import { useCategories } from "@/hooks/useCategories";
 
 export default function HomePage() {
-  const { 
-    publicProducts, 
-    loading, 
-    getPublicProducts 
-  } = useReduxProducts();
-  
-  const { 
-    categories, 
-    loading: categoriesLoading, 
-    getCategories 
-  } = useReduxCategories();
+  // Comment out Redux hooks and replace with mock hooks
+  // const {
+  //   publicProducts,
+  //   loading,
+  //   getPublicProducts
+  // } = useReduxProducts();
+
+  // const {
+  //   categories,
+  //   loading: categoriesLoading,
+  //   getCategories
+  // } = useReduxCategories();
+
+  // Use mock data hooks instead
+  const { products: mockProducts, categories: mockCategories } = useProducts();
+
+  // Get breadcrumb functionality from useCategories hook
+  const {
+    setCategoryBreadcrumbs,
+
+    resetCategoryBreadcrumbs,
+  } = useCategories();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [priceSort, setPriceSort] = useState<string>("all");
   const [reviewSort, setReviewSort] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
 
-  // Fetch initial data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await getPublicProducts({ limit: 10 });
-        await getCategories();
-      } catch (error) {
-        console.error("Failed to fetch home page data:", error);
-      }
-    };
+  // Loading states for mock data (set to false since data is local)
+  const loading = false;
+  const categoriesLoading = false;
 
-    fetchData();
-  }, [getPublicProducts, getCategories]);
+  // Use mock products and categories directly
+  const publicProducts = mockProducts;
+  const categories = mockCategories;
+
+  // Fetch initial data - remove async fetching since we have mock data
+  useEffect(() => {
+    // Mock data is already available, no need to fetch
+    console.log("Using mock data for homepage");
+
+    // If you need to set up any initial state, do it here
+    // For example, set breadcrumbs for the homepage
+    resetCategoryBreadcrumbs();
+  }, [resetCategoryBreadcrumbs]);
 
   // Mock data for featured stories
   const featuredStories = [
@@ -88,8 +108,51 @@ export default function HomePage() {
     },
   ];
 
-  // Filter and sort products
-  const displayProducts = publicProducts.slice(0, 10);
+  // Filter and sort products based on selected filters
+  const displayProducts = (() => {
+    let filteredProducts = [...publicProducts];
+
+    // Filter by category
+    if (selectedCategory !== "all") {
+      filteredProducts = filteredProducts.filter(
+        (product) => product.categoryId === selectedCategory,
+      );
+    }
+
+    // Sort by price
+    if (priceSort === "low-to-high") {
+      filteredProducts.sort((a, b) => a.price - b.price);
+    } else if (priceSort === "high-to-low") {
+      filteredProducts.sort((a, b) => b.price - a.price);
+    }
+
+    // Sort by review rating
+    if (reviewSort === "highest-rated") {
+      filteredProducts.sort((a, b) => b.rating - a.rating);
+    } else if (reviewSort === "most-reviews") {
+      filteredProducts.sort((a, b) => b.reviews - a.reviews);
+    }
+
+    // Sort by newest/popular
+    if (sortBy === "newest") {
+      filteredProducts.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    } else if (sortBy === "popular") {
+      filteredProducts.sort((a, b) => b.sales - a.sales);
+    }
+
+    return filteredProducts.slice(0, 10);
+  })();
+
+  // Handle category selection
+  const handleCategorySelect = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    if (categoryId !== "all") {
+      setCategoryBreadcrumbs(categoryId);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#121212]">
@@ -156,7 +219,10 @@ export default function HomePage() {
                   key={category.id}
                   id={parseInt(category.id)}
                   name={category.name}
-                  image={category.icon || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"}
+                  image={
+                    category.image ||
+                    "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"
+                  }
                 />
               ))}
               <div className="flex flex-col items-center justify-center">
@@ -186,7 +252,10 @@ export default function HomePage() {
             <div className="flex items-center justify-between w-full gap-4">
               <div className="flex gap-4">
                 {/* Category Select */}
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <Select
+                  value={selectedCategory}
+                  onValueChange={handleCategorySelect}
+                >
                   <SelectTrigger className="px-4 py-2 bg-[#CC5500] text-white border-none rounded-lg text-sm dark:bg-[#CC5500] dark:text-white">
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
@@ -263,14 +332,14 @@ export default function HomePage() {
           ) : (
             <div className="text-center py-20">
               <p className="text-gray-500 dark:text-gray-400 text-lg">
-                No products available at the moment.
+                No products available in this category.
               </p>
               <Button
                 variant="outline"
                 className="mt-4"
-                onClick={() => getPublicProducts({ limit: 10 })}
+                onClick={() => setSelectedCategory("all")}
               >
-                Refresh
+                View All Products
               </Button>
             </div>
           )}

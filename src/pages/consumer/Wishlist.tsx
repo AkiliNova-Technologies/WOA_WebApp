@@ -1,103 +1,67 @@
 import images from "@/assets/images";
 import { ProductCard } from "@/components/productCard";
 import { Button } from "@/components/ui/button";
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useReduxWishlist } from "@/hooks/useReduxWishlists";
-import { useReduxProducts } from "@/hooks/useReduxProducts";
+// Comment out Redux hooks
+// import { useReduxWishlist } from "@/hooks/useReduxWishlists";
+// import { useReduxProducts } from "@/hooks/useReduxProducts";
+
+// Import mock hooks
+import { useWishlist } from "@/hooks/useWishlist";
+import { useProducts } from "@/hooks/useProducts";
 import { Loader2 } from "lucide-react";
-import type { Product } from "@/redux/slices/productsSlice";
+import type { Product } from "@/types/product";
 
 export default function WishListPage() {
   const navigate = useNavigate();
-  const { items: wishlistItems, loading, getWishlist } = useReduxWishlist();
-  const { recentlyViewedProducts, getRecentlyViewedProducts, publicProducts, getPublicProducts } = useReduxProducts();
+  
+  // Use mock data hooks instead of Redux
+  // const { items: wishlistItems, loading, getWishlist } = useReduxWishlist();
+  // const { recentlyViewedProducts, getRecentlyViewedProducts, publicProducts, getPublicProducts } = useReduxProducts();
 
-  // Fetch wishlist and recommendations on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await getWishlist();
-        await getRecentlyViewedProducts({ limit: 4 });
-        // Fetch some products for recommendations if none recently viewed
-        if (recentlyViewedProducts.length === 0) {
-          await getPublicProducts({ limit: 4 });
-        }
-      } catch (error) {
-        console.error("Failed to fetch wishlist data:", error);
-      }
-    };
-
-    fetchData();
-  }, [getWishlist, getRecentlyViewedProducts, getPublicProducts]);
-
-  // Convert WishlistItem to Product type for ProductCard
-  const convertWishlistItemToProduct = (item: typeof wishlistItems[0]): Product => {
-    // Safely extract vendor information with fallbacks
-    const vendorId = item.product.vendor?.id || "unknown";
-    const vendorName = item.product.vendor?.businessName || "Unknown Vendor";
+  const { 
+    wishlistItems,
+    wishlistCount,
+    isEmpty,
     
-    return {
-      id: item.product.id,
-      name: item.product.name,
-      description: "",
-      
-      // Base pricing
-      basePrice: item.product.price,
-      baseCompareAtPrice: item.product.salePrice,
-      
-      // Display pricing
-      price: item.product.salePrice || item.product.price,
-      compareAtPrice: item.product.price > (item.product.salePrice || 0) ? item.product.price : undefined,
-      
-      // Status
-      status: "published" as const,
-      
-      // Attributes and variants
-      attributes: {},
-      variants: [],
-      
-      // Relations
-      sellerId: vendorId,
-      seller: {
-        id: vendorId,
-        firstName: "",
-        lastName: "",
-        businessName: vendorName,
-      },
-      categoryId: "",
-      subcategoryId: "",
-      
-      // Media - safely handle missing images
-      image: item.product.images?.[0]?.url || "",
-      images: (item.product.images || []).map((img, index) => ({
-        id: `${item.id}-${index}`,
-        url: img.url,
-        isPrimary: img.isPrimary,
-        order: index,
-      })),
-      gallery: (item.product.images || []).map(img => img.url),
-      
-      // Ratings & Reviews
-      averageRating: 0,
-      reviewCount: 0,
-      
-      // Wishlist status
-      isInWishlist: true,
-      
-      // Vendor info
-      vendorId: vendorId,
-      vendorName: vendorName,
-      sellerName: vendorName,
-      
-      // Timestamps
-      createdAt: item.addedAt,
-      updatedAt: item.addedAt,
-    };
-  };
+    wishlistStats
+  } = useWishlist();
+
+  const { 
+    products: publicProducts,
+    getFeaturedProducts,
+ 
+  } = useProducts();
+
+  // Mock recently viewed products (use featured products)
+  const recentlyViewedProducts = getFeaturedProducts().slice(0, 4);
+  
+  // Mock loading state
+  const loading = false;
 
   // Get products for "Recommended for you" section
   const recommendedProducts = publicProducts.slice(0, 4);
+
+  // Helper function to get vendor name from product
+  const getVendorName = (product: Product): string => {
+    if (!product.vendor) return "Unknown Vendor";
+    if (typeof product.vendor === 'string') return product.vendor;
+    return product.vendor.name || "Unknown Vendor";
+  };
+
+  // Convert WishlistItem to Product type for ProductCard
+  const convertWishlistItemToProduct = (item: typeof wishlistItems[0]): Product => {
+    const vendorName = getVendorName(item.product);
+    
+    return {
+      ...item.product,
+      // Ensure all required ProductCard props are present
+      vendorName: vendorName,
+      sellerName: vendorName,
+      // Ensure image is always a string
+      image: item.product.image || item.product.images?.[0] || "",
+    };
+  };
 
   // Loading state
   if (loading && wishlistItems.length === 0) {
@@ -112,7 +76,7 @@ export default function WishListPage() {
   }
 
   // Empty wishlist state
-  if (wishlistItems.length === 0) {
+  if (isEmpty) {
     return (
       <div className="min-h-screen bg-white">
         <div className="bg-[#F7F7F7]">
@@ -198,17 +162,39 @@ export default function WishListPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">
-            My Wishlist <span className="font-normal text-gray-600">({wishlistItems.length})</span>
-          </h2>
+        {/* Wishlist Stats */}
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">
+                My Wishlist <span className="font-normal text-gray-600">({wishlistCount})</span>
+              </h2>
+              <p className="text-sm text-gray-600">
+                Total value: ${wishlistStats.totalValue.toFixed(2)}
+              </p>
+            </div>
+            {/* <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span>{wishlistStats.onSaleCount} on sale</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <span>{wishlistStats.outOfStockCount} out of stock</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                <span>Avg rating: {wishlistStats.averageRating.toFixed(1)}</span>
+              </div>
+            </div> */}
+          </div>
         </div>
 
         {/* Wishlist Items Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {wishlistItems.map((item) => (
             <ProductCard 
-              key={item.id} 
+              key={item.productId} 
               product={convertWishlistItemToProduct(item)} 
             />
           ))}

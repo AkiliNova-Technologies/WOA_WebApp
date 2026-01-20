@@ -1,29 +1,70 @@
 import { useParams } from "react-router-dom";
-import { useReduxProducts } from "@/hooks/useReduxProducts";
-import { ProductCard } from "@/components/productCard";
-// import { SubCategoryCard } from "@/components/sub-category-card";
-import { Breadcrumb } from "@/components/Breadcrumb";
+// Comment out Redux hook
+// import { useReduxProducts } from "@/hooks/useReduxProducts";
+
+// Import mock data hooks
+import { useProducts } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
+import { ProductCard } from "@/components/productCard";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { normalizeVendor } from "@/utils/productHelpers";
+
+// Helper function to get vendor name
+const getVendorName = (vendor: string | { id?: string; name?: string } | undefined): string => {
+  if (!vendor) return "Unknown Vendor";
+  if (typeof vendor === 'string') return vendor;
+  return vendor.name || "Unknown Vendor";
+};
 
 export default function SubCategoryPage() {
   const { categoryId } = useParams<{ categoryId: string }>();
   const { setCategoryBreadcrumbs } = useCategories();
   
-  // Use Redux hook
-  const {
-    publicProducts,
-    loading,
-    getPublicProducts,
-    getProductsByCategory,
-  } = useReduxProducts();
+  // Use mock data hook instead of Redux
+  // const {
+  //   publicProducts,
+  //   loading,
+  //   getPublicProducts,
+  //   getProductsByCategory,
+  // } = useReduxProducts();
 
-  // Fetch products on mount
-  useEffect(() => {
-    getPublicProducts();
-  }, [getPublicProducts]);
+  const { 
+    // products: publicProducts,
+    getProductsByCategory,
+    getCategoryById,
+    // getSubCategoryById
+  } = useProducts();
+
+  // Mock loading state
+  const loading = false;
+
+  // Get category from mock data
+  const category = useMemo(() => {
+    if (!categoryId) return null;
+    
+    const categoryData = getCategoryById(categoryId);
+    if (!categoryData) return null;
+
+    // Get subcategories from the category data
+    const subCategories = categoryData.subCategories.map(subCat => ({
+      id: subCat.id,
+      name: subCat.name,
+      image: subCat.image || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400",
+    }));
+
+    return {
+      id: categoryId,
+      name: categoryData.name,
+      subCategories: subCategories,
+    };
+  }, [categoryId, getCategoryById]);
+
+  // Get products for this category
+  const products = useMemo(() => {
+    if (!categoryId) return [];
+    return getProductsByCategory(categoryId);
+  }, [categoryId, getProductsByCategory]);
 
   // Update breadcrumbs
   useEffect(() => {
@@ -31,43 +72,6 @@ export default function SubCategoryPage() {
       setCategoryBreadcrumbs(categoryId);
     }
   }, [categoryId, setCategoryBreadcrumbs]);
-
-  // Get category data from products
-  const category = useMemo(() => {
-    if (!categoryId) return null;
-    
-    const categoryProducts = publicProducts.filter(
-      p => p.categoryId === categoryId
-    );
-    
-    if (categoryProducts.length === 0) return null;
-
-    const firstProduct = categoryProducts[0];
-    
-    // Extract unique subcategories
-    const subCategoriesMap = new Map();
-    categoryProducts.forEach(product => {
-      if (product.subcategoryId && product.subcategory) {
-        subCategoriesMap.set(product.subcategoryId, {
-          id: product.subcategoryId,
-          name: product.subcategory.name,
-          image: product.images?.[0]?.url || '',
-        });
-      }
-    });
-
-    return {
-      id: categoryId,
-      name: firstProduct.category?.name || 'Unknown Category',
-      subCategories: Array.from(subCategoriesMap.values()),
-    };
-  }, [categoryId, publicProducts]);
-
-  // Get products for this category
-  const products = useMemo(() => {
-    if (!categoryId) return [];
-    return getProductsByCategory(categoryId);
-  }, [categoryId, getProductsByCategory]);
 
   if (loading) {
     return (
@@ -114,6 +118,9 @@ export default function SubCategoryPage() {
                           src={subCategory.image}
                           alt={subCategory.name}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400";
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full bg-gray-200 flex items-center justify-center">
@@ -144,19 +151,24 @@ export default function SubCategoryPage() {
             {products.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {products.map((product) => {
-                  const normalizedVendor = normalizeVendor(product.seller);
+                  const vendorName = getVendorName(product.vendor);
+                  const productImage = product.images && product.images.length > 0 
+                    ? product.images[0]
+                    : product.image || 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400';
                   
                   return (
                     <ProductCard
                       key={product.id}
                       id={parseInt(product.id)}
                       name={product.name}
-                      rating={product.averageRating}
-                      reviews={product.reviewCount || 0}
+                      rating={product.rating || 0}
+                      reviews={product.reviews || 0}
                       price={product.price}
-                      vendor={normalizedVendor || 'Unknown Vendor'}
-                      image={product.images?.[0]?.url || ''}
+                      vendor={vendorName}
+                      image={productImage}
                       categoryId={categoryId}
+                      // originalPrice={product.originalPrice}
+                      // isOnSale={product.isOnSale}
                     />
                   );
                 })}

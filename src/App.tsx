@@ -154,7 +154,7 @@ function App() {
                   path="sub-category/:categoryId/type"
                   element={<TypePage />}
                 />
-                <Route path="vendor-profile" element={<VendorProfilePage />} />
+                <Route path="vendor-profile/:vendorId" element={<VendorProfilePage />} />
               </Route>
               <Route path="/*" element={<PageNotFound />} />
             </Route>

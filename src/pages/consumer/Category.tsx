@@ -12,17 +12,40 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { SlidersHorizontal, ChevronDown, X } from "lucide-react";
-import { useReduxProducts } from "@/hooks/useReduxProducts";
-import { normalizeVendor } from "@/utils/productHelpers";
-import { useState, useEffect } from "react";
+// Comment out Redux hook
+// import { useReduxProducts } from "@/hooks/useReduxProducts";
+// import { normalizeVendor } from "@/utils/productHelpers";
+
+// Import mock data hooks
+import { useProducts } from "@/hooks/useProducts";
+import { useState} from "react";
+
+// Helper function to get vendor name
+const getVendorName = (vendor: string | { id?: string; name?: string } | undefined): string => {
+  if (!vendor) return "Unknown Vendor";
+  if (typeof vendor === 'string') return vendor;
+  return vendor.name || "Unknown Vendor";
+};
+
+// Helper function to normalize vendor data for ProductCard
+const normalizeVendor = (vendor: string | { id?: string; name?: string } | undefined): string => {
+  return getVendorName(vendor);
+};
 
 export default function CategoryPage() {
-  // Use Redux hook instead of useProducts
-  const {
-    publicProducts,
-    loading,
-    getPublicProducts,
-  } = useReduxProducts();
+  // Use mock data hook instead of Redux
+  // const {
+  //   publicProducts,
+  //   loading,
+  //   getPublicProducts,
+  // } = useReduxProducts();
+
+  const { 
+    products: publicProducts,
+    categories: mockCategories,
+    getVendors,
+    productionMethods,
+  } = useProducts();
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortOption, setSortOption] = useState<string>("most-recent");
@@ -41,49 +64,24 @@ export default function CategoryPage() {
     min: 0,
     max: 1000,
   });
+  
+  // Mock loading state
+  const loading = false;
 
-  // Fetch products on mount
-  useEffect(() => {
-    getPublicProducts();
-  }, [getPublicProducts]);
+  // Get all vendors from mock data
+  const allVendors = getVendors();
 
-  // Extract unique categories from products with null checks
-  const categories = Array.from(
-    new Set(
-      publicProducts
-        .filter(p => p.categoryId)
-        .map(p => JSON.stringify({
-          id: p.categoryId || '',
-          name: p.category?.name || 'Unknown',
-          image: p.images?.[0]?.url || '',
-        }))
-    )
-  ).map(str => JSON.parse(str));
-
-  // Extract unique vendors with null checks
-  const allVendors = Array.from(
-    new Set(
-      publicProducts
-        .filter(p => p.seller?.firstName && p.seller?.lastName)
-        .map(p => {
-          const seller = p.seller!;
-          return seller.businessName || `${seller.firstName} ${seller.lastName}`.trim();
-        })
-    )
-  );
-
-  // Extract unique production methods (if available in your product data)
-  const productionMethods = ["handmade", "machine-made", "sustainable"]; // Placeholder
+  // Use mock categories directly
+  const categories = mockCategories.map(cat => ({
+    id: cat.id,
+    name: cat.name,
+    image: cat.image || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400",
+  }));
 
   // Apply filters to products
   const filteredProducts = publicProducts.filter((product) => {
     // Category filter
     if (filters.categories.length > 0 && !filters.categories.includes(product.categoryId || '')) {
-      return false;
-    }
-
-    // Subcategory filter
-    if (filters.subCategories.length > 0 && !filters.subCategories.includes(product.subcategoryId || '')) {
       return false;
     }
 
@@ -94,23 +92,32 @@ export default function CategoryPage() {
 
     // Vendor filter
     if (filters.vendors.length > 0) {
-      const seller = product.seller;
-      if (!seller) return false;
-      
-      const sellerName = seller.businessName || `${seller.firstName} ${seller.lastName}`.trim();
-      if (!filters.vendors.includes(sellerName)) {
+      const vendorName = getVendorName(product.vendor);
+      if (!filters.vendors.includes(vendorName)) {
         return false;
       }
     }
 
     // Stock filter
-    if (filters.inStock && !product.variants.some(v => v.isActive && v.stockQuantity > 0)) {
+    if (filters.inStock && !product.inStock) {
+      return false;
+    }
+
+    // On Sale filter
+    if (filters.onSale && !product.isOnSale) {
       return false;
     }
 
     // Rating filter
-    if (filters.minRating > 0 && product.averageRating < filters.minRating) {
+    if (filters.minRating > 0 && (product.rating || 0) < filters.minRating) {
       return false;
+    }
+
+    // Production method filter
+    if (filters.productionMethods.length > 0) {
+      if (!product.productionMethod || !filters.productionMethods.includes(product.productionMethod)) {
+        return false;
+      }
     }
 
     return true;
@@ -124,10 +131,10 @@ export default function CategoryPage() {
       case "price-high-low":
         return b.price - a.price;
       case "rating":
-        return b.averageRating - a.averageRating;
+        return (b.rating || 0) - (a.rating || 0);
       case "popularity":
-        // Since reviews property doesn't exist, use viewCount or default to 0
-        return (b.viewCount || 0) - (a.viewCount || 0);
+        // Use sales or reviews for popularity
+        return (b.sales || 0) - (a.sales || 0);
       case "newest-arrivals":
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       case "most-recent":
@@ -471,29 +478,30 @@ export default function CategoryPage() {
               <hr className="my-2" />
 
               {/* PRODUCTION METHOD */}
-              <div className="mt-6 mb-8">
-                <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">
-                  Filter by Production Method
-                </h3>
+              {productionMethods && productionMethods.length > 0 && (
+                <div className="mt-6 mb-8">
+                  <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">
+                    Filter by Production Method
+                  </h3>
 
-                <div className="space-y-3 text-sm">
-                  {productionMethods.map((method) => (
-                    <label
-                      key={method}
-                      className="flex items-center gap-3 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filters.productionMethods.includes(method)}
-                        onChange={() => handleProductionMethodToggle(method)}
-                        className="w-4 h-4 text-[#CC5500] focus:ring-[#CC5500]"
-                      />
-                      {method.charAt(0).toUpperCase() +
-                        method.slice(1).replace("-", " ")}
-                    </label>
-                  ))}
+                  <div className="space-y-3 text-sm">
+                    {productionMethods.map((method) => (
+                      <label
+                        key={method}
+                        className="flex items-center gap-3 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filters.productionMethods.includes(method)}
+                          onChange={() => handleProductionMethodToggle(method)}
+                          className="w-4 h-4 text-[#CC5500] focus:ring-[#CC5500]"
+                        />
+                        {method.charAt(0).toUpperCase() + method.slice(1).replace("-", " ")}
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <hr className="my-2" />
 
@@ -629,19 +637,25 @@ export default function CategoryPage() {
         {sortedProducts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {sortedProducts.map((product) => {
-              // Normalize vendor with proper null checks
-              const normalizedVendor = normalizeVendor(product.seller);
+              // Normalize vendor with helper function
+              const normalizedVendor = normalizeVendor(product.vendor);
+              const productImage = product.images && product.images.length > 0 
+                ? product.images[0]
+                : product.image || '';
               
               return (
                 <ProductCard
                   key={product.id}
                   id={parseInt(product.id)}
                   name={product.name}
-                  rating={product.averageRating}
-                  reviews={product.reviewCount || 0}
+                  rating={product.rating || 0}
+                  reviews={product.reviews || 0}
                   price={product.price}
-                  vendor={normalizedVendor || 'Unknown Vendor'}
-                  image={product.images?.[0]?.url || ''}
+                  vendor={normalizedVendor}
+                  image={productImage}
+                  // Pass additional props if needed
+                  // originalPrice={product.originalPrice}
+                  // isOnSale={product.isOnSale}
                 />
               );
             })}

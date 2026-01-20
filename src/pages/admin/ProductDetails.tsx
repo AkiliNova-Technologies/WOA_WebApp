@@ -959,7 +959,7 @@ export default function AdminProductDetailPage() {
                           </div>
                           <h1 className="text-lg">No Reviews</h1>
                           <p className="text-muted-foreground mt-2">
-                            Average Rating: {product.averageRating.toFixed(1)} ★ ({product.reviewCount} reviews)
+                            Average Rating: {product.averageRating?.toFixed(1)} ★ ({product.reviewCount} reviews)
                           </p>
                         </CardContent>
                       </Card>

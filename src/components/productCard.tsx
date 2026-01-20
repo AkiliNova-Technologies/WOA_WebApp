@@ -7,7 +7,8 @@ import { useState, useEffect } from "react";
 import { useReduxWishlist } from "@/hooks/useReduxWishlists";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Product } from "@/redux/slices/productsSlice";
+import type { Product } from "@/types/product";
+
 
 // Support both old and new prop formats for backward compatibility
 interface OldProductCardProps {
@@ -46,7 +47,7 @@ export function ProductCard(props: ProductCardProps) {
         id: props.product.id,
         name: props.product.name || "Unknown Product",
         price: props.product.price || 0,
-        image: props.product.image || props.product.images?.[0]?.url || "",
+        image: props.product.image || props.product.images?.[0] || "",
         rating: props.product.averageRating || 0,
         reviews: props.product.reviewCount || 0,
         vendor: props.product.vendorName || props.product.sellerName || "Unknown Vendor",

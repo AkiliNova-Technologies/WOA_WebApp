@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   ArrowLeft,
   Copy,
@@ -25,8 +25,8 @@ import { Rate } from "antd";
 import { ProductCard } from "@/components/productCard";
 import { ActiveFilters } from "@/components/active-filters";
 import { FilterSheet } from "@/components/filter-sheet";
-import { useReduxProducts } from "@/hooks/useReduxProducts";
-import { normalizeVendor } from "@/utils/productHelpers";
+// Import mock hooks
+import { useProducts } from "@/hooks/useProducts";
 import type { SortOption } from "@/types/product";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -78,19 +78,82 @@ const ratingDist = [
   { stars: 1, percentage: 1.3 },
 ];
 
+// Helper function to get vendor name
+const getVendorName = (vendor: string | { id?: string; name?: string } | undefined): string => {
+  if (!vendor) return "Unknown Vendor";
+  if (typeof vendor === 'string') return vendor;
+  return vendor.name || "Unknown Vendor";
+};
+
 export default function VendorProfilePage() {
   const navigate = useNavigate();
   const { vendorId } = useParams<{ vendorId?: string }>();
   const [isPlaying, setIsPlaying] = useState(false);
   const [sortBy, setSortBy] = useState("price-low-high");
 
-  // Use Redux hook
-  const {
-    publicProducts,
-    loading,
-    getPublicProducts,
-    getProductsBySeller,
-  } = useReduxProducts();
+  // Use mock data hook instead of Redux
+  const { 
+    products: publicProducts,
+    getVendors,
+    productionMethods,
+  } = useProducts();
+
+  // Mock loading state
+  const loading = false;
+
+  // Filter products by vendor if vendorId is provided
+  // Get vendor name from vendorId to filter products
+  const vendorProducts = (() => {
+    if (!vendorId) return publicProducts;
+    
+    // Find vendor name from vendorId
+    const allVendors = getVendors();
+    const vendorName = allVendors.find(vendor => 
+      vendor.toLowerCase().includes(vendorId.toLowerCase()) || 
+      vendorId.toLowerCase().includes(vendor.toLowerCase())
+    );
+    
+    if (!vendorName) return publicProducts;
+    
+    // Filter products by vendor name
+    return publicProducts.filter(product => 
+      getVendorName(product.vendor) === vendorName
+    );
+  })();
+
+  // Use vendor data from the first product or fallback
+  const vendorInfo = vendorProducts.length > 0 ? {
+    name: getVendorName(vendorProducts[0].vendor),
+    title: `Owner of ${getVendorName(vendorProducts[0].vendor)}`,
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+    rating: 4.5,
+    reviewCount: 12,
+    itemsSold: vendorProducts.reduce((sum, p) => sum + (p.sales || 0), 0),
+    memberMonths: 8,
+    shopDescription: vendorData.shopDescription,
+  } : vendorData;
+
+  // Extract unique categories from vendor products
+  const categories = Array.from(
+    new Set(vendorProducts.map(p => p.categoryId).filter(Boolean))
+  ).map(categoryId => {
+    const categoryName = categoryId === "1" ? "Women's Fashion" :
+                        categoryId === "2" ? "Men's Fashion" :
+                        categoryId === "3" ? "Kid's Fashion" :
+                        categoryId === "4" ? "Footwear" :
+                        categoryId === "5" ? "Headwear & Wraps" : "Other";
+    
+    return {
+      id: categoryId,
+      name: categoryName,
+      image: vendorProducts.find(p => p.categoryId === categoryId)?.image || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400",
+    };
+  });
+
+  // Extract unique vendors
+  const allVendors = Array.from(
+    new Set(vendorProducts.map(p => getVendorName(p.vendor)).filter(Boolean))
+  );
 
   // Local state for filters
   const [filters, setFilters] = useState({
@@ -107,69 +170,48 @@ export default function VendorProfilePage() {
 
   const [sortOption, setSortOption] = useState<string>("most-recent");
 
-  // Fetch products on mount
-  useEffect(() => {
-    getPublicProducts();
-  }, [getPublicProducts]);
-
-  // Filter products by vendor if vendorId is provided
-  const vendorProducts = vendorId 
-    ? getProductsBySeller(vendorId)
-    : publicProducts;
-
-  // Extract unique categories from vendor products
-  const categories = Array.from(
-    new Set(
-      vendorProducts
-        .filter(p => p.categoryId)
-        .map(p => JSON.stringify({
-          id: p.categoryId || '',
-          name: p.category?.name || 'Unknown',
-          image: p.images?.[0]?.url || '',
-        }))
-    )
-  ).map(str => JSON.parse(str));
-
-  // Extract unique vendors
-  const allVendors = Array.from(
-    new Set(
-      vendorProducts
-        .filter(p => p.seller?.firstName && p.seller?.lastName)
-        .map(p => {
-          const seller = p.seller!;
-          return seller.businessName || `${seller.firstName} ${seller.lastName}`.trim();
-        })
-    )
-  );
-
-  // Production methods
-  const productionMethods = ["handmade", "machine-made", "sustainable"];
-
   // Apply filters
   const filteredProducts = vendorProducts.filter((product) => {
+    // Category filter
     if (filters.categories.length > 0 && !filters.categories.includes(product.categoryId || '')) {
       return false;
     }
-    if (filters.subCategories.length > 0 && !filters.subCategories.includes(product.subcategoryId || '')) {
-      return false;
-    }
+    
+    // Price filter
     if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) {
       return false;
     }
+    
+    // Vendor filter
     if (filters.vendors.length > 0) {
-      const seller = product.seller;
-      if (!seller) return false;
-      const sellerName = seller.businessName || `${seller.firstName} ${seller.lastName}`.trim();
-      if (!filters.vendors.includes(sellerName)) {
+      const vendorName = getVendorName(product.vendor);
+      if (!filters.vendors.includes(vendorName)) {
         return false;
       }
     }
-    if (filters.inStock && !product.variants.some(v => v.isActive && v.stockQuantity > 0)) {
+    
+    // Stock filter
+    if (filters.inStock && !product.inStock) {
       return false;
     }
-    if (filters.minRating > 0 && product.averageRating < filters.minRating) {
+    
+    // On Sale filter
+    if (filters.onSale && !product.isOnSale) {
       return false;
     }
+    
+    // Rating filter
+    if (filters.minRating > 0 && (product.rating || 0) < filters.minRating) {
+      return false;
+    }
+    
+    // Production method filter
+    if (filters.productionMethods.length > 0) {
+      if (!product.productionMethod || !filters.productionMethods.includes(product.productionMethod)) {
+        return false;
+      }
+    }
+    
     return true;
   });
 
@@ -181,7 +223,8 @@ export default function VendorProfilePage() {
       case "price-high-low":
         return b.price - a.price;
       case "popularity":
-        return (b.viewCount || 0) - (a.viewCount || 0);
+        // Use sales or reviews for popularity
+        return (b.sales || 0) - (a.sales || 0);
       case "newest":
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       default:
@@ -298,33 +341,33 @@ export default function VendorProfilePage() {
                   <div className="flex items-start justify-between mb-6">
                     <div className="flex gap-6">
                       <img
-                        src={vendorData.avatar}
-                        alt={vendorData.name}
+                        src={vendorInfo.avatar}
+                        alt={vendorInfo.name}
                         className="w-24 h-24 rounded-full object-cover"
                       />
                       <div>
                         <h2 className="text-2xl font-bold mb-1">
-                          {vendorData.name}
+                          {vendorInfo.name}
                         </h2>
-                        <p className="text-gray-600 mb-3">{vendorData.title}</p>
+                        <p className="text-gray-600 mb-3">{vendorInfo.title}</p>
                         <div className="flex items-center gap-4 text-sm">
                           <div className="flex items-center gap-2">
                             <Rate
                               disabled
-                              defaultValue={vendorData.rating}
+                              defaultValue={vendorInfo.rating}
                               className="text-yellow-400 text-sm"
                             />
                             <span className="font-semibold">
-                              ({vendorData.reviewCount})
+                              ({vendorInfo.reviewCount})
                             </span>
                           </div>
                           <span className="text-gray-400">|</span>
                           <span className="text-gray-600">
-                            {vendorData.itemsSold} items sold
+                            {vendorInfo.itemsSold} items sold
                           </span>
                           <span className="text-gray-400">|</span>
                           <span className="text-gray-600">
-                            Member for {vendorData.memberMonths} months
+                            Member for {vendorInfo.memberMonths} months
                           </span>
                         </div>
                       </div>
@@ -352,7 +395,7 @@ export default function VendorProfilePage() {
                         Shop Description
                       </h3>
                       <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-                        {vendorData.shopDescription}
+                        {vendorInfo.shopDescription}
                       </p>
                     </div>
                     <div>
@@ -416,17 +459,21 @@ export default function VendorProfilePage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {sortedProducts.slice(0, 8).map((product) => {
-                      const normalizedVendor = normalizeVendor(product.seller);
+                      const vendorName = getVendorName(product.vendor);
+                      const productImage = product.images && product.images.length > 0 
+                        ? product.images[0]
+                        : product.image || '';
+                      
                       return (
                         <ProductCard
                           key={product.id}
                           id={parseInt(product.id)}
                           name={product.name}
-                          rating={product.averageRating}
-                          reviews={product.reviewCount || 0}
+                          rating={product.rating || 0}
+                          reviews={product.reviews || 0}
                           price={product.price}
-                          vendor={normalizedVendor || 'Unknown Vendor'}
-                          image={product.images?.[0]?.url || ''}
+                          vendor={vendorName}
+                          image={productImage}
                         />
                       );
                     })}
@@ -445,7 +492,7 @@ export default function VendorProfilePage() {
                         className="text-yellow-400 text-lg"
                       />
                       <p className="text-sm text-gray-600 mt-2">
-                        {vendorData.reviewCount} reviews
+                        {vendorInfo.reviewCount} reviews
                       </p>
                     </div>
                     <div className="col-span-2 space-y-2">
@@ -553,7 +600,7 @@ export default function VendorProfilePage() {
                   <FilterSheet
                     categories={categories}
                     allVendors={allVendors}
-                    productionMethods={productionMethods}
+                    productionMethods={productionMethods || []}
                     products={sortedProducts}
                     filters={filters}
                     sortOption={sortOption}
@@ -567,17 +614,21 @@ export default function VendorProfilePage() {
                   {sortedProducts.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                       {sortedProducts.map((product) => {
-                        const normalizedVendor = normalizeVendor(product.seller);
+                        const vendorName = getVendorName(product.vendor);
+                        const productImage = product.images && product.images.length > 0 
+                          ? product.images[0]
+                          : product.image || '';
+                        
                         return (
                           <ProductCard
                             key={product.id}
                             id={parseInt(product.id)}
                             name={product.name}
-                            rating={product.averageRating}
-                            reviews={product.reviewCount || 0}
+                            rating={product.rating || 0}
+                            reviews={product.reviews || 0}
                             price={product.price}
-                            vendor={normalizedVendor || 'Unknown Vendor'}
-                            image={product.images?.[0]?.url || ''}
+                            vendor={vendorName}
+                            image={productImage}
                           />
                         );
                       })}
@@ -615,10 +666,10 @@ export default function VendorProfilePage() {
                         className="text-yellow-400 text-lg"
                       />
                       <p className="text-sm text-gray-600 mt-2">
-                        {vendorData.reviewCount} reviews
+                        {vendorInfo.reviewCount} reviews
                       </p>
                     </div>
-                    <div className="col-span-2 space-y-2 ">
+                    <div className="col-span-2 space-y-2">
                       {ratingDist.map((item) => (
                         <div
                           key={item.stars}

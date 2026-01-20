@@ -413,13 +413,13 @@ export default function BecomeSellerPage() {
               Africa and start sharing your craft with a global audience.
             </p>
 
-            <button className="inline-flex items-center bg-[#CC5500] hover:bg-[#CC5500]/80 text-white px-8 py-4 rounded-full text-lg font-medium transition-all shadow-lg hover:shadow-xl" onClick={()=> navigate("/kyc")}>
+            <button className="z-index-10 inline-flex items-center bg-[#CC5500] hover:bg-[#CC5500]/80 text-white px-8 py-4 rounded-full text-lg font-medium transition-all shadow-lg hover:shadow-xl" onClick={()=> navigate("/kyc")}>
               Get Started
             </button>
           </div>
 
           {/* Timeline */}
-          <div className="relative mt-28">
+          <div className="relative mt-42">
             {/* Curved Line */}
 
             <div className=" z-index-10">

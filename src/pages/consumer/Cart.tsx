@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Minus, Plus, Heart, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,8 +7,13 @@ import { Separator } from "@/components/ui/separator";
 import { ProductCard } from "@/components/productCard";
 import images from "@/assets/images";
 import { useNavigate } from "react-router-dom";
-import { useReduxCart } from "@/hooks/useReduxCart";
-import { useReduxProducts } from "@/hooks/useReduxProducts";
+// Comment out Redux hooks
+// import { useReduxCart } from "@/hooks/useReduxCart";
+// import { useReduxProducts } from "@/hooks/useReduxProducts";
+
+// Import mock hooks
+import { useCart } from "@/hooks/useCart";
+import { useProducts } from "@/hooks/useProducts";
 import { toast } from "sonner";
 
 const shippingOptions = [
@@ -28,41 +33,55 @@ const shippingOptions = [
 
 export default function CartPage() {
   const navigate = useNavigate();
+  
+  // Use mock data hooks instead of Redux
+  // const { 
+  //   items: cartItems, 
+  //   loading, 
+  //   getCart, 
+  //   updateQuantity, 
+  //   removeItem,
+  //   moveItemToWishlist,
+  //   calculateSubtotal 
+  // } = useReduxCart();
+  
+  // const { recentlyViewedProducts, getRecentlyViewedProducts } = useReduxProducts();
+
   const { 
-    items: cartItems, 
-    loading, 
-    getCart, 
-    updateQuantity, 
-    removeItem,
-    moveItemToWishlist,
-    calculateSubtotal 
-  } = useReduxCart();
-  
-  const { recentlyViewedProducts, getRecentlyViewedProducts } = useReduxProducts();
-  
+    cartItems,
+    cartCount,
+    
+    updateQuantity,
+    removeFromCart,
+    moveToWishlist,
+    cartStats,
+    isEmpty,
+    
+  } = useCart();
+
+  const { 
+    
+    getFeaturedProducts,
+    
+  } = useProducts();
+
   const [selectedShipping, setSelectedShipping] = useState("standard");
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
-  // Fetch cart and recently viewed on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await getCart();
-        await getRecentlyViewedProducts({ limit: 4 });
-      } catch (error) {
-        console.error("Failed to fetch cart data:", error);
-      }
-    };
+  // Mock recently viewed products (use featured products as recently viewed)
+  const recentlyViewedProducts = getFeaturedProducts().slice(0, 4);
 
-    fetchData();
-  }, [getCart, getRecentlyViewedProducts]);
+  // Mock loading state
+  const loading = false;
 
   const handleUpdateQuantity = async (itemId: string, delta: number, currentQuantity: number) => {
     const newQuantity = Math.max(1, currentQuantity + delta);
     
     setIsUpdating(itemId);
     try {
-      await updateQuantity(itemId, newQuantity);
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      updateQuantity(itemId, newQuantity);
     } catch (error) {
       toast.error("Failed to update quantity", {
         description: "Please try again",
@@ -74,7 +93,9 @@ export default function CartPage() {
 
   const handleRemoveItem = async (itemId: string, productName: string) => {
     try {
-      await removeItem(itemId);
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      removeFromCart(itemId);
       toast.success("Item removed from cart", {
         description: productName,
       });
@@ -87,10 +108,14 @@ export default function CartPage() {
 
   const handleSaveForLater = async (itemId: string, productName: string) => {
     try {
-      await moveItemToWishlist(itemId);
-      toast.success("Moved to wishlist", {
-        description: productName,
-      });
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const product = moveToWishlist(itemId);
+      if (product) {
+        toast.success("Moved to wishlist", {
+          description: productName,
+        });
+      }
     } catch (error) {
       toast.error("Failed to move to wishlist", {
         description: "Please try again",
@@ -98,12 +123,12 @@ export default function CartPage() {
     }
   };
 
-  const subtotal = calculateSubtotal();
+  const subtotal = cartStats.subtotal;
   const selectedShippingOption = shippingOptions.find(
     (opt) => opt.id === selectedShipping
   );
   const shipping = selectedShippingOption?.price || 0;
-  const discount = 0;
+  const discount = cartStats.totalDiscount;
   const total = subtotal + shipping - discount;
 
   // Loading state
@@ -119,7 +144,7 @@ export default function CartPage() {
   }
 
   // Empty cart state
-  if (cartItems.length === 0) {
+  if (isEmpty) {
     return (
       <div className="min-h-screen bg-white">
         <div className="bg-[#F7F7F7]">
@@ -186,20 +211,20 @@ export default function CartPage() {
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold">
-                Cart <span className="font-normal text-gray-600">({cartItems.length})</span>
+                Cart <span className="font-normal text-gray-600">({cartCount} items)</span>
               </h2>
             </div>
 
             <div className="space-y-4">
               {cartItems.map((item) => {
-                // Get stock quantity - use product.stock as fallback
-                const stockQuantity = item.product.stock || 0;
+                // Get stock quantity
+                const stockQuantity = item.product.stockQuantity || 0;
                 
                 return (
-                  <Card key={item.id} className="p-4 shadow-none">
+                  <Card key={item.productId} className="p-4 shadow-none">
                     <div className="flex gap-4">
                       <img
-                        src={item.product.images?.[0]?.url || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"}
+                        src={item.product.image || item.product.images?.[0] || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"}
                         alt={item.product.name}
                         className="w-24 h-24 md:w-38 md:h-44 object-cover rounded-lg shrink-0"
                         onError={(e) => {
@@ -214,13 +239,6 @@ export default function CartPage() {
                               {item.product.name}
                             </h3>
                             
-                            {/* SKU if available */}
-                            {item.product.sku && (
-                              <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                                <span>SKU: {item.product.sku}</span>
-                              </div>
-                            )}
-
                             {/* Stock indicator */}
                             {stockQuantity < 5 && stockQuantity > 0 && (
                               <Badge
@@ -231,8 +249,23 @@ export default function CartPage() {
                               </Badge>
                             )}
 
+                            {/* Out of stock indicator */}
+                            {!item.product.inStock && (
+                              <Badge
+                                variant="secondary"
+                                className="bg-transparent p-0 text-red-600 mb-2"
+                              >
+                                Out of stock
+                              </Badge>
+                            )}
+
                             <p className="text-xl font-bold text-[#303030]">
-                              ${(item.salePrice || item.price).toFixed(2)}
+                              ${(item.product.originalPrice || item.product.price).toFixed(2)}
+                              {item.product.originalPrice && item.product.originalPrice > item.product.price && (
+                                <span className="ml-2 text-base text-gray-400 line-through">
+                                  ${item.product.price.toFixed(2)}
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -244,7 +277,7 @@ export default function CartPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 px-3 text-gray-600 hover:text-gray-900"
-                              onClick={() => handleRemoveItem(item.id, item.product.name)}
+                              onClick={() => handleRemoveItem(item.productId, item.product.name)}
                             >
                               <Trash2 className="h-3 w-3 mr-1" />
                               Remove
@@ -253,7 +286,7 @@ export default function CartPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 px-3 text-gray-600 hover:text-gray-900"
-                              onClick={() => handleSaveForLater(item.id, item.product.name)}
+                              onClick={() => handleSaveForLater(item.productId, item.product.name)}
                             >
                               <Heart className="h-3 w-3 mr-1" />
                               Save for later
@@ -267,10 +300,10 @@ export default function CartPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 rounded-full"
-                                onClick={() => handleUpdateQuantity(item.id, -1, item.quantity)}
-                                disabled={item.quantity <= 1 || isUpdating === item.id}
+                                onClick={() => handleUpdateQuantity(item.productId, -1, item.quantity)}
+                                disabled={item.quantity <= 1 || isUpdating === item.productId}
                               >
-                                {isUpdating === item.id ? (
+                                {isUpdating === item.productId ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
                                   <Minus className="h-3 w-3" />
@@ -283,13 +316,13 @@ export default function CartPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 rounded-full bg-[#CC5500] text-white hover:bg-[#CC5500]/80 hover:text-white"
-                                onClick={() => handleUpdateQuantity(item.id, 1, item.quantity)}
+                                onClick={() => handleUpdateQuantity(item.productId, 1, item.quantity)}
                                 disabled={
-                                  isUpdating === item.id || 
+                                  isUpdating === item.productId || 
                                   (stockQuantity > 0 && item.quantity >= stockQuantity)
                                 }
                               >
-                                {isUpdating === item.id ? (
+                                {isUpdating === item.productId ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
                                   <Plus className="h-3 w-3" />
@@ -357,7 +390,7 @@ export default function CartPage() {
 
               {/* Order Summary */}
               <h3 className="font-semibold mb-4">
-                Items <span className="font-normal text-gray-600">({cartItems.length})</span> total
+                Items <span className="font-normal text-gray-600">({cartCount} items)</span> total
               </h3>
 
               <div className="space-y-3">
@@ -367,7 +400,7 @@ export default function CartPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shop discount</span>
-                  <span className="font-medium">USD {discount.toFixed(2)}</span>
+                  <span className="font-medium">-USD {discount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping</span>
@@ -376,7 +409,7 @@ export default function CartPage() {
                 <Separator className="my-3" />
                 <div className="flex justify-between text-base">
                   <span className="text-gray-600">
-                    Estimated total ({cartItems.length} items)
+                    Estimated total ({cartCount} items)
                   </span>
                   <span className="font-semibold text-[#303030]">
                     USD {total.toFixed(2)}

@@ -173,7 +173,7 @@ export default function AdminProductsPage() {
       price: product.price, // Already from first active variant
       compareAtPrice: product.compareAtPrice,
       vendor: product.vendorName || "Unknown Vendor", // Use enriched vendorName
-      vendorId: product.sellerId,
+      vendorId: product.sellerId || "",
       image: product.image || "", // Already enriched
       categoryId: product.categoryId,
       status: product.status,

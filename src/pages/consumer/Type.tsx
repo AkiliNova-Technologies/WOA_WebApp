@@ -1,63 +1,67 @@
 import { useParams } from "react-router-dom";
-import { useReduxProducts } from "@/hooks/useReduxProducts";
+// Comment out Redux hook
+// import { useReduxProducts } from "@/hooks/useReduxProducts";
+
+// Import mock hooks
+import { useProducts } from "@/hooks/useProducts";
+import { useCategories } from "@/hooks/useCategories";
 import { ProductCard } from "@/components/productCard";
 import { Breadcrumb } from "@/components/Breadcrumb";
-import { useCategories } from "@/hooks/useCategories";
 import { useEffect, useCallback, useMemo } from "react";
-import { normalizeVendor } from "@/utils/productHelpers";
+
+// Helper function to get vendor name
+const getVendorName = (vendor: string | { id?: string; name?: string } | undefined): string => {
+  if (!vendor) return "Unknown Vendor";
+  if (typeof vendor === 'string') return vendor;
+  return vendor.name || "Unknown Vendor";
+};
 
 export default function TypePage() {
   const { categoryId } = useParams<{ categoryId: string }>();
   const { setCategoryBreadcrumbs } = useCategories();
   
-  const {
-    publicProducts,
-    loading,
-    getPublicProducts,
+  // Use mock data hook instead of Redux
+  // const {
+  //   publicProducts,
+  //   loading,
+  //   getPublicProducts,
+  //   getProductsByCategory,
+  // } = useReduxProducts();
+
+  const { 
+    // products: publicProducts,
     getProductsByCategory,
-  } = useReduxProducts();
+    getCategoryById,
+    getTypesByCategory
+  } = useProducts();
 
-  // Fetch products on mount
-  useEffect(() => {
-    getPublicProducts();
-  }, [getPublicProducts]);
+  // Mock loading state
+  const loading = false;
 
-  // Get category and products
+  // Get category from mock data
   const category = useMemo(() => {
     if (!categoryId) return null;
     
-    const categoryProducts = publicProducts.filter(
-      p => p.categoryId === categoryId
-    );
-    
-    if (categoryProducts.length === 0) return null;
-    
+    const categoryData = getCategoryById(categoryId);
+    if (!categoryData) return null;
+
     return {
       id: categoryId,
-      name: categoryProducts[0].category?.name || 'Unknown Category',
+      name: categoryData.name,
     };
-  }, [categoryId, publicProducts]);
+  }, [categoryId, getCategoryById]);
 
+  // Get products for this category
   const products = useMemo(() => {
     if (!categoryId) return [];
     return getProductsByCategory(categoryId);
   }, [categoryId, getProductsByCategory]);
 
-  // Extract types from products
+  // Get types for this category from mock data
   const types = useMemo(() => {
-    const typesMap = new Map();
-    
-    products.forEach(product => {
-      if (product.productTypeId && product.productType) {
-        typesMap.set(product.productTypeId, {
-          id: product.productTypeId,
-          name: product.productType.name,
-        });
-      }
-    });
-    
-    return Array.from(typesMap.values());
-  }, [products]);
+    if (!categoryId) return [];
+    return getTypesByCategory(categoryId);
+  }, [categoryId, getTypesByCategory]);
 
   // Extract generic type names by removing brand-specific words
   const genericTypes = useMemo(() => {
@@ -162,18 +166,21 @@ export default function TypePage() {
             {products.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {products.map((product) => {
-                  const normalizedVendor = normalizeVendor(product.seller);
+                  const vendorName = getVendorName(product.vendor);
+                  const productImage = product.images && product.images.length > 0 
+                    ? product.images[0]
+                    : product.image || '';
                   
                   return (
                     <ProductCard
                       key={product.id}
                       id={parseInt(product.id)}
                       name={product.name}
-                      rating={product.averageRating}
-                      reviews={product.reviewCount || 0}
+                      rating={product.rating || 0}
+                      reviews={product.reviews || 0}
                       price={product.price}
-                      vendor={normalizedVendor || 'Unknown Vendor'}
-                      image={product.images?.[0]?.url || ''}
+                      vendor={vendorName}
+                      image={productImage}
                       categoryId={categoryId}
                     />
                   );

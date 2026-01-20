@@ -52,13 +52,14 @@ export interface Product {
   id: string;
   name: string;
   description?: string;
-  basePrice: number;
+  basePrice?: number;
   baseCompareAtPrice?: number;
   price: number;
   compareAtPrice?: number;
 
   // Product status
   status:
+    | "active"
     | "draft"
     | "pending_approval"
     | "approved"
@@ -66,26 +67,27 @@ export interface Product {
     | "RE_EVALUATION"
     | "published"
     | "archived"
+    | "out-of-stock"
     | "deleted";
 
   // Attributes and variants
-  attributes: Record<string, string>; 
+  attributes?: Record<string, string>; 
   variants: ProductVariant[];
 
   // Relations
-  sellerId: string;
+  sellerId?: string;
   seller?: Seller;
   categoryId: string;
   category?: Category;
-  subcategoryId: string;
+  subcategoryId?: string;
   subcategory?: SubCategory;
   productTypeId?: string;
   productType?: ProductType;
   image?: string;
   images: ProductImage[];
   gallery?: string[];
-  averageRating: number;
-  reviewCount: number;
+  averageRating?: number;
+  reviewCount?: number;
   isInWishlist?: boolean;
   viewCount?: number;
   lastViewed?: string;
