@@ -17,7 +17,7 @@ import { useReduxVendors } from "@/hooks/useReduxVendors";
 import { useReduxAuth } from "@/hooks/useReduxAuth";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { VideoUpload } from "@/components/video-upload"; // Import the VideoUpload component
+import { VideoUpload } from "@/components/video-upload";
 
 // Store categories
 const STORE_CATEGORIES = [
@@ -37,7 +37,7 @@ const STORE_CATEGORIES = [
 // Define the store form data type
 interface StoreFormData {
   businessName: string;
-  category?: string; // Using category instead of businessType
+  category: string;
   businessDescription: string;
   businessEmail: string;
   businessPhone: string;
@@ -49,7 +49,7 @@ interface StoreFormData {
 
 export function EditStore() {
   // Hooks
-  const { user, updateCurrentUser } = useReduxAuth();
+  const { user } = useReduxAuth();
   const { 
     selectedVendor, 
     getVendor, 
@@ -91,6 +91,28 @@ export function EditStore() {
     setIsDirty(true);
   };
 
+  // Parse address to extract street, city, and country
+  const parseAddress = (address: string = "") => {
+    const addressParts = address.split(',').map(part => part.trim());
+    
+    let street = "";
+    let city = "";
+    let country = "";
+    
+    if (addressParts.length === 1) {
+      street = addressParts[0];
+    } else if (addressParts.length === 2) {
+      street = addressParts[0];
+      country = addressParts[1];
+    } else if (addressParts.length >= 3) {
+      street = addressParts.slice(0, -2).join(', ');
+      city = addressParts[addressParts.length - 2];
+      country = addressParts[addressParts.length - 1];
+    }
+    
+    return { street, city, country };
+  };
+
   // Fetch countries on component mount
   useEffect(() => {
     const fetchCountries = async () => {
@@ -118,6 +140,7 @@ export function EditStore() {
         await getVendor(user.id);
       } catch (error) {
         console.error("Failed to load vendor data:", error);
+        toast.error("Failed to load vendor information");
       }
     };
 
@@ -127,28 +150,16 @@ export function EditStore() {
   // Initialize form with vendor data
   useEffect(() => {
     if (selectedVendor) {
-      // Parse address to extract country and city
-      const address = selectedVendor.businessAddress || "";
-      const addressParts = address.split(',').map(part => part.trim());
+      // Parse address to extract street, city, and country
+      const { street, city, country } = parseAddress(selectedVendor.businessAddress);
       
-      let country = "";
-      let city = "";
-      
-      if (addressParts.length > 1) {
-        // Last part is usually country
-        country = addressParts[addressParts.length - 1];
-        // First part is usually city
-        city = addressParts[0];
-      }
-
-      // Check if selectedVendor has a category property or use a default
+      // Get category from vendor data
       const category = (selectedVendor as any).category || 
                       (selectedVendor as any).storeCategory || 
                       (selectedVendor as any).businessType || 
                       "";
 
       // Get story video URL from vendor data
-      // This could be stored in different fields depending on your database structure
       const storyVideoUrl = (selectedVendor as any).storyVideoUrl || 
                            (selectedVendor as any).introVideoUrl || 
                            (selectedVendor as any).vendorStoryVideo || 
@@ -160,7 +171,7 @@ export function EditStore() {
         businessDescription: selectedVendor.businessDescription || "",
         businessEmail: selectedVendor.businessEmail || "",
         businessPhone: selectedVendor.businessPhone || "",
-        businessAddress: selectedVendor.businessAddress || "",
+        businessAddress: street, // Only street address
         country: country,
         city: city,
         storyVideoUrl: storyVideoUrl,
@@ -181,8 +192,6 @@ export function EditStore() {
 
       try {
         setCitiesLoading(true);
-        // Reset city when country changes
-        updateFormData('city', "");
         const citiesData = await countriesApi.getCitiesByCountry(formData.country);
         setCities(citiesData);
       } catch (error) {
@@ -279,13 +288,9 @@ export function EditStore() {
     setIsSubmitting(true);
     try {
       // Construct full address
-      const fullAddress = `${formData.city}, ${formData.country}`;
-      let finalAddress = formData.businessAddress.trim();
-      if (finalAddress) {
-        finalAddress = `${finalAddress}, ${fullAddress}`;
-      } else {
-        finalAddress = fullAddress;
-      }
+      const fullAddress = formData.businessAddress.trim() 
+        ? `${formData.businessAddress}, ${formData.city}, ${formData.country}`
+        : `${formData.city}, ${formData.country}`;
 
       // Create updated vendor data
       const updatedVendorData: any = {
@@ -294,8 +299,8 @@ export function EditStore() {
         businessDescription: formData.businessDescription.trim(),
         businessEmail: formData.businessEmail.trim() || user?.email || "",
         businessPhone: formData.businessPhone.trim() || user?.phoneNumber || "",
-        businessAddress: finalAddress,
-        storyVideoUrl: formData.storyVideoUrl, // Add story video URL
+        businessAddress: fullAddress,
+        storyVideoUrl: formData.storyVideoUrl || null,
       };
 
       // Add category if it exists in VendorProfile type
@@ -303,20 +308,6 @@ export function EditStore() {
 
       // Update vendor in Redux store
       updateVendor(updatedVendorData);
-
-      // Update user data if needed
-      if (user) {
-        const userUpdates: any = {};
-        
-        // Only update user fields if they've changed and are relevant
-        if (formData.businessPhone && formData.businessPhone !== user.phoneNumber) {
-          userUpdates.phoneNumber = formData.businessPhone;
-        }
-        
-        if (Object.keys(userUpdates).length > 0) {
-          updateCurrentUser(userUpdates);
-        }
-      }
 
       // Here you would typically make an API call to update the vendor
       // For now, we'll simulate a successful update
@@ -348,19 +339,10 @@ export function EditStore() {
   // Reset form to initial values
   const resetForm = () => {
     if (selectedVendor) {
-      // Parse address to extract country and city
-      const address = selectedVendor.businessAddress || "";
-      const addressParts = address.split(',').map(part => part.trim());
+      // Parse address to extract street, city, and country
+      const { street, city, country } = parseAddress(selectedVendor.businessAddress);
       
-      let country = "";
-      let city = "";
-      
-      if (addressParts.length > 1) {
-        country = addressParts[addressParts.length - 1];
-        city = addressParts[0];
-      }
-
-      // Check if selectedVendor has a category property or use a default
+      // Get category from vendor data
       const category = (selectedVendor as any).category || 
                       (selectedVendor as any).storeCategory || 
                       (selectedVendor as any).businessType || 
@@ -378,7 +360,7 @@ export function EditStore() {
         businessDescription: selectedVendor.businessDescription || "",
         businessEmail: selectedVendor.businessEmail || "",
         businessPhone: selectedVendor.businessPhone || "",
-        businessAddress: selectedVendor.businessAddress || "",
+        businessAddress: street,
         country: country,
         city: city,
         storyVideoUrl: storyVideoUrl,
@@ -572,7 +554,7 @@ export function EditStore() {
 
               {/* Business Address */}
               <div className="md:col-span-2 space-y-2">
-                <label className="text-sm font-medium">Business Address</label>
+                <label className="text-sm font-medium">Business Address (Street)</label>
                 <Input 
                   value={formData.businessAddress}
                   onChange={(e) => updateFormData('businessAddress', e.target.value)}
@@ -580,7 +562,7 @@ export function EditStore() {
                   className="h-11"
                 />
                 <p className="text-xs text-gray-500">
-                  Full address including street details. Country and city will be added automatically.
+                  Street address only. Country and city will be added automatically.
                 </p>
               </div>
 
@@ -622,11 +604,11 @@ export function EditStore() {
             <VideoUpload
               onVideoChange={handleVideoChange}
               initialUrl={formData.storyVideoUrl}
-              maxSize={10} // 50MB max size for story videos
+              maxSize={50} // 50MB max size for story videos
               description="Upload a short video introducing yourself and your business. Keep it under 2 minutes for best results."
               footer={true}
-              bucket="videos" // Specify your Supabase bucket
-              folder="vendor-stories" // Subfolder within the bucket
+              bucket="videos"
+              folder="vendor-stories"
               className="w-full"
             />
 
@@ -639,7 +621,7 @@ export function EditStore() {
                 <li>• Showcase your products or craft</li>
                 <li>• Good lighting and clear audio are important</li>
                 <li>• Supported formats: MP4, MOV, AVI, WMV, FLV, WebM</li>
-                <li>• Maximum file size: 10MB</li>
+                <li>• Maximum file size: 50MB</li>
               </ul>
             </div>
 
