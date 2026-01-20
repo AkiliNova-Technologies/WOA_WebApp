@@ -7,8 +7,7 @@ import { useState, useEffect } from "react";
 import { useReduxWishlist } from "@/hooks/useReduxWishlists";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Product } from "@/types/product";
-
+import type { Product } from "@/redux/slices/productsSlice";
 
 // Support both old and new prop formats for backward compatibility
 interface OldProductCardProps {
@@ -31,26 +30,35 @@ type ProductCardProps = OldProductCardProps | NewProductCardProps;
 
 // Type guard to check if props are in new format
 function isNewFormat(props: ProductCardProps): props is NewProductCardProps {
-  return 'product' in props;
+  return "product" in props;
 }
 
 export function ProductCard(props: ProductCardProps) {
   const navigate = useNavigate();
-  const { isInWishlist, toggleWishlistItem, adding, removing } = useReduxWishlist();
-  
+  const { isInWishlist, toggleWishlistItem, adding, removing } =
+    useReduxWishlist();
+
   const [isAnimating, setIsAnimating] = useState(false);
   const [inWishlist, setInWishlist] = useState(false);
 
   // Extract product data based on prop format
-  const productData = isNewFormat(props) 
+  const productData = isNewFormat(props)
     ? {
         id: props.product.id,
         name: props.product.name || "Unknown Product",
         price: props.product.price || 0,
-        image: props.product.image || props.product.images?.[0] || "",
+        image:
+          props.product.image ||
+          (typeof props.product.images?.[0] === "object"
+            ? props.product.images[0]?.url
+            : props.product.images?.[0]) ||
+          "",
         rating: props.product.averageRating || 0,
         reviews: props.product.reviewCount || 0,
-        vendor: props.product.vendorName || props.product.sellerName || "Unknown Vendor",
+        vendor:
+          props.product.vendorName ||
+          props.product.sellerName ||
+          "Unknown Vendor",
         categoryId: props.product.categoryId || "",
       }
     : {
@@ -60,9 +68,12 @@ export function ProductCard(props: ProductCardProps) {
         image: props.image || "",
         rating: props.rating || 0,
         reviews: props.reviews || 0,
-        vendor: typeof props.vendor === 'string' 
-          ? props.vendor 
-          : (props.vendor?.businessName || props.vendor?.name || "Unknown Vendor"),
+        vendor:
+          typeof props.vendor === "string"
+            ? props.vendor
+            : props.vendor?.businessName ||
+              props.vendor?.name ||
+              "Unknown Vendor",
         categoryId: props.categoryId || "",
       };
 
@@ -77,7 +88,7 @@ export function ProductCard(props: ProductCardProps) {
 
   const handleWishlistClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     // Prevent multiple rapid clicks
     if (isAnimating || adding || removing) return;
 
@@ -85,10 +96,10 @@ export function ProductCard(props: ProductCardProps) {
 
     try {
       const wasAdded = await toggleWishlistItem(productData.id);
-      
+
       // Update local state
       setInWishlist(wasAdded);
-      
+
       // Show toast notification
       if (wasAdded) {
         toast.success("Added to wishlist", {
@@ -128,7 +139,7 @@ export function ProductCard(props: ProductCardProps) {
       <div className="relative rounded-sm overflow-hidden w-full mb-3">
         <div className="overflow-hidden rounded-sm">
           <img
-            src={productData.image }
+            src={productData.image}
             alt={productData.name}
             className="object-cover object-top w-full h-50 rounded-sm transition-transform duration-500 ease-out group-hover:scale-105"
             // onError={(e) => {
@@ -146,9 +157,9 @@ export function ProductCard(props: ProductCardProps) {
           variant={"secondary"}
           className={cn(
             "h-9 w-9 p-0 backdrop-blur-sm rounded-full shadow-md border border-gray-200 relative overflow-hidden transition-all duration-300",
-            inWishlist 
-              ? "bg-red-50/90 hover:bg-red-100 border-red-300" 
-              : "bg-white/90 hover:bg-white"
+            inWishlist
+              ? "bg-red-50/90 hover:bg-red-100 border-red-300"
+              : "bg-white/90 hover:bg-white",
           )}
           onClick={handleWishlistClick}
           disabled={adding || removing}
@@ -160,7 +171,7 @@ export function ProductCard(props: ProductCardProps) {
               <Heart
                 className={cn(
                   "h-4 w-4 absolute animate-ping",
-                  inWishlist ? "text-red-500 fill-red-500" : "text-[#303030]"
+                  inWishlist ? "text-red-500 fill-red-500" : "text-[#303030]",
                 )}
               />
             )}
@@ -170,7 +181,7 @@ export function ProductCard(props: ProductCardProps) {
                 "h-4 w-4 transition-all duration-300 relative z-10",
                 inWishlist ? "text-red-500 fill-red-500" : "text-[#303030]",
                 isAnimating && "scale-125",
-                isAnimating && inWishlist && "animate-bounce"
+                isAnimating && inWishlist && "animate-bounce",
               )}
             />
           </div>
@@ -190,15 +201,17 @@ export function ProductCard(props: ProductCardProps) {
         <p className="line-clamp-1 text-md font-medium group-hover:text-primary transition-colors duration-300">
           {productData.name}
         </p>
-        
+
         <div className="flex flex-row items-center gap-3">
-          <Rate 
-            allowHalf 
-            disabled 
+          <Rate
+            allowHalf
+            disabled
             value={productData.rating}
             className="text-sm"
           />
-          <p className="text-sm text-muted-foreground">({productData.reviews})</p>
+          <p className="text-sm text-muted-foreground">
+            ({productData.reviews})
+          </p>
         </div>
 
         <p className="font-bold text-2xl group-hover:text-[#CC5500] transition-colors duration-300">

@@ -24,6 +24,7 @@ export interface User {
   phoneNumber?: string;
   accountStatus?: string;
   avatarUrl?: string;
+  createdAt?: string;
 }
 
 // Serializable Firebase user interface

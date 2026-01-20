@@ -14,62 +14,45 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
-// Comment out the Redux hooks
-// import { useReduxProducts } from "@/hooks/useReduxProducts";
-// import { useReduxCategories } from "@/hooks/useReduxCategories";
 
-// Import the mock data hooks
-import { useProducts } from "@/hooks/useProducts";
-import { useCategories } from "@/hooks/useCategories";
+// Use Redux hooks for real data
+import { useReduxProducts } from "@/hooks/useReduxProducts";
+import { useReduxCategories } from "@/hooks/useReduxCategories";
 
 export default function HomePage() {
-  // Comment out Redux hooks and replace with mock hooks
-  // const {
-  //   publicProducts,
-  //   loading,
-  //   getPublicProducts
-  // } = useReduxProducts();
-
-  // const {
-  //   categories,
-  //   loading: categoriesLoading,
-  //   getCategories
-  // } = useReduxCategories();
-
-  // Use mock data hooks instead
-  const { products: mockProducts, categories: mockCategories } = useProducts();
-
-  // Get breadcrumb functionality from useCategories hook
+  // Use Redux hooks for real data
   const {
-    setCategoryBreadcrumbs,
+    publicProducts,
+    loading: productsLoading,
+    getPublicProducts,
+  } = useReduxProducts();
 
-    resetCategoryBreadcrumbs,
-  } = useCategories();
+  const {
+    categories,
+    loading: categoriesLoading,
+    getCategories,
+  } = useReduxCategories();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [priceSort, setPriceSort] = useState<string>("all");
   const [reviewSort, setReviewSort] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
 
-  // Loading states for mock data (set to false since data is local)
-  const loading = false;
-  const categoriesLoading = false;
-
-  // Use mock products and categories directly
-  const publicProducts = mockProducts;
-  const categories = mockCategories;
-
-  // Fetch initial data - remove async fetching since we have mock data
+  // Fetch real data on component mount
   useEffect(() => {
-    // Mock data is already available, no need to fetch
-    console.log("Using mock data for homepage");
+    const fetchData = async () => {
+      try {
+        await getPublicProducts();
+        await getCategories();
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
 
-    // If you need to set up any initial state, do it here
-    // For example, set breadcrumbs for the homepage
-    resetCategoryBreadcrumbs();
-  }, [resetCategoryBreadcrumbs]);
+    fetchData();
+  }, [getPublicProducts, getCategories]);
 
-  // Mock data for featured stories
+  // Mock data for featured stories (kept as is since this might be static content)
   const featuredStories = [
     {
       id: "1",
@@ -126,11 +109,16 @@ export default function HomePage() {
       filteredProducts.sort((a, b) => b.price - a.price);
     }
 
-    // Sort by review rating
+    // Sort by review rating - using averageRating instead of rating
     if (reviewSort === "highest-rated") {
-      filteredProducts.sort((a, b) => b.rating - a.rating);
+      filteredProducts.sort(
+        (a, b) => (b.averageRating || 0) - (a.averageRating || 0),
+      );
     } else if (reviewSort === "most-reviews") {
-      filteredProducts.sort((a, b) => b.reviews - a.reviews);
+      // Use reviewCount instead of reviews
+      filteredProducts.sort(
+        (a, b) => (b.reviewCount || 0) - (a.reviewCount || 0),
+      );
     }
 
     // Sort by newest/popular
@@ -140,7 +128,8 @@ export default function HomePage() {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
     } else if (sortBy === "popular") {
-      filteredProducts.sort((a, b) => b.sales - a.sales);
+      // Popular sort - use viewCount if available, otherwise use averageRating
+      filteredProducts.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
     }
 
     return filteredProducts.slice(0, 10);
@@ -149,9 +138,7 @@ export default function HomePage() {
   // Handle category selection
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategory(categoryId);
-    if (categoryId !== "all") {
-      setCategoryBreadcrumbs(categoryId);
-    }
+    console.log(`Category selected: ${categoryId}`);
   };
 
   return (
@@ -220,7 +207,8 @@ export default function HomePage() {
                   id={parseInt(category.id)}
                   name={category.name}
                   image={
-                    category.image ||
+                    // Use a default image or category.icon if available
+                    category.icon ||
                     "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"
                   }
                 />
@@ -308,7 +296,7 @@ export default function HomePage() {
           </div>
 
           {/* Products Grid */}
-          {loading ? (
+          {productsLoading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-12 w-12 animate-spin text-[#CC5500]" />
             </div>

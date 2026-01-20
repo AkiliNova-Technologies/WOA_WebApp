@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Minus, Plus, Heart, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,14 +7,11 @@ import { Separator } from "@/components/ui/separator";
 import { ProductCard } from "@/components/productCard";
 import images from "@/assets/images";
 import { useNavigate } from "react-router-dom";
-// Comment out Redux hooks
-// import { useReduxCart } from "@/hooks/useReduxCart";
-// import { useReduxProducts } from "@/hooks/useReduxProducts";
-
-// Import mock hooks
-import { useCart } from "@/hooks/useCart";
-import { useProducts } from "@/hooks/useProducts";
+// Use Redux hooks
+import { useReduxCart } from "@/hooks/useReduxCart";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
 import { toast } from "sonner";
+import type { CartItem } from "@/redux/slices/cartSlice";
 
 const shippingOptions = [
   {
@@ -33,55 +30,48 @@ const shippingOptions = [
 
 export default function CartPage() {
   const navigate = useNavigate();
-  
-  // Use mock data hooks instead of Redux
-  // const { 
-  //   items: cartItems, 
-  //   loading, 
-  //   getCart, 
-  //   updateQuantity, 
-  //   removeItem,
-  //   moveItemToWishlist,
-  //   calculateSubtotal 
-  // } = useReduxCart();
-  
-  // const { recentlyViewedProducts, getRecentlyViewedProducts } = useReduxProducts();
 
-  const { 
-    cartItems,
-    cartCount,
-    
-    updateQuantity,
-    removeFromCart,
-    moveToWishlist,
-    cartStats,
-    isEmpty,
-    
-  } = useCart();
+  const {
+    items: cartItems, // This is the correct property name
+    loading,
+    getCart,
+    updateItem, // Changed from updateQuantity
+    removeItem,
+    moveItemToWishlist,
+    calculateSubtotal,
+    itemCount: totalItems, // This is the correct property name
+  } = useReduxCart();
 
-  const { 
-    
-    getFeaturedProducts,
-    
-  } = useProducts();
+  const { recentlyViewedProducts, getRecentlyViewedProducts } =
+    useReduxProducts();
 
   const [selectedShipping, setSelectedShipping] = useState("standard");
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
-  // Mock recently viewed products (use featured products as recently viewed)
-  const recentlyViewedProducts = getFeaturedProducts().slice(0, 4);
+  // Fetch cart and recently viewed data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        await getCart();
+        await getRecentlyViewedProducts();
+      } catch (error) {
+        console.error("Error fetching cart data:", error);
+      }
+    };
 
-  // Mock loading state
-  const loading = false;
+    fetchData();
+  }, [getCart, getRecentlyViewedProducts]);
 
-  const handleUpdateQuantity = async (itemId: string, delta: number, currentQuantity: number) => {
+  const handleUpdateQuantity = async (
+    itemId: string,
+    delta: number,
+    currentQuantity: number,
+  ) => {
     const newQuantity = Math.max(1, currentQuantity + delta);
-    
+
     setIsUpdating(itemId);
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      updateQuantity(itemId, newQuantity);
+      await updateItem(itemId, newQuantity); // Changed from updateQuantity
     } catch (error) {
       toast.error("Failed to update quantity", {
         description: "Please try again",
@@ -93,9 +83,7 @@ export default function CartPage() {
 
   const handleRemoveItem = async (itemId: string, productName: string) => {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      removeFromCart(itemId);
+      await removeItem(itemId);
       toast.success("Item removed from cart", {
         description: productName,
       });
@@ -108,14 +96,10 @@ export default function CartPage() {
 
   const handleSaveForLater = async (itemId: string, productName: string) => {
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const product = moveToWishlist(itemId);
-      if (product) {
-        toast.success("Moved to wishlist", {
-          description: productName,
-        });
-      }
+      await moveItemToWishlist(itemId);
+      toast.success("Moved to wishlist", {
+        description: productName,
+      });
     } catch (error) {
       toast.error("Failed to move to wishlist", {
         description: "Please try again",
@@ -123,12 +107,12 @@ export default function CartPage() {
     }
   };
 
-  const subtotal = cartStats.subtotal;
+  const subtotal = calculateSubtotal();
   const selectedShippingOption = shippingOptions.find(
-    (opt) => opt.id === selectedShipping
+    (opt) => opt.id === selectedShipping,
   );
   const shipping = selectedShippingOption?.price || 0;
-  const discount = cartStats.totalDiscount;
+  const discount = 0; // You might need to get discount from cart data if available
   const total = subtotal + shipping - discount;
 
   // Loading state
@@ -144,7 +128,7 @@ export default function CartPage() {
   }
 
   // Empty cart state
-  if (isEmpty) {
+  if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-white">
         <div className="bg-[#F7F7F7]">
@@ -211,24 +195,40 @@ export default function CartPage() {
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold">
-                Cart <span className="font-normal text-gray-600">({cartCount} items)</span>
+                Cart{" "}
+                <span className="font-normal text-gray-600">
+                  ({totalItems} items)
+                </span>
               </h2>
             </div>
 
             <div className="space-y-4">
-              {cartItems.map((item) => {
-                // Get stock quantity
-                const stockQuantity = item.product.stockQuantity || 0;
-                
+              {cartItems.map((item: CartItem) => {
+                const product = item.product;
+
+                // Get the first image URL from the images array
+                const imageUrl =
+                  product.images?.find((img) => img.isPrimary)?.url ||
+                  product.images?.[0]?.url ||
+                  "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400";
+
+                // Get stock from product.stock
+                const stockQuantity = product.stock || 0;
+
+                // Use item.price or item.salePrice instead of product.price
+                const displayPrice = item.salePrice || item.price;
+                const comparePrice = item.salePrice ? item.price : undefined;
+
                 return (
-                  <Card key={item.productId} className="p-4 shadow-none">
+                  <Card key={item.id} className="p-4 shadow-none">
                     <div className="flex gap-4">
                       <img
-                        src={item.product.image || item.product.images?.[0] || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"}
-                        alt={item.product.name}
+                        src={imageUrl}
+                        alt={product.name}
                         className="w-24 h-24 md:w-38 md:h-44 object-cover rounded-lg shrink-0"
                         onError={(e) => {
-                          e.currentTarget.src = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400";
+                          e.currentTarget.src =
+                            "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400";
                         }}
                       />
 
@@ -236,9 +236,9 @@ export default function CartPage() {
                         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                           <div className="flex-1">
                             <h3 className="font-semibold text-lg mb-1 line-clamp-2">
-                              {item.product.name}
+                              {product.name}
                             </h3>
-                            
+
                             {/* Stock indicator */}
                             {stockQuantity < 5 && stockQuantity > 0 && (
                               <Badge
@@ -250,7 +250,7 @@ export default function CartPage() {
                             )}
 
                             {/* Out of stock indicator */}
-                            {!item.product.inStock && (
+                            {stockQuantity === 0 && (
                               <Badge
                                 variant="secondary"
                                 className="bg-transparent p-0 text-red-600 mb-2"
@@ -260,10 +260,10 @@ export default function CartPage() {
                             )}
 
                             <p className="text-xl font-bold text-[#303030]">
-                              ${(item.product.originalPrice || item.product.price).toFixed(2)}
-                              {item.product.originalPrice && item.product.originalPrice > item.product.price && (
+                              ${displayPrice.toFixed(2)}
+                              {comparePrice && comparePrice > displayPrice && (
                                 <span className="ml-2 text-base text-gray-400 line-through">
-                                  ${item.product.price.toFixed(2)}
+                                  ${comparePrice.toFixed(2)}
                                 </span>
                               )}
                             </p>
@@ -277,7 +277,9 @@ export default function CartPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 px-3 text-gray-600 hover:text-gray-900"
-                              onClick={() => handleRemoveItem(item.productId, item.product.name)}
+                              onClick={() =>
+                                handleRemoveItem(item.id, product.name)
+                              }
                             >
                               <Trash2 className="h-3 w-3 mr-1" />
                               Remove
@@ -286,7 +288,9 @@ export default function CartPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 px-3 text-gray-600 hover:text-gray-900"
-                              onClick={() => handleSaveForLater(item.productId, item.product.name)}
+                              onClick={() =>
+                                handleSaveForLater(item.id, product.name)
+                              }
                             >
                               <Heart className="h-3 w-3 mr-1" />
                               Save for later
@@ -300,10 +304,18 @@ export default function CartPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 rounded-full"
-                                onClick={() => handleUpdateQuantity(item.productId, -1, item.quantity)}
-                                disabled={item.quantity <= 1 || isUpdating === item.productId}
+                                onClick={() =>
+                                  handleUpdateQuantity(
+                                    item.id,
+                                    -1,
+                                    item.quantity,
+                                  )
+                                }
+                                disabled={
+                                  item.quantity <= 1 || isUpdating === item.id
+                                }
                               >
-                                {isUpdating === item.productId ? (
+                                {isUpdating === item.id ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
                                   <Minus className="h-3 w-3" />
@@ -316,13 +328,20 @@ export default function CartPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 rounded-full bg-[#CC5500] text-white hover:bg-[#CC5500]/80 hover:text-white"
-                                onClick={() => handleUpdateQuantity(item.productId, 1, item.quantity)}
+                                onClick={() =>
+                                  handleUpdateQuantity(
+                                    item.id,
+                                    1,
+                                    item.quantity,
+                                  )
+                                }
                                 disabled={
-                                  isUpdating === item.productId || 
-                                  (stockQuantity > 0 && item.quantity >= stockQuantity)
+                                  isUpdating === item.id ||
+                                  (stockQuantity > 0 &&
+                                    item.quantity >= stockQuantity)
                                 }
                               >
-                                {isUpdating === item.productId ? (
+                                {isUpdating === item.id ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
                                   <Plus className="h-3 w-3" />
@@ -390,7 +409,11 @@ export default function CartPage() {
 
               {/* Order Summary */}
               <h3 className="font-semibold mb-4">
-                Items <span className="font-normal text-gray-600">({cartCount} items)</span> total
+                Items{" "}
+                <span className="font-normal text-gray-600">
+                  ({totalItems} items)
+                </span>{" "}
+                total
               </h3>
 
               <div className="space-y-3">
@@ -400,7 +423,9 @@ export default function CartPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shop discount</span>
-                  <span className="font-medium">-USD {discount.toFixed(2)}</span>
+                  <span className="font-medium">
+                    -USD {discount.toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping</span>
@@ -409,7 +434,7 @@ export default function CartPage() {
                 <Separator className="my-3" />
                 <div className="flex justify-between text-base">
                   <span className="text-gray-600">
-                    Estimated total ({cartCount} items)
+                    Estimated total ({totalItems} items)
                   </span>
                   <span className="font-semibold text-[#303030]">
                     USD {total.toFixed(2)}
@@ -417,8 +442,8 @@ export default function CartPage() {
                 </div>
               </div>
 
-              <Button 
-                className="w-full h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 rounded-full text-white font-semibold mt-6" 
+              <Button
+                className="w-full h-11 bg-[#CC5500] hover:bg-[#CC5500]/90 rounded-full text-white font-semibold mt-6"
                 onClick={() => navigate("/cart/checkout")}
               >
                 Proceed to Checkout

@@ -1,67 +1,114 @@
+// pages/consumer/Wishlist.tsx
 import images from "@/assets/images";
 import { ProductCard } from "@/components/productCard";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-// Comment out Redux hooks
-// import { useReduxWishlist } from "@/hooks/useReduxWishlists";
-// import { useReduxProducts } from "@/hooks/useReduxProducts";
-
-// Import mock hooks
-import { useWishlist } from "@/hooks/useWishlist";
-import { useProducts } from "@/hooks/useProducts";
-import { Loader2 } from "lucide-react";
-import type { Product } from "@/types/product";
+import { useReduxWishlist } from "@/hooks/useReduxWishlists";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
+import { Loader2, Heart } from "lucide-react";
+import { toast } from "sonner";
+import { useEffect, useState } from "react";
 
 export default function WishListPage() {
   const navigate = useNavigate();
   
-  // Use mock data hooks instead of Redux
-  // const { items: wishlistItems, loading, getWishlist } = useReduxWishlist();
-  // const { recentlyViewedProducts, getRecentlyViewedProducts, publicProducts, getPublicProducts } = useReduxProducts();
-
+  // Use real Redux hooks
   const { 
-    wishlistItems,
-    wishlistCount,
-    isEmpty,
-    
-    wishlistStats
-  } = useWishlist();
-
-  const { 
-    products: publicProducts,
-    getFeaturedProducts,
- 
-  } = useProducts();
-
-  // Mock recently viewed products (use featured products)
-  const recentlyViewedProducts = getFeaturedProducts().slice(0, 4);
+    items: wishlistItems, 
+    loading: wishlistLoading, 
+    error: wishlistError,
+    getWishlist,
+    removeItem,
+    getWishlistCount,
+    clearAllItems
+  } = useReduxWishlist();
   
-  // Mock loading state
-  const loading = false;
+  const { 
+    recentlyViewedProducts,
+    getRecentlyViewedProducts,
+    getPublicProducts,
+    loading: productsLoading
+  } = useReduxProducts();
 
-  // Get products for "Recommended for you" section
-  const recommendedProducts = publicProducts.slice(0, 4);
+  // State for recommended products
+  const [recommendedProducts, setRecommendedProducts] = useState<any[]>([]);
 
-  // Helper function to get vendor name from product
-  const getVendorName = (product: Product): string => {
-    if (!product.vendor) return "Unknown Vendor";
-    if (typeof product.vendor === 'string') return product.vendor;
-    return product.vendor.name || "Unknown Vendor";
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch wishlist
+        await getWishlist();
+        
+        // Fetch recently viewed products
+        await getRecentlyViewedProducts();
+        
+        // Fetch some public products for recommendations (first 8 products)
+        const publicProductsData = await getPublicProducts({ limit: 8 });
+        setRecommendedProducts(publicProductsData.data || []);
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+        toast.error("Failed to load wishlist data");
+      }
+    };
+    
+    fetchData();
+  }, [getWishlist, getRecentlyViewedProducts, getPublicProducts]);
+
+  // Handle wishlist item removal
+  const handleRemoveFromWishlist = async (itemId: string, productName: string) => {
+    try {
+      await removeItem(itemId);
+      toast.success(`Removed ${productName} from wishlist`);
+    } catch (error) {
+      toast.error("Failed to remove item from wishlist");
+    }
   };
 
-  // Convert WishlistItem to Product type for ProductCard
-  const convertWishlistItemToProduct = (item: typeof wishlistItems[0]): Product => {
-    const vendorName = getVendorName(item.product);
+  // Calculate wishlist stats based on actual data structure
+  const calculateWishlistStats = () => {
+    const totalValue = wishlistItems.reduce((sum, item) => {
+      const price = item.product?.price || 0;
+      return sum + price;
+    }, 0);
     
+    // Check if product is on sale - use salePrice if it exists and is less than price
+    const onSaleCount = wishlistItems.filter(item => {
+      const product = item.product;
+      return product && product.salePrice && product.salePrice < product.price;
+    }).length;
+    
+    // For average rating, default to 0 if not available
+    const averageRating = 0;
+
     return {
-      ...item.product,
-      // Ensure all required ProductCard props are present
-      vendorName: vendorName,
-      sellerName: vendorName,
-      // Ensure image is always a string
-      image: item.product.image || item.product.images?.[0] || "",
+      totalValue,
+      onSaleCount,
+      averageRating
     };
   };
+
+  const wishlistStats = calculateWishlistStats();
+  const isEmpty = wishlistItems.length === 0 && !wishlistLoading;
+  const loading = wishlistLoading || productsLoading;
+
+  // Show error state
+  if (wishlistError) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Heart className="h-12 w-12 text-red-500" />
+          <p className="text-gray-600">Failed to load wishlist</p>
+          <Button 
+            onClick={() => getWishlist()}
+            variant="outline"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // Loading state
   if (loading && wishlistItems.length === 0) {
@@ -120,8 +167,11 @@ export default function WishListPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {recentlyViewedProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                {recentlyViewedProducts.map((product: any) => (
+                  <ProductCard 
+                    key={product.id} 
+                    product={product}
+                  />
                 ))}
               </div>
             </div>
@@ -142,8 +192,11 @@ export default function WishListPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {recommendedProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                {recommendedProducts.map((product: any) => (
+                  <ProductCard 
+                    key={product.id} 
+                    product={product}
+                  />
                 ))}
               </div>
             </div>
@@ -152,6 +205,46 @@ export default function WishListPage() {
       </div>
     );
   }
+
+  // Convert wishlist item to product format for ProductCard
+const convertWishlistItemToProduct = (item: any) => {
+  const product = item.product || {};
+  
+  // Get primary image
+  const primaryImage = product.images?.find((img: any) => img.isPrimary)?.url || 
+                       product.images?.[0]?.url || 
+                       "";
+  
+  // Create a simplified product object that matches what ProductCard expects
+  const simplifiedProduct = {
+    id: item.productId || product.id || "",
+    name: product.name || "Unknown Product",
+    price: product.price || 0,
+    salePrice: product.salePrice,
+    images: product.images || [],
+    image: primaryImage,
+    vendor: product.vendor || { 
+      id: "", 
+      businessName: product.vendor?.businessName || "Unknown Vendor",
+      name: product.vendor?.businessName || "Unknown Vendor"
+    },
+    vendorName: product.vendor?.businessName || "Unknown Vendor",
+    // Use the correct status type from Product type
+    status: "active" as const,
+    variants: [] as any[],
+    categoryId: "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    // Optional fields
+    description: "",
+    averageRating: 0,
+    reviewCount: 0,
+    // Add compareAtPrice if needed
+    compareAtPrice: product.salePrice
+  };
+  
+  return simplifiedProduct;
+};
 
   return (
     <div className="min-h-screen bg-white">
@@ -167,37 +260,57 @@ export default function WishListPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold">
-                My Wishlist <span className="font-normal text-gray-600">({wishlistCount})</span>
+                My Wishlist <span className="font-normal text-gray-600">({getWishlistCount()})</span>
               </h2>
               <p className="text-sm text-gray-600">
                 Total value: ${wishlistStats.totalValue.toFixed(2)}
               </p>
             </div>
-            {/* <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span>{wishlistStats.onSaleCount} on sale</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <span>{wishlistStats.outOfStockCount} out of stock</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                <span>Avg rating: {wishlistStats.averageRating.toFixed(1)}</span>
-              </div>
-            </div> */}
+            <div className="flex gap-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (confirm("Clear all items from wishlist?")) {
+                    clearAllItems();
+                    toast.success("Wishlist cleared");
+                  }
+                }}
+              >
+                Clear All
+              </Button>
+              <Button
+                className="bg-[#CC5500] hover:bg-[#CC5500]/90"
+                onClick={() => {
+                  toast.info("Buy all functionality coming soon");
+                }}
+              >
+                Buy All ({getWishlistCount()})
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Wishlist Items Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {wishlistItems.map((item) => (
-            <ProductCard 
-              key={item.productId} 
-              product={convertWishlistItemToProduct(item)} 
-            />
-          ))}
+          {wishlistItems.map((item) => {
+            const productData = convertWishlistItemToProduct(item);
+            
+            return (
+              <div key={item.id} className="relative">
+                <ProductCard 
+                  product={productData}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 bg-white/90 hover:bg-white z-10 rounded-full shadow-sm"
+                  onClick={() => handleRemoveFromWishlist(item.id, productData.name)}
+                >
+                  <Heart className="h-5 w-5 fill-red-500 text-red-500" />
+                </Button>
+              </div>
+            );
+          })}
         </div>
 
         {/* Recently Viewed */}
@@ -215,8 +328,11 @@ export default function WishListPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {recentlyViewedProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+              {recentlyViewedProducts.map((product: any) => (
+                <ProductCard 
+                  key={product.id} 
+                  product={product}
+                />
               ))}
             </div>
           </div>
@@ -237,8 +353,11 @@ export default function WishListPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {recommendedProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+              {recommendedProducts.map((product: any) => (
+                <ProductCard 
+                  key={product.id} 
+                  product={product}
+                />
               ))}
             </div>
           </div>

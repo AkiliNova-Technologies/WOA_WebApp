@@ -61,7 +61,7 @@ function SettingsMiniSidebarDrawer() {
                     className={cn(
                       "flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium transition-all duration-200 group",
                       active
-                        ? "bg-white border-l-3 border-[#FFB800] text-gray-900 shadow-sm" 
+                        ? "bg-white border-l-3 border-[#CC5500] text-gray-900 shadow-sm" 
                         : "text-white hover:bg-gray-100 hover:text-gray-900" 
                     )}
                   >

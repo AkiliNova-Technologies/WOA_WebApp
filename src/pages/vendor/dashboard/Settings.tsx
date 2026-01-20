@@ -108,7 +108,9 @@ function Info({
         {/* Text section */}
         <div className="flex flex-col space-y-0.5 sm:space-y-1 flex-1 min-w-0">
           <p className="text-[#666666] text-xs sm:text-sm truncate">{label}</p>
-          <p className="font-medium text-sm sm:text-base truncate">{value || "Not set"}</p>
+          <p className="font-medium text-sm sm:text-base truncate">
+            {value || "Not set"}
+          </p>
         </div>
       </div>
     </div>
@@ -169,11 +171,39 @@ export default function SettingsPage() {
     return { country, city };
   };
 
-  // Get vendor data safely
-  // Replace the getVendorData function in your Settings.tsx with this:
-
+  // Update the getVendorData function to always return default data
   const getVendorData = () => {
-    if (!selectedVendor) return null;
+    if (!selectedVendor) {
+      // Return default/fallback data when no vendor data is available
+      return {
+        storeName: user?.firstName ? `${user.firstName}'s Store` : "Your Store",
+        businessEmail: user?.email || "Not set",
+        businessPhone: user?.phoneNumber || "Not set",
+        businessDescription:
+          "No description provided yet. Update your store details to add a description.",
+        businessAddress: "",
+        businessLogo: "",
+        businessBanner: images.Placeholder,
+        country: "Not set",
+        city: "Not set",
+        category: "Not set",
+        storyVideoUrl: "",
+        bankName: "Not provided",
+        accountNumber: "Not provided",
+        swiftCode: "Not provided",
+        accountName: "Your Store Inc.",
+        // Use user?.createdAt if available, otherwise use current date
+        joinedAt: user?.createdAt || new Date().toISOString(),
+        rating: 0,
+        followerCount: 0,
+        productCount: 0,
+        vendorStatus: "pending" as const,
+        isVerified: false,
+        userFirstName: user?.firstName || "",
+        userLastName: user?.lastName || "",
+        userEmail: user?.email || "",
+      };
+    }
 
     // Extract user data from vendor
     const userData = selectedVendor.user || {};
@@ -229,17 +259,18 @@ export default function SettingsPage() {
       "";
 
     return {
-      storeName: vendorData.businessName || "Not set",
+      storeName: vendorData.businessName || "Your Store",
       businessEmail: vendorData.businessEmail || userEmail || "Not set",
       businessPhone:
         vendorData.businessPhone || (userData as any).phoneNumber || "Not set",
       businessDescription:
-        vendorData.businessDescription || "No description provided.",
+        vendorData.businessDescription ||
+        "No description provided. Update your store details to add a description.",
       businessAddress: vendorData.businessAddress || "",
       businessLogo: vendorData.businessLogo || "",
       businessBanner: vendorData.businessBanner || images.Placeholder,
-      country,
-      city,
+      country: country || "Not set",
+      city: city || "Not set",
       category,
       storyVideoUrl,
       bankName,
@@ -247,8 +278,11 @@ export default function SettingsPage() {
       swiftCode,
       accountName:
         `${vendorData.businessName || ""} ${vendorData.businessName ? "Inc." : ""}`.trim() ||
-        "Not provided",
-      joinedAt: vendorData.joinedAt || (userData as any).createdAt,
+        "Your Store Inc.",
+      joinedAt:
+        vendorData.joinedAt ||
+        (userData as any).createdAt ||
+        new Date().toISOString(),
       rating: vendorData.rating || 0,
       followerCount: vendorData.followerCount || 0,
       productCount: vendorData.productCount || 0,
@@ -259,6 +293,9 @@ export default function SettingsPage() {
       userEmail,
     };
   };
+
+  // Remove the loading state check that returns "No vendor data available"
+  // Replace lines 307-314 with:
 
   // Handle account deletion
   const handleDeleteAccount = async () => {
@@ -314,19 +351,24 @@ export default function SettingsPage() {
   }
 
   const vendorData = getVendorData();
-  if (!vendorData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-600">No vendor data available</p>
-      </div>
-    );
-  }
-
   const managerName =
     getFullName() ||
     `${vendorData.userFirstName} ${vendorData.userLastName}`.trim() ||
     "Not set";
   const joinedDate = formatDate(vendorData.joinedAt);
+
+  // Add a notification when data is still loading
+  if (vendorLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader2 className="h-12 w-12 animate-spin text-[#CC5500] mb-4" />
+        <p className="text-gray-600 mb-2">Loading your store information...</p>
+        <p className="text-sm text-gray-500">
+          If this takes too long, try refreshing the page
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -498,7 +540,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* ================= STORE DESCRIPTION ================= */}
-         <Card className="max-w-full mx-auto mt-6 sm:mt-8 mx-3 sm:mx-6 shadow-xs border bg-white">
+        <Card className="max-w-full mx-auto mt-6 sm:mt-8 mx-3 sm:mx-6 shadow-xs border bg-white">
           <CardContent className="p-4 sm:p-6">
             <h2 className="text-lg font-semibold mb-4">Store Description</h2>
 
@@ -543,7 +585,9 @@ export default function SettingsPage() {
         <Card className="shadow-xs mt-6 sm:mt-8 py-4 sm:py-6 mx-3 sm:mx-6">
           <CardHeader>
             <CardTitle>
-               <h1 className="text-xl sm:text-2xl font-medium">Delete your account</h1>
+              <h1 className="text-xl sm:text-2xl font-medium">
+                Delete your account
+              </h1>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 sm:space-y-5">
