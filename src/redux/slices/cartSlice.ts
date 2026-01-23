@@ -48,13 +48,59 @@ const initialState: CartState = {
   updating: false,
 };
 
+// Helper function to transform API response to match CartItem structure
+const transformCartData = (apiCart: any): Cart => {
+  const transformedItems = apiCart.items.map((item: any) => {
+    // Get variant data - either from item.variant or first variant in product.variants
+    const variant = item.variant || item.product?.variants?.[0];
+    
+    // Determine pricing
+    const comparePrice = variant?.compareAtPrice;
+    const currentPrice = variant?.price;
+    
+    return {
+      ...item,
+      // If there's a compareAtPrice, use it as the original price
+      price: comparePrice || currentPrice || 0,
+      // The current price becomes the sale price if there's a compare price
+      salePrice: comparePrice ? currentPrice : undefined,
+      product: {
+        ...item.product,
+        // Use the variant's SKU or fallback to product-level SKU
+        sku: variant?.sku || item.product?.sku || '',
+        // Ensure stock is available
+        stock: variant?.stockQuantity ?? 0,
+        // Add vendor if not present (you may need to adjust based on your API structure)
+        vendor: item.product?.vendor || {
+          id: '',
+          businessName: 'Unknown Vendor'
+        }
+      }
+    };
+  });
+
+  // Calculate totals
+  const itemCount = transformedItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+  const total = transformedItems.reduce((sum: number, item: any) => {
+    const price = item.salePrice || item.price;
+    return sum + (price * item.quantity);
+  }, 0);
+
+  return {
+    ...apiCart,
+    items: transformedItems,
+    itemCount,
+    total
+  };
+};
+
 // Get or create cart
 export const fetchCart = createAsyncThunk(
   'cart/fetch',
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.get('/api/v1/cart');
-      return response.data;
+      return transformCartData(response.data.cart);
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || 'Failed to fetch cart'
@@ -69,7 +115,7 @@ export const addToCart = createAsyncThunk(
   async ({ productId, quantity = 1 }: { productId: string; quantity?: number }, { rejectWithValue }) => {
     try {
       const response = await api.post('/api/v1/cart/items', { productId, quantity });
-      return response.data;
+      return transformCartData(response.data.cart);
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || 'Failed to add item to cart'
@@ -84,7 +130,7 @@ export const updateCartItem = createAsyncThunk(
   async ({ id, quantity }: { id: string; quantity: number }, { rejectWithValue }) => {
     try {
       const response = await api.put(`/api/v1/cart/items/${id}`, { quantity });
-      return response.data;
+      return transformCartData(response.data.cart);
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || 'Failed to update cart item'
@@ -129,7 +175,7 @@ export const mergeCart = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.post('/api/v1/cart/merge');
-      return response.data;
+      return transformCartData(response.data.cart);
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || 'Failed to merge cart'

@@ -108,6 +108,7 @@ export default function ProfileSettingsPage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [loadingCountries, setLoadingCountries] = useState(false);
 
   // Form states
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -191,16 +192,16 @@ export default function ProfileSettingsPage() {
   useEffect(() => {
     if (editingAddressId && addresses.length > 0) {
       const addressToEdit = addresses.find(
-        (addr) => addr.id === editingAddressId
+        (addr) => addr.id === editingAddressId,
       );
       if (addressToEdit) {
         // Use a timeout to ensure we don't cause rapid re-renders
         const timer = setTimeout(() => {
           // Parse recipient name if it exists
-          const recipientParts = addressToEdit.recipient?.split(' ') || [];
-          const recipientFirstName = recipientParts[0] || '';
-          const recipientLastName = recipientParts.slice(1).join(' ') || '';
-          
+          const recipientParts = addressToEdit.recipient?.split(" ") || [];
+          const recipientFirstName = recipientParts[0] || "";
+          const recipientLastName = recipientParts.slice(1).join(" ") || "";
+
           setFirstName(recipientFirstName || addressToEdit.firstName || "");
           setLastName(recipientLastName || addressToEdit.lastName || "");
           setEmail(user?.email || addressToEdit.email || "");
@@ -210,7 +211,9 @@ export default function ProfileSettingsPage() {
           setAddress(addressToEdit.address || addressToEdit.addLine1 || "");
           setStreet(addressToEdit.addLine1 || addressToEdit.street || "");
           setDistrict(addressToEdit.postCode || addressToEdit.district || "");
-          setAdditionalDetails(addressToEdit.addLine2 || addressToEdit.additionalDetails || "");
+          setAdditionalDetails(
+            addressToEdit.addLine2 || addressToEdit.additionalDetails || "",
+          );
           setIsDefault(addressToEdit.isDefault || false);
         }, 0);
 
@@ -222,16 +225,38 @@ export default function ProfileSettingsPage() {
   // Fetch countries on component mount
   useEffect(() => {
     const fetchCountries = async () => {
+      setLoadingCountries(true);
       try {
+        console.log("Fetching African countries...");
         const countriesData = await countriesApi.getAfricanCountries();
-        setCountries(countriesData);
+
+        // Sort alphabetically
+        const sortedCountries = [...countriesData].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        );
+
+        setCountries(sortedCountries);
+        console.log(`Loaded ${sortedCountries.length} countries`);
+
+        // If user has an existing address, pre-select that country
+        if (addresses.length > 0 && addresses[0].country) {
+          setSelectedCountry(addresses[0].country);
+        }
       } catch (error) {
         console.error("Error fetching countries:", error);
+        toast.error("Failed to load countries. Please refresh the page.");
+        // Use fallback
+        const fallbackCountries = countriesApi.getStaticAfricanCountries();
+        setCountries(
+          fallbackCountries.sort((a, b) => a.name.localeCompare(b.name)),
+        );
+      } finally {
+        setLoadingCountries(false);
       }
     };
 
     fetchCountries();
-  }, []);
+  }, [addresses]);
 
   // Handle edit profile
   const handleEditProfile = async () => {
@@ -328,7 +353,7 @@ export default function ProfileSettingsPage() {
     } catch (error: any) {
       console.error("Error deleting account:", error);
       toast.error(
-        error.message || "Failed to delete account. Please try again."
+        error.message || "Failed to delete account. Please try again.",
       );
     } finally {
       setDeleting(false);
@@ -337,13 +362,7 @@ export default function ProfileSettingsPage() {
 
   // Handle save address (for both create and update)
   const handleSaveAddress = async () => {
-    if (
-      !firstName ||
-      !lastName ||
-      !selectedCountry ||
-      !street ||
-      !district
-    ) {
+    if (!firstName || !lastName || !selectedCountry || !street || !district) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -468,7 +487,7 @@ export default function ProfileSettingsPage() {
   // Handler for notification settings change
   const handleNotificationChange = (
     key: keyof NotificationPreferences,
-    value: boolean
+    value: boolean,
   ) => {
     setNotificationSettings((prev) => ({
       ...prev,
@@ -504,7 +523,6 @@ export default function ProfileSettingsPage() {
         <div className="bg-white p-6 px-8 rounded-md">
           <Card className="shadow-none border-0 py-6">
             <CardContent className="space-y-6 p-0">
-              {/* Country */}
               <div className="space-y-3">
                 <Label className="font-medium">
                   Country <span className="text-red-500">*</span>
@@ -512,22 +530,47 @@ export default function ProfileSettingsPage() {
                 <Select
                   value={selectedCountry}
                   onValueChange={handleCountryChange}
+                  disabled={loadingCountries}
                 >
                   <SelectTrigger className="min-h-11 w-full">
-                    <SelectValue placeholder="Select country" />
+                    <SelectValue
+                      placeholder={
+                        loadingCountries
+                          ? "Loading countries..."
+                          : "Select country"
+                      }
+                    />
                   </SelectTrigger>
-                  <SelectContent>
-                    {countries.map((country) => (
-                      <SelectItem
-                        key={country.code}
-                        value={country.name}
-                        className="h-11"
-                      >
-                        {country.name}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="max-h-[300px]">
+                    {loadingCountries ? (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-[#CC5500]"></div>
+                        <span className="ml-2">Loading countries...</span>
+                      </div>
+                    ) : countries.length === 0 ? (
+                      <div className="py-4 text-center text-sm text-gray-500">
+                        No countries available
+                      </div>
+                    ) : (
+                      countries.map((country) => (
+                        <SelectItem
+                          key={country.code}
+                          value={country.name}
+                          className="h-11"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{country.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {!loadingCountries && countries.length === 0 && (
+                  <p className="text-sm text-red-500">
+                    Failed to load countries. Please refresh the page.
+                  </p>
+                )}
               </div>
 
               {/* Name Row */}
@@ -998,7 +1041,7 @@ export default function ProfileSettingsPage() {
                         (selectedSubReason ||
                           selectedReason === "something else")
                         ? "bg-[#DC2626] hover:bg-[#DC2626]/90"
-                        : "bg-[#CCCCCC] hover:bg-[#CCCCCC]/60 cursor-not-allowed"
+                        : "bg-[#CCCCCC] hover:bg-[#CCCCCC]/60 cursor-not-allowed",
                     )}
                     onClick={() => setDeleteDialogOpen(true)}
                     disabled={
@@ -1064,11 +1107,10 @@ export default function ProfileSettingsPage() {
                                   Default
                                 </span>
                               )}
-                              {addr.recipient || `${addr.firstName || ''} ${addr.lastName || ''}`.trim()}
+                              {/* {addr.recipient ||
+                                `${addr.firstName || ""} ${addr.lastName || ""}`.trim()} */}
                             </CardTitle>
-                            <p className="text-gray-600 mt-1">
-                              {addr.country}
-                            </p>
+                            <p className="text-gray-600 mt-1">{addr.country}</p>
                           </div>
                           <div className="flex gap-2">
                             {!addr.isDefault && (
@@ -1113,7 +1155,9 @@ export default function ProfileSettingsPage() {
                                 Contact Information
                               </Label>
                               <div className="space-y-1">
-                                <p className="text-gray-700">{user?.email || addr.email}</p>
+                                <p className="text-gray-700">
+                                  {user?.email || addr.email}
+                                </p>
                                 <p className="text-gray-700">
                                   {user?.phoneNumber || addr.phoneNumber}
                                 </p>
@@ -1128,15 +1172,21 @@ export default function ProfileSettingsPage() {
                               <div className="space-y-1">
                                 {/* Display addLine1 (main address line) */}
                                 {addr.addLine1 && (
-                                  <p className="text-gray-700">{addr.addLine1}</p>
+                                  <p className="text-gray-700">
+                                    {addr.addLine1}
+                                  </p>
                                 )}
                                 {/* Display addLine2 if exists */}
                                 {addr.addLine2 && (
-                                  <p className="text-gray-700">{addr.addLine2}</p>
+                                  <p className="text-gray-700">
+                                    {addr.addLine2}
+                                  </p>
                                 )}
                                 {/* Display addLine3 if exists */}
                                 {addr.addLine3 && (
-                                  <p className="text-gray-700">{addr.addLine3}</p>
+                                  <p className="text-gray-700">
+                                    {addr.addLine3}
+                                  </p>
                                 )}
                                 {/* Display country */}
                                 <p className="text-gray-700">{addr.country}</p>
@@ -1146,7 +1196,6 @@ export default function ProfileSettingsPage() {
                                     Post Code: {addr.postCode}
                                   </p>
                                 )}
-                                
                               </div>
                             </div>
                           </div>

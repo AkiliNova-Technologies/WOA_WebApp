@@ -8,6 +8,7 @@ import { useReduxWishlist } from "@/hooks/useReduxWishlists";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/redux/slices/productsSlice";
+import { useReduxAuth } from "@/hooks/useReduxAuth";
 
 // Support both old and new prop formats for backward compatibility
 interface OldProductCardProps {
@@ -37,6 +38,8 @@ export function ProductCard(props: ProductCardProps) {
   const navigate = useNavigate();
   const { isInWishlist, toggleWishlistItem, adding, removing } =
     useReduxWishlist();
+
+  const { isAuthenticated } = useReduxAuth();
 
   const [isAnimating, setIsAnimating] = useState(false);
   const [inWishlist, setInWishlist] = useState(false);
@@ -89,6 +92,15 @@ export function ProductCard(props: ProductCardProps) {
   const handleWishlistClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
 
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      // Show login prompt toast
+      toast.error("Please sign in to save items to your wishlist", {
+        duration: 5000,
+      });
+      return;
+    }
+
     // Prevent multiple rapid clicks
     if (isAnimating || adding || removing) return;
 
@@ -120,12 +132,33 @@ export function ProductCard(props: ProductCardProps) {
 
       // Reset animation after delay
       setTimeout(() => setIsAnimating(false), 600);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to toggle wishlist:", error);
-      toast.error("Failed to update wishlist", {
-        description: "Please try again",
-        duration: 3000,
-      });
+
+      // Check if error is due to authentication
+      const errorMessage = error?.message || "Failed to update wishlist";
+      const isAuthError =
+        errorMessage.includes("authenticated") ||
+        errorMessage.includes("login") ||
+        errorMessage.includes("unauthorized") ||
+        errorMessage.includes("401");
+
+      if (isAuthError) {
+        toast.error("Session expired", {
+          description: "Please sign in again to continue",
+          action: {
+            label: "Sign In",
+            onClick: () => navigate("/login"),
+          },
+          duration: 5000,
+        });
+      } else {
+        toast.error("Failed to update wishlist", {
+          description: "Please try again",
+          duration: 3000,
+        });
+      }
+
       setIsAnimating(false);
     }
   };

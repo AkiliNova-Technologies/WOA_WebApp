@@ -8,38 +8,53 @@ import { ProfileImage } from "@/components/profile-image";
 import { AfricanPhoneInput } from "@/components/african-phone-input";
 import { useReduxAuth } from "@/hooks/useReduxAuth";
 import { useReduxUsers } from "@/hooks/useReduxUsers";
-import { useEffect, useRef } from "react";
+import { useReduxAddresses } from "@/hooks/useReduxAddresses";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { MapPin } from "lucide-react";
 
 export default function MyAccountPage() {
   const { user, firebaseUser, getFullName, getAvatar } = useReduxAuth();
   const { profile, getUserProfile } = useReduxUsers();
+  const { addresses, getAddresses } = useReduxAddresses();
 
   const [profileImage, setProfileImage] = React.useState<string | null>(null);
   const [userName, setUserName] = React.useState("");
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
   const [email, setEmail] = React.useState("");
-  
-  // Add state for phone number and country code
   const [phoneNumber, setPhoneNumber] = React.useState("");
-  const [countryCode, setCountryCode] = React.useState("+256"); // Default to Uganda
-  const [streetAddress, setStreetAddress] = React.useState("");
+  const [countryCode, setCountryCode] = React.useState("+256");
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+
+  // Address state
+  const [userAddress, setUserAddress] = useState<{
+    street: string;
+    city: string;
+    country: string;
+    postCode: string;
+    additionalDetails?: string;
+    isDefault: boolean;
+  } | null>(null);
 
   // Use refs to track if we've already set data from profile
   const hasSetProfileData = useRef(false);
 
-  // Fetch user profile on component mount
+  // Fetch user profile and addresses on component mount
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        await getUserProfile();
+        setLoadingAddresses(true);
+        await Promise.all([getUserProfile(), getAddresses()]);
       } catch (error) {
-        console.error("Failed to load user profile:", error);
+        console.error("Failed to load user data:", error);
+      } finally {
+        setLoadingAddresses(false);
       }
     };
     
     loadUserData();
-  }, [getUserProfile]);
+  }, []);
 
   // Update state when user data changes - ONLY use profile data
   useEffect(() => {
@@ -130,6 +145,26 @@ export default function MyAccountPage() {
     }
   }, [profile, user, firebaseUser, getFullName, getAvatar]);
 
+  // Set user address when addresses are loaded
+ 
+useEffect(() => {
+  if (addresses && addresses.length > 0) {
+    // Find default address or use the first one
+    const defaultAddress = addresses.find(addr => addr.isDefault) || addresses[0];
+    
+    if (defaultAddress) {
+      setUserAddress({
+        street: defaultAddress.addLine1 || defaultAddress.address || "",
+        city: defaultAddress.city || "",
+        country: defaultAddress.country || "",
+        postCode: defaultAddress.postCode || defaultAddress.district || "",
+        additionalDetails: defaultAddress.addLine2 || defaultAddress.additionalDetails || "",
+        isDefault: defaultAddress.isDefault || false
+      });
+    }
+  }
+}, [addresses]); // ← Add addresses here
+
   // Handler for phone number changes
   const handlePhoneNumberChange = (value: string) => {
     setPhoneNumber(value);
@@ -152,12 +187,27 @@ export default function MyAccountPage() {
       case "email":
         setEmail(value);
         break;
-      case "streetAddress":
-        setStreetAddress(value);
-        break;
       default:
         break;
     }
+  };
+
+  // Format address for display
+  const formatAddress = () => {
+    if (!userAddress) return "No address saved";
+    
+    const parts = [];
+    if (userAddress.street) parts.push(userAddress.street);
+    if (userAddress.city) parts.push(userAddress.city);
+    if (userAddress.postCode) parts.push(`Postal Code: ${userAddress.postCode}`);
+    if (userAddress.country) parts.push(userAddress.country);
+    
+    return parts.join(", ");
+  };
+
+  // Redirect to profile settings page to edit address
+  const handleEditAddress = () => {
+    window.location.href = "/profile-settings?tab=addresses";
   };
 
   // Render loading state
@@ -224,7 +274,7 @@ export default function MyAccountPage() {
                   value={email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   type="email"
-                  disabled // Email is usually not editable
+                  disabled
                 />
               </div>
               <div>
@@ -260,55 +310,67 @@ export default function MyAccountPage() {
         </CardContent>
       </Card>
 
-       {/* Address Information */}
+      {/* Address Information */}
       <Card className="shadow-xs py-6">
-        <CardHeader>
-          <CardTitle>
+        <CardHeader className="border-b">
+          <CardTitle className="flex justify-between items-center">
             <h1 className="text-2xl font-medium">Address Information</h1>
+            
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="streetAddress" className="mb-2 block">
-              Street Address
-            </Label>
-            <Input
-              id="streetAddress"
-              className="h-11"
-              placeholder="Enter street address"
-              value={streetAddress}
-              onChange={(e) => handleInputChange("streetAddress", e.target.value)}
-            />
-          </div>
+          {loadingAddresses ? (
+            <div className="flex justify-center items-center h-32">
+              <p className="text-gray-500">Loading address...</p>
+            </div>
+          ) : userAddress ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <MapPin className="h-5 w-5 text-gray-400 mt-1" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium text-lg">
+                      {userAddress.isDefault ? "Default Address" : "Saved Address"}
+                    </h3>
+                    {userAddress.isDefault && (
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                        Default
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-700 text-sm leading-relaxed">
+                    {formatAddress()}
+                  </p>
+                  {userAddress.additionalDetails && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Additional Details: </span>
+                        {userAddress.additionalDetails}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-700 mb-2">
+                No Address Saved
+              </h3>
+              <p className="text-gray-500 mb-4">
+                You haven't added any address yet. Add an address for faster checkout.
+              </p>
+              <Button
+                onClick={handleEditAddress}
+                className="bg-[#CC5500] hover:bg-[#CC5500]/90 text-white"
+              >
+                Add Address
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
-
-
-      {/* Debug Information (Optional - remove in production) */}
-      {/* {process.env.NODE_ENV === "development" && (
-        <Card className="shadow-xs border-dashed border-gray-300">
-          <CardHeader>
-            <CardTitle>
-              <h1 className="text-lg font-medium text-gray-500">Debug Info</h1>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-gray-500">
-            <p><strong>Has Profile Data:</strong> {profile ? "Yes" : "No"}</p>
-            <p><strong>Has Auth User:</strong> {user ? "Yes" : "No"}</p>
-            <p><strong>Has Firebase User:</strong> {firebaseUser ? "Yes" : "No"}</p>
-            <p><strong>Data Source:</strong> {hasSetProfileData.current ? "Profile" : user ? "Auth User" : firebaseUser ? "Firebase" : "None"}</p>
-            {profile && (
-              <>
-                <p><strong>Profile Structure:</strong> Has user object: {!!profile.user}</p>
-                <p><strong>First Name:</strong> {profile.user?.firstName || "Not set"}</p>
-                <p><strong>Last Name:</strong> {profile.user?.lastName || "Not set"}</p>
-                <p><strong>Email:</strong> {profile.user?.email || "Not set"}</p>
-                <p><strong>Phone:</strong> {profile.user?.phoneNumber || "Not set"}</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )} */}
     </div>
   );
 }

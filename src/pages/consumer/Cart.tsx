@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Minus, Plus, Heart, Trash2, Loader2 } from "lucide-react";
+import { Minus, Plus, Heart, Trash2, Loader2, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,14 +32,14 @@ export default function CartPage() {
   const navigate = useNavigate();
 
   const {
-    items: cartItems, // This is the correct property name
+    items: cartItems,
     loading,
     getCart,
-    updateItem, // Changed from updateQuantity
+    updateItem,
     removeItem,
     moveItemToWishlist,
     calculateSubtotal,
-    itemCount: totalItems, // This is the correct property name
+    itemCount: totalItems,
   } = useReduxCart();
 
   const { recentlyViewedProducts, getRecentlyViewedProducts } =
@@ -71,7 +71,7 @@ export default function CartPage() {
 
     setIsUpdating(itemId);
     try {
-      await updateItem(itemId, newQuantity); // Changed from updateQuantity
+      await updateItem(itemId, newQuantity);
     } catch (error) {
       toast.error("Failed to update quantity", {
         description: "Please try again",
@@ -112,7 +112,7 @@ export default function CartPage() {
     (opt) => opt.id === selectedShipping,
   );
   const shipping = selectedShippingOption?.price || 0;
-  const discount = 0; // You might need to get discount from cart data if available
+  const discount = 0;
   const total = subtotal + shipping - discount;
 
   // Loading state
@@ -219,13 +219,21 @@ export default function CartPage() {
                 const displayPrice = item.salePrice || item.price;
                 const comparePrice = item.salePrice ? item.price : undefined;
 
+                // Calculate item total
+                const itemTotal = displayPrice * item.quantity;
+
+                // Calculate savings if there's a sale price
+                const savings = comparePrice
+                  ? (comparePrice - displayPrice) * item.quantity
+                  : 0;
+
                 return (
                   <Card key={item.id} className="p-4 shadow-none">
                     <div className="flex gap-4">
                       <img
                         src={imageUrl}
                         alt={product.name}
-                        className="w-24 h-24 md:w-38 md:h-44 object-cover rounded-lg shrink-0"
+                        className="w-24 h-24 md:w-38 md:h-44 lg:w-48 lg:h-58 object-cover rounded-lg shrink-0"
                         onError={(e) => {
                           e.currentTarget.src =
                             "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400";
@@ -239,34 +247,87 @@ export default function CartPage() {
                               {product.name}
                             </h3>
 
-                            {/* Stock indicator */}
-                            {stockQuantity < 5 && stockQuantity > 0 && (
-                              <Badge
-                                variant="secondary"
-                                className="bg-transparent p-0 text-orange-800 mb-2"
-                              >
-                                Only {stockQuantity} left in stock
-                              </Badge>
-                            )}
-
-                            {/* Out of stock indicator */}
-                            {stockQuantity === 0 && (
-                              <Badge
-                                variant="secondary"
-                                className="bg-transparent p-0 text-red-600 mb-2"
-                              >
-                                Out of stock
-                              </Badge>
-                            )}
-
-                            <p className="text-xl font-bold text-[#303030]">
-                              ${displayPrice.toFixed(2)}
-                              {comparePrice && comparePrice > displayPrice && (
-                                <span className="ml-2 text-base text-gray-400 line-through">
-                                  ${comparePrice.toFixed(2)}
+                            {/* Vendor info */}
+                            {product.vendor?.businessName && (
+                              <p className="text-sm text-gray-500 mb-2">
+                                Sold by{" "}
+                                <span className="font-medium text-gray-700">
+                                  {product.vendor.businessName}
                                 </span>
+                              </p>
+                            )}
+
+                            {/* SKU */}
+                            {product.sku && (
+                              <p className="text-xs text-gray-400 mb-2">
+                                SKU: {product.sku}
+                              </p>
+                            )}
+
+                            {/* Stock indicator */}
+                            <div className="flex items-center gap-2 mb-2">
+                              {stockQuantity > 0 && stockQuantity < 5 && (
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-orange-50 border-orange-200 text-orange-800 text-xs"
+                                >
+                                  <Package className="h-3 w-3 mr-1" />
+                                  Only {stockQuantity} left
+                                </Badge>
                               )}
-                            </p>
+
+                              {stockQuantity === 0 && (
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-red-50 border-red-200 text-red-600 text-xs"
+                                >
+                                  Out of stock
+                                </Badge>
+                              )}
+
+                              {stockQuantity >= 5 && (
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-green-50 border-green-200 text-green-700 text-xs"
+                                >
+                                  In Stock
+                                </Badge>
+                              )}
+                            </div>
+
+                            {/* Price */}
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-baseline gap-2">
+                                <p className="text-xl font-bold text-[#303030]">
+                                  ${displayPrice.toFixed(2)}
+                                </p>
+                                {comparePrice && comparePrice > displayPrice && (
+                                  <span className="text-sm text-gray-400 line-through">
+                                    ${comparePrice.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Savings badge */}
+                              {savings > 0 && (
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-green-50 border-green-200 text-green-700 text-xs w-fit"
+                                >
+                                  Save ${savings.toFixed(2)}
+                                </Badge>
+                              )}
+
+                              {/* Item subtotal */}
+                              {item.quantity > 1 && (
+                                <p className="text-sm text-gray-600 mt-1">
+                                  Subtotal:{" "}
+                                  <span className="font-semibold text-gray-900">
+                                    ${itemTotal.toFixed(2)}
+                                  </span>
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
 

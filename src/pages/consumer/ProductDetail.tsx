@@ -15,7 +15,6 @@ import {
   User,
   Loader2,
 } from "lucide-react";
-// Use Redux hooks
 import { useReduxProducts } from "@/hooks/useReduxProducts";
 import { useReduxCart } from "@/hooks/useReduxCart";
 import { useReduxWishlist } from "@/hooks/useReduxWishlists";
@@ -34,7 +33,6 @@ import { Rate } from "antd";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-// Import the Vendor type from your types if available
 interface VendorInfo {
   id: string;
   name: string;
@@ -46,47 +44,20 @@ interface VendorInfo {
   avatar?: string;
 }
 
-// Helper function to get vendor name from product vendor field
-// const getVendorName = (
-//   vendor:
-//     | string
-//     | { id?: string; name?: string; businessName?: string }
-//     | undefined,
-// ): string => {
-//   if (!vendor) return "Unknown Vendor";
-//   if (typeof vendor === "string") return vendor;
-//   if (vendor.businessName) return vendor.businessName;
-//   return vendor.name || "Unknown Vendor";
-// };
-
-// Helper function to get vendor ID from product vendor field
-// const getVendorId = (
-//   vendor:
-//     | string
-//     | { id?: string; name?: string; businessName?: string }
-//     | undefined,
-// ): string => {
-//   if (!vendor) return "unknown";
-//   if (typeof vendor === "string") return vendor;
-//   return vendor.id || vendor.name || "unknown";
-// };
-
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
 
-  // Use Redux hooks
   const {
-    getPublicProduct,
-    // getRelatedProducts,
-    // getProductsByCategory,
     product,
+    loading,
+    getPublicProduct,
     relatedProducts,
-    loading: productsLoading,
+    getRelatedProducts,
+    trackView,
   } = useReduxProducts();
 
-  const { addItem, updating: addingToCart } = useReduxCart();
-
+  const { addItem: addToCart, updating: addingToCart } = useReduxCart();
   const {
     isInWishlist,
     toggleWishlistItem,
@@ -100,31 +71,25 @@ export default function ProductDetailPage() {
   const [showReviews, setShowReviews] = useState(true);
   const [showShipping, setShowShipping] = useState(true);
   const [inWishlist, setInWishlist] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  // Get related products for display
-  const relatedProductsForDisplay = relatedProducts.slice(0, 4);
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  // Track view and fetch product data
+  // Fetch product data on mount
   useEffect(() => {
     const fetchProductData = async () => {
       if (productId) {
-        setLoading(true);
         try {
           await getPublicProduct(productId);
+          await getRelatedProducts(productId);
+          await trackView(productId);
         } catch (error) {
           console.error("Failed to fetch product:", error);
-          toast.error("Failed to load product", {
-            description: "Please try again",
-          });
-        } finally {
-          setLoading(false);
         }
       }
     };
 
     fetchProductData();
-  }, [productId, getPublicProduct]);
+  }, [productId, getPublicProduct, getRelatedProducts, trackView]);
 
   // Update wishlist status
   useEffect(() => {
@@ -133,8 +98,14 @@ export default function ProductDetailPage() {
     }
   }, [productId, isInWishlist]);
 
+  const handleClick = () => {
+    setIsAnimating(true);
+    handleWishlistToggle();
+    setTimeout(() => setIsAnimating(false), 500);
+  };
+
   // Loading state
-  if (loading || productsLoading) {
+  if (loading && !product) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -157,17 +128,36 @@ export default function ProductDetailPage() {
     );
   }
 
-  // Handle vendor data safely using helper functions
+  const availableVariants =
+    product.variants?.filter((v) => v.isActive && v.stockQuantity > 0) || [];
+
+  // Handle vendor data safely
   const getVendorInfo = (): VendorInfo => {
-    const vendorName =
-      product.vendorName || product.sellerName || "Unknown Vendor";
-    const vendorId = product.vendorId || product.sellerId || "unknown";
+    const seller = product.seller;
+
+    if (seller && typeof seller === "object") {
+      return {
+        id: seller.id || "unknown",
+        name:
+          seller.businessName ||
+          `${seller.firstName} ${seller.lastName}`.trim() ||
+          "Unknown Vendor",
+        title: seller.businessName
+          ? `Owner of ${seller.businessName}`
+          : "Vendor",
+        rating: 4.5,
+        reviews: 12,
+        itemsSold: 16,
+        memberMonths: 8,
+        avatar:
+          "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+      };
+    }
 
     return {
-      id: vendorId,
-      name: vendorName,
-      title:
-        vendorName !== "Unknown Vendor" ? `Owner of ${vendorName}` : "Vendor",
+      id: "unknown",
+      name: product.vendorName || product.sellerName || "Unknown Vendor",
+      title: "Vendor",
       rating: 4.5,
       reviews: 12,
       itemsSold: 16,
@@ -181,14 +171,30 @@ export default function ProductDetailPage() {
 
   // Get product images
   const getProductImages = () => {
+    if (!product)
+      return [
+        "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400",
+      ];
+
+    // First, check if there are images in the images array
+    if (
+      product.images &&
+      Array.isArray(product.images) &&
+      product.images.length > 0
+    ) {
+      return product.images.map((img) => {
+        if (typeof img === "string") return img;
+        if (img && typeof img === "object" && img.url) return img.url;
+        return "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400";
+      });
+    }
+
+    // Fall back to the main image property
     if (product.image) {
       return [product.image];
     }
-    if (product.images && product.images.length > 0) {
-      return product.images.map((img: any) =>
-        typeof img === "string" ? img : img.url,
-      );
-    }
+
+    // Default fallback
     return [
       "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400",
     ];
@@ -229,7 +235,7 @@ export default function ProductDetailPage() {
   // Handle add to cart
   const handleAddToCart = async () => {
     try {
-      await addItem(product.id, quantity);
+      await addToCart(product.id, quantity);
       toast.success("Added to cart", {
         description: `${quantity} × ${product.name}`,
       });
@@ -263,36 +269,13 @@ export default function ProductDetailPage() {
   };
 
   // Get available stock
-  const getAvailableStock = () => {
-    if (product.variants && product.variants.length > 0) {
-      return product.variants.reduce(
-        (sum: number, v: any) =>
-          sum + (v.isActive && v.stockQuantity > 0 ? v.stockQuantity : 0),
-        0,
-      );
-    }
-    return 100; // Default stock
-  };
-
-  const availableStock = getAvailableStock();
-
-  // Mock category data for breadcrumb
-  const getCategoryName = () => {
-    if (!product.categoryId) return "Products";
-
-    // You might want to fetch categories or have a mapping
-    const categoryMap: Record<string, string> = {
-      "1": "Women's Fashion",
-      "2": "Men's Fashion",
-      "3": "Kid's Fashion",
-      "4": "Footwear",
-      "5": "Headwear & Wraps",
-    };
-
-    return categoryMap[product.categoryId] || "Products";
-  };
-
-  const categoryName = getCategoryName();
+  const availableStock =
+    product.variants && product.variants.length > 0
+      ? product.variants.reduce(
+          (sum, v) => sum + (v.isActive ? v.stockQuantity : 0),
+          0,
+        )
+      : 100; // Default stock if no variants
 
   return (
     <div className="min-h-screen bg-white">
@@ -300,9 +283,9 @@ export default function ProductDetailPage() {
       <div className="bg-[#F7F7F7]">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="flex justify-center items-center gap-2 text-md text-[#999999]">
-            <span>{categoryName}</span>
+            <span>{product.category?.name || "Products"}</span>
             <span>/</span>
-            <span>{product.subcategoryId || "Category"}</span>
+            <span>{product.subcategory?.name || "Category"}</span>
             <span>/</span>
             <span className="text-gray-900">{product.name}</span>
           </div>
@@ -315,21 +298,31 @@ export default function ProductDetailPage() {
           <div>
             <div className="relative bg-white rounded-lg overflow-hidden mb-4">
               <button
-                onClick={handleWishlistToggle}
+                onClick={handleClick}
                 disabled={addingToWishlist}
                 className={cn(
-                  "absolute top-4 right-4 z-10 p-2 rounded-full shadow-md transition-all",
+                  "absolute top-4 right-4 z-10 p-2 rounded-full shadow-md",
+                  "transition-all duration-300 ease-out",
+                  "hover:scale-110 hover:shadow-lg active:scale-90",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
                   inWishlist
                     ? "bg-red-50 hover:bg-red-100"
                     : "bg-white hover:bg-gray-100",
                 )}
               >
-                <Heart
-                  className={cn(
-                    "w-5 h-5 transition-colors",
-                    inWishlist ? "text-red-500 fill-red-500" : "text-gray-700",
-                  )}
-                />
+                {addingToWishlist ? (
+                  <div className="w-5 h-5 border-2 border-gray-300 border-t-red-500 rounded-full animate-spin" />
+                ) : (
+                  <Heart
+                    className={cn(
+                      "w-5 h-5 transition-all duration-300",
+                      inWishlist
+                        ? "text-red-500 fill-red-500"
+                        : "text-gray-700",
+                      isAnimating && "scale-125",
+                    )}
+                  />
+                )}
               </button>
               <img
                 src={productImages[selectedImage]}
@@ -412,10 +405,10 @@ export default function ProductDetailPage() {
                   <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-4">
                     <div className="text-center">
                       <div className="text-5xl font-bold mb-2">
-                        {product.averageRating?.toFixed(1) || "4.5"}
+                        {product.averageRating?.toFixed(1)}
                       </div>
                       <p className="text-sm text-gray-600 mt-2">
-                        {product.reviewCount || 15} reviews
+                        {product.reviewCount} reviews
                       </p>
                     </div>
 
@@ -505,38 +498,27 @@ export default function ProductDetailPage() {
               <div className="flex items-center gap-2 mb-2">
                 <Rate
                   disabled
-                  value={product.averageRating || 4.5}
+                  value={product.averageRating}
                   className="text-yellow-400"
                 />
                 <span className="text-sm font-semibold">
-                  {(product.averageRating || 4.5).toFixed(1)} Star Rating
+                  {product.averageRating?.toFixed(1)} Star Rating
                 </span>
                 <span className="text-sm text-gray-600">
-                  ({product.reviewCount || 15} User feedback)
+                  ({product.reviewCount} User feedback)
                 </span>
               </div>
               <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
               <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span
-                  className={cn(
-                    "px-2 py-1 rounded text-xs font-medium",
-                    product.status === "active" ||
-                      product.status === "published" ||
-                      product.status === "approved"
-                      ? "bg-green-100 text-green-800"
-                      : product.status === "draft"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : product.status === "archived"
-                          ? "bg-gray-100 text-gray-800"
-                          : "bg-blue-100 text-blue-800",
-                  )}
-                >
-                  {product.status || "active"}
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                  {product.status}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 mt-1">
-                Category: {categoryName}
-              </p>
+              {product.category && (
+                <p className="text-sm text-gray-600 mt-1">
+                  Category: {product.category.name}
+                </p>
+              )}
             </div>
 
             {/* Price */}
@@ -565,7 +547,7 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Variant Selection (if applicable) */}
-            {product.variants && product.variants.length > 0 && (
+            {availableVariants.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium mb-2">
@@ -579,13 +561,11 @@ export default function ProductDetailPage() {
                       <SelectValue placeholder="Select variant" />
                     </SelectTrigger>
                     <SelectContent>
-                      {product.variants
-                        .filter((v: any) => v.isActive && v.stockQuantity > 0)
-                        .map((variant: any) => (
-                          <SelectItem key={variant.id} value={variant.id}>
-                            {variant.name} - ${variant.price.toFixed(2)}
-                          </SelectItem>
-                        ))}
+                      {availableVariants.map((variant) => (
+                        <SelectItem key={variant.id} value={variant.id}>
+                          {variant.name} - ${variant.price.toFixed(2)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -627,7 +607,7 @@ export default function ProductDetailPage() {
               <Button
                 className="flex-1 h-12 bg-[#CC5500] rounded-full text-white py-3 font-semibold hover:bg-[#CC5500]/80 flex items-center justify-center gap-2"
                 onClick={handleAddToCart}
-                disabled={addingToCart || availableStock === 0}
+                disabled={addingToCart}
               >
                 {addingToCart ? (
                   <>
@@ -691,7 +671,7 @@ export default function ProductDetailPage() {
                   {Object.entries(product.attributes).map(([key, value]) => (
                     <div key={key} className="grid grid-cols-3 gap-2">
                       <span className="text-gray-600 capitalize">{key}:</span>
-                      <span className="col-span-2">{String(value)}</span>
+                      <span className="col-span-2">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -735,9 +715,7 @@ export default function ProductDetailPage() {
                 <h3 className="font-semibold">Meet your vendor</h3>
                 <button
                   className="text-orange-500 text-sm hover:underline"
-                  onClick={() =>
-                    navigate(`/category/vendor-profile/${vendor.id}`)
-                  }
+                  onClick={() => navigate(`/vendor/${vendor.id}`)}
                 >
                   Check out the store
                 </button>
@@ -778,7 +756,7 @@ export default function ProductDetailPage() {
         </div>
 
         {/* More like this */}
-        {relatedProductsForDisplay.length > 0 && (
+        {relatedProducts.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold">More like this</h2>
@@ -787,7 +765,7 @@ export default function ProductDetailPage() {
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {relatedProductsForDisplay.map((relatedProduct) => (
+              {relatedProducts.map((relatedProduct) => (
                 <ProductCard key={relatedProduct.id} product={relatedProduct} />
               ))}
             </div>
