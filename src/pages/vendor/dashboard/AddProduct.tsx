@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   ChevronDown,
@@ -6,9 +6,7 @@ import {
   DollarSign,
   ImageIcon,
   Info,
-  ListFilter,
-  Reply,
-  ThumbsUp,
+  Loader2,
   X,
 } from "lucide-react";
 import Steps from "@/components/steps";
@@ -37,83 +35,323 @@ import { CountrySelect } from "@/components/country-select";
 import { useNavigate } from "react-router-dom";
 import { ImageUpload } from "@/components/image-upload";
 import { VideoUpload } from "@/components/video-upload";
-import { Search } from "@/components/ui/search";
-import images from "@/assets/images";
+import { useReduxCategories } from "@/hooks/useReduxCategories";
+import { useReduxProducts } from "@/hooks/useReduxProducts";
+import { toast } from "sonner";
 
 type FormData = {
   title: string;
-  category: string;
-  subCategory: string;
-  subCategoryType: string;
+  categoryId: string;
+  subcategoryId: string;
+  productTypeId: string;
   description: string;
   specifications: string;
-  amount: string;
+  basePrice: string;
+  baseCompareAtPrice: string;
   quantity: string;
   lowStockCount: string;
-  // Add these new fields
   country: string;
   productionMethod: string;
   sizes: string[];
   sizeInput: string;
-  color1: string;
-  color2: string;
-  color3: string;
-  color4: string;
+  colors: string[];
+  colorInput: string;
   careInstructions: string;
+  // Media
+  productImages: string[];
+  productVideo: string;
 };
 
 const AddProductPage = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [formData, setFormData] = useState({
+  // Redux hooks
+  const {
+    categories,
+    subcategories,
+    productTypes,
+    loading: categoriesLoading,
+    getCategories,
+    getSubcategoriesByCategory,
+    getProductTypesBySubcategory,
+  } = useReduxCategories();
+
+  const {
+    createNewProduct,
+    createLoading,
+    createError,
+  } = useReduxProducts();
+
+  const [formData, setFormData] = useState<FormData>({
     title: "",
-    category: "",
-    subCategory: "",
-    subCategoryType: "",
+    categoryId: "",
+    subcategoryId: "",
+    productTypeId: "",
     description: "",
     specifications: "",
-    amount: "8",
+    basePrice: "",
+    baseCompareAtPrice: "",
     quantity: "",
     lowStockCount: "",
-    // Add these new fields
     country: "",
     productionMethod: "",
-    sizes: [] as string[],
-    sizeInput: "", // Temporary input for size
-    color1: "",
-    color2: "",
-    color3: "",
-    color4: "",
+    sizes: [],
+    sizeInput: "",
+    colors: [],
+    colorInput: "",
     careInstructions: "",
+    productImages: [],
+    productVideo: "",
   });
 
-  // Add these helper functions
+  // Fetch categories on mount
+  useEffect(() => {
+    getCategories();
+  }, [getCategories]);
+
+  // Fetch subcategories when category changes
+  useEffect(() => {
+    if (formData.categoryId) {
+      getSubcategoriesByCategory(formData.categoryId);
+      // Reset subcategory and product type when category changes
+      setFormData(prev => ({
+        ...prev,
+        subcategoryId: "",
+        productTypeId: "",
+      }));
+    }
+  }, [formData.categoryId, getSubcategoriesByCategory]);
+
+  // Fetch product types when subcategory changes
+  useEffect(() => {
+    if (formData.subcategoryId) {
+      getProductTypesBySubcategory(formData.subcategoryId);
+      // Reset product type when subcategory changes
+      setFormData(prev => ({
+        ...prev,
+        productTypeId: "",
+      }));
+    }
+  }, [formData.subcategoryId, getProductTypesBySubcategory]);
+
+  // Filter subcategories for selected category
+  const filteredSubcategories = useMemo(() => {
+    if (!formData.categoryId) return [];
+    return subcategories.filter(sub => sub.categoryId === formData.categoryId);
+  }, [subcategories, formData.categoryId]);
+
+  // Filter product types for selected subcategory
+  const filteredProductTypes = useMemo(() => {
+    if (!formData.subcategoryId) return [];
+    return productTypes.filter(pt => pt.subcategoryId === formData.subcategoryId);
+  }, [productTypes, formData.subcategoryId]);
+
+  // Get selected names for preview
+  const selectedCategory = useMemo(() => 
+    categories.find(c => c.id === formData.categoryId),
+    [categories, formData.categoryId]
+  );
+
+  const selectedSubcategory = useMemo(() => 
+    subcategories.find(s => s.id === formData.subcategoryId),
+    [subcategories, formData.subcategoryId]
+  );
+
+  const selectedProductType = useMemo(() => 
+    productTypes.find(pt => pt.id === formData.productTypeId),
+    [productTypes, formData.productTypeId]
+  );
+
+  // Handle adding size
   const handleAddSize = () => {
     if (
       formData.sizeInput?.trim() &&
       !formData.sizes.includes(formData.sizeInput.trim().toUpperCase())
     ) {
       const newSize = formData.sizeInput.trim().toUpperCase();
-      const newSizes = [...formData.sizes, newSize];
       setFormData((prev) => ({
         ...prev,
-        sizes: newSizes,
-        sizeInput: "", // Clear the input
+        sizes: [...prev.sizes, newSize],
+        sizeInput: "",
       }));
     }
   };
 
   const handleRemoveSize = (sizeToRemove: string) => {
-    const newSizes = formData.sizes.filter((size) => size !== sizeToRemove);
     setFormData((prev) => ({
       ...prev,
-      sizes: newSizes,
+      sizes: prev.sizes.filter((size) => size !== sizeToRemove),
     }));
   };
 
-  const handleProductPublish = () => {
-    navigate(-1);
+  // Handle adding color
+  const handleAddColor = () => {
+    if (
+      formData.colorInput?.trim() &&
+      !formData.colors.includes(formData.colorInput.trim())
+    ) {
+      const newColor = formData.colorInput.trim();
+      setFormData((prev) => ({
+        ...prev,
+        colors: [...prev.colors, newColor],
+        colorInput: "",
+      }));
+    }
+  };
+
+  const handleRemoveColor = (colorToRemove: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      colors: prev.colors.filter((color) => color !== colorToRemove),
+    }));
+  };
+
+  // Handle image upload
+  const handleProductImagesChange = (urls: string[]) => {
+    setFormData(prev => ({
+      ...prev,
+      productImages: urls,
+    }));
+  };
+
+  // Handle video upload
+  const handleProductVideoChange = (url: string | null) => {
+    setFormData(prev => ({
+      ...prev,
+      productVideo: url || "",
+    }));
+  };
+
+  // Handle product creation
+  const handleProductPublish = async () => {
+    // Validate required fields
+    if (!formData.title.trim()) {
+      toast.error("Please enter a product title");
+      return;
+    }
+    if (!formData.categoryId) {
+      toast.error("Please select a category");
+      return;
+    }
+    if (!formData.subcategoryId) {
+      toast.error("Please select a subcategory");
+      return;
+    }
+    if (!formData.productTypeId) {
+      toast.error("Please select a product type");
+      return;
+    }
+    if (!formData.basePrice || parseFloat(formData.basePrice) <= 0) {
+      toast.error("Please enter a valid price");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Build attributes object from form data
+      const attributes: Record<string, string> = {};
+      
+      // Add sizes as comma-separated string if present
+      if (formData.sizes.length > 0) {
+        attributes.size = formData.sizes.join(",");
+      }
+      
+      // Add colors as comma-separated string if present
+      if (formData.colors.length > 0) {
+        attributes.color = formData.colors.join(",");
+      }
+      
+      // Add other attributes
+      if (formData.country) {
+        attributes.countryOfOrigin = formData.country;
+      }
+      if (formData.productionMethod) {
+        attributes.productionMethod = formData.productionMethod;
+      }
+      if (formData.careInstructions) {
+        attributes.careInstructions = formData.careInstructions;
+      }
+      if (formData.specifications) {
+        attributes.specifications = formData.specifications;
+      }
+
+      // Create product payload matching API expectations
+      const productData = {
+        name: formData.title.trim(),
+        description: formData.description || undefined,
+        basePrice: parseFloat(formData.basePrice),
+        baseCompareAtPrice: formData.baseCompareAtPrice 
+          ? parseFloat(formData.baseCompareAtPrice) 
+          : undefined,
+        attributes,
+        images: formData.productImages.length > 0 ? formData.productImages : undefined,
+        categoryId: formData.categoryId,
+        subcategoryId: formData.subcategoryId,
+        productTypeId: formData.productTypeId,
+      };
+
+      await createNewProduct(productData);
+      
+      toast.success("Product created successfully!");
+      
+      // Navigate to products list or product detail
+      navigate("/vendor/products");
+    } catch (error: any) {
+      console.error("Failed to create product:", error);
+      toast.error(error?.message || "Failed to create product. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle save as draft
+  const handleSaveAsDraft = async () => {
+    if (!formData.title.trim()) {
+      toast.error("Please enter at least a product title to save as draft");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const attributes: Record<string, string> = {};
+      
+      if (formData.sizes.length > 0) {
+        attributes.size = formData.sizes.join(",");
+      }
+      if (formData.colors.length > 0) {
+        attributes.color = formData.colors.join(",");
+      }
+
+      const productData = {
+        name: formData.title.trim(),
+        description: formData.description || undefined,
+        basePrice: formData.basePrice ? parseFloat(formData.basePrice) : 0,
+        baseCompareAtPrice: formData.baseCompareAtPrice 
+          ? parseFloat(formData.baseCompareAtPrice) 
+          : undefined,
+        attributes,
+        images: formData.productImages.length > 0 ? formData.productImages : undefined,
+        categoryId: formData.categoryId || undefined,
+        subcategoryId: formData.subcategoryId || undefined,
+        productTypeId: formData.productTypeId || undefined,
+      };
+
+      // Note: You might need a separate "save as draft" endpoint
+      // For now, we'll use the same create endpoint
+      await createNewProduct(productData as any);
+      
+      toast.success("Product saved as draft!");
+      navigate("/vendor/products");
+    } catch (error: any) {
+      console.error("Failed to save draft:", error);
+      toast.error(error?.message || "Failed to save draft. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const steps = [
@@ -131,20 +369,37 @@ const AddProductPage = () => {
   };
 
   const handleNext = () => {
+    // Validate current step before proceeding
+    if (currentStep === 0) {
+      if (!formData.title.trim()) {
+        toast.error("Please enter a product title");
+        return;
+      }
+      if (!formData.categoryId) {
+        toast.error("Please select a category");
+        return;
+      }
+      if (!formData.subcategoryId) {
+        toast.error("Please select a subcategory");
+        return;
+      }
+      if (!formData.productTypeId) {
+        toast.error("Please select a product type");
+        return;
+      }
+      if (!formData.basePrice) {
+        toast.error("Please enter a price");
+        return;
+      }
+    }
+
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   };
 
   const handleCancel = () => {
-    // Handle cancel logic
-    console.log("Cancel clicked");
     navigate(-1);
-  };
-
-  const handleSaveAsDraft = () => {
-    // Handle save as draft logic
-    console.log("Save as draft clicked");
   };
 
   return (
@@ -158,7 +413,7 @@ const AddProductPage = () => {
             <div className="flex items-center justify-center gap-4">
               <Button
                 variant={"secondary"}
-                className=" bg-white  hover:text-gray-900"
+                className="bg-white hover:text-gray-900"
                 onClick={() => navigate(-1)}
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -170,14 +425,17 @@ const AddProductPage = () => {
             <div className="flex gap-3">
               <button
                 onClick={handleCancel}
-                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={isSubmitting}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveAsDraft}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 flex items-center gap-2"
               >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save as draft
               </button>
             </div>
@@ -213,16 +471,16 @@ const AddProductPage = () => {
                     </Label>
                     <Info className="w-4 h-4 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">
-                      Maximum 30 characters. No HTML or emoji allowed
+                      Maximum 100 characters. No HTML or emoji allowed
                     </span>
                   </div>
                   <Input
                     id="title"
                     type="text"
-                    placeholder="Input your text"
+                    placeholder="Enter product title"
                     value={formData.title}
                     onChange={(e) => handleInputChange("title", e.target.value)}
-                    maxLength={30}
+                    maxLength={100}
                     className="h-11"
                   />
                 </div>
@@ -237,18 +495,23 @@ const AddProductPage = () => {
                       <Info className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <Select
-                      value={formData.category}
+                      value={formData.categoryId}
                       onValueChange={(value) =>
-                        handleInputChange("category", value)
+                        handleInputChange("categoryId", value)
                       }
+                      disabled={categoriesLoading}
                     >
                       <SelectTrigger id="category" className="min-h-11">
-                        <SelectValue placeholder="Select a category" />
+                        <SelectValue placeholder={
+                          categoriesLoading ? "Loading categories..." : "Select a category"
+                        } />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="electronics">Electronics</SelectItem>
-                        <SelectItem value="clothing">Clothing</SelectItem>
-                        <SelectItem value="food">Food</SelectItem>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -263,74 +526,67 @@ const AddProductPage = () => {
                       </Label>
                     </div>
                     <Select
-                      value={formData.subCategory}
+                      value={formData.subcategoryId}
                       onValueChange={(value) =>
-                        handleInputChange("subCategory", value)
+                        handleInputChange("subcategoryId", value)
                       }
+                      disabled={!formData.categoryId || categoriesLoading}
                     >
                       <SelectTrigger id="subCategory" className="min-h-11">
-                        <SelectValue placeholder="Select a sub category" />
+                        <SelectValue placeholder={
+                          !formData.categoryId 
+                            ? "Select a category first" 
+                            : "Select a sub category"
+                        } />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="phones">Phones</SelectItem>
-                        <SelectItem value="laptops">Laptops</SelectItem>
+                        {filteredSubcategories.map((subcategory) => (
+                          <SelectItem key={subcategory.id} value={subcategory.id}>
+                            {subcategory.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                {/* Product Sub Category Type Row */}
+                {/* Product Type Row */}
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Label
-                        htmlFor="subCategory2"
+                        htmlFor="productType"
                         className="text-sm font-medium"
                       >
-                        Product Sub Category
+                        Product Type
                       </Label>
                     </div>
                     <Select
-                      value={formData.subCategory}
+                      value={formData.productTypeId}
                       onValueChange={(value) =>
-                        handleInputChange("subCategory", value)
+                        handleInputChange("productTypeId", value)
                       }
+                      disabled={!formData.subcategoryId || categoriesLoading}
                     >
-                      <SelectTrigger id="subCategory2" className="min-h-11">
-                        <SelectValue placeholder="Select a sub category" />
+                      <SelectTrigger id="productType" className="min-h-11">
+                        <SelectValue placeholder={
+                          !formData.subcategoryId 
+                            ? "Select a subcategory first" 
+                            : "Select a product type"
+                        } />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="category">
-                          Select a sub category
-                        </SelectItem>
+                        {filteredProductTypes.map((productType) => (
+                          <SelectItem key={productType.id} value={productType.id}>
+                            {productType.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label
-                        htmlFor="subCategoryType"
-                        className="text-sm font-medium"
-                      >
-                        Product Sub Category type
-                      </Label>
-                    </div>
-                    <Select
-                      value={formData.subCategoryType}
-                      onValueChange={(value) =>
-                        handleInputChange("subCategoryType", value)
-                      }
-                    >
-                      <SelectTrigger id="subCategoryType" className="min-h-11">
-                        <SelectValue placeholder="Select a sub category type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="type">
-                          Select a sub category type
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {/* Empty column for alignment or add another field */}
                   </div>
                 </div>
 
@@ -386,19 +642,22 @@ const AddProductPage = () => {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="amount" className="text-sm font-medium">
-                        Amount
+                      <Label htmlFor="basePrice" className="text-sm font-medium">
+                        Base Price
                       </Label>
                       <Info className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        id="amount"
-                        type="text"
-                        value={formData.amount}
+                        id="basePrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={formData.basePrice}
                         onChange={(e) =>
-                          handleInputChange("amount", e.target.value)
+                          handleInputChange("basePrice", e.target.value)
                         }
                         className="pl-10 h-11"
                       />
@@ -407,15 +666,42 @@ const AddProductPage = () => {
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
+                      <Label htmlFor="baseCompareAtPrice" className="text-sm font-medium">
+                        Compare at Price (Optional)
+                      </Label>
+                      <Info className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="baseCompareAtPrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={formData.baseCompareAtPrice}
+                        onChange={(e) =>
+                          handleInputChange("baseCompareAtPrice", e.target.value)
+                        }
+                        className="pl-10 h-11"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
                       <Label htmlFor="quantity" className="text-sm font-medium">
-                        Quantity
+                        Initial Quantity
                       </Label>
                       <Info className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <Input
                       id="quantity"
-                      type="text"
-                      placeholder="Value"
+                      type="number"
+                      min="0"
+                      placeholder="Enter quantity"
                       value={formData.quantity}
                       onChange={(e) =>
                         handleInputChange("quantity", e.target.value)
@@ -423,29 +709,29 @@ const AddProductPage = () => {
                       className="h-11"
                     />
                   </div>
-                </div>
 
-                {/* Low Stock Count */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label
-                      htmlFor="lowStockCount"
-                      className="text-sm font-medium"
-                    >
-                      Low stock Count
-                    </Label>
-                    <Info className="w-4 h-4 text-muted-foreground" />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label
+                        htmlFor="lowStockCount"
+                        className="text-sm font-medium"
+                      >
+                        Low Stock Alert
+                      </Label>
+                      <Info className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <Input
+                      id="lowStockCount"
+                      type="number"
+                      min="0"
+                      placeholder="Alert when stock is below"
+                      value={formData.lowStockCount}
+                      onChange={(e) =>
+                        handleInputChange("lowStockCount", e.target.value)
+                      }
+                      className="h-11"
+                    />
                   </div>
-                  <Input
-                    id="lowStockCount"
-                    type="text"
-                    placeholder="Value"
-                    value={formData.lowStockCount}
-                    onChange={(e) =>
-                      handleInputChange("lowStockCount", e.target.value)
-                    }
-                    className="h-11"
-                  />
                 </div>
               </CardContent>
 
@@ -480,32 +766,18 @@ const AddProductPage = () => {
                   reduces returns.
                 </p>
 
-                {/* Main Image Upload */}
-                <div className="mb-4">
-                  <ImageUpload
-                    onImageChange={(file) => {
-                      console.log("Main image:", file);
-                    }}
-                    maxSize={10}
-                  />
-                </div>
+                {/* Image Upload Component */}
+                <ImageUpload
+                  onImageChange={handleProductImagesChange}
+                  maxSize={10}
+                  maxImages={5}
+                  initialUrls={formData.productImages}
+                  folder="products"
+                />
 
-                {/* Additional Images Grid */}
-                <div className="grid grid-cols-3 gap-4 mb-3">
-                  {[1, 2, 3].map((index) => (
-                    <ImageUpload
-                      key={index}
-                      onImageChange={(file) => {
-                        console.log(`Additional image ${index}:`, file);
-                      }}
-                      maxSize={10}
-                    />
-                  ))}
-                </div>
-
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 mt-3">
                   Recommended size: 1920×1080px · Format: JPEG or PNG · Max
-                  size: 10MB
+                  size: 10MB · Max 5 images
                 </p>
               </div>
 
@@ -521,9 +793,7 @@ const AddProductPage = () => {
                 </p>
 
                 <VideoUpload
-                  onVideoChange={(file) => {
-                    console.log("Product story video:", file);
-                  }}
+                  onVideoChange={handleProductVideoChange}
                   maxSize={60}
                   className="mb-3"
                 />
@@ -547,6 +817,7 @@ const AddProductPage = () => {
             </div>
           )}
 
+          {/* Step 3: Additional Details */}
           {currentStep === 2 && (
             <Card className="p-8 shadow-none border-none">
               <CardContent className="px-0 space-y-6">
@@ -600,7 +871,7 @@ const AddProductPage = () => {
                   <div className="flex gap-2">
                     <Input
                       type="text"
-                      placeholder="Add attribute values"
+                      placeholder="Add size (e.g., S, M, L, XL, 42)"
                       className="flex-1 h-11"
                       value={formData.sizeInput || ""}
                       onChange={(e) =>
@@ -624,19 +895,18 @@ const AddProductPage = () => {
 
                   {/* Display added sizes */}
                   {formData.sizes && formData.sizes.length > 0 && (
-                    <div className="relative flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {formData.sizes.map((size) => (
-                        <div className="relative">
+                        <div key={size} className="relative group">
                           <Badge
-                            key={size}
                             variant="secondary"
-                            className=" px-4 py-2 bg-muted text-foreground border-border rounded-md flex items-center gap-1 group"
+                            className="px-4 py-2 bg-muted text-foreground border-border rounded-md flex items-center gap-1"
                           >
                             {size}
                             <button
                               type="button"
                               onClick={() => handleRemoveSize(size)}
-                              className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10 text-xs"
+                              className="ml-1 hover:text-red-600"
                             >
                               <X className="w-3 h-3" />
                             </button>
@@ -648,48 +918,55 @@ const AddProductPage = () => {
                 </div>
 
                 {/* Color */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <Label className="text-sm font-medium">Color</Label>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="flex gap-2">
                     <Input
                       type="text"
-                      placeholder="Value"
-                      className="h-11"
-                      value={formData.color1 || ""}
+                      placeholder="Add color (e.g., Red, Blue, Natural Brown)"
+                      className="flex-1 h-11"
+                      value={formData.colorInput || ""}
                       onChange={(e) =>
-                        handleInputChange("color1", e.target.value)
+                        handleInputChange("colorInput", e.target.value)
                       }
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddColor();
+                        }
+                      }}
                     />
-                    <Input
-                      type="text"
-                      placeholder="Value"
-                      className="h-11"
-                      value={formData.color2 || ""}
-                      onChange={(e) =>
-                        handleInputChange("color2", e.target.value)
-                      }
-                    />
+                    <Button
+                      onClick={handleAddColor}
+                      disabled={!formData.colorInput?.trim()}
+                      className="bg-[#CC5500] hover:bg-[#B34D00] h-11 px-8"
+                    >
+                      Add
+                    </Button>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      type="text"
-                      placeholder="Value"
-                      className="h-11"
-                      value={formData.color3 || ""}
-                      onChange={(e) =>
-                        handleInputChange("color3", e.target.value)
-                      }
-                    />
-                    <Input
-                      type="text"
-                      placeholder="Value"
-                      className="h-11"
-                      value={formData.color4 || ""}
-                      onChange={(e) =>
-                        handleInputChange("color4", e.target.value)
-                      }
-                    />
-                  </div>
+
+                  {/* Display added colors */}
+                  {formData.colors && formData.colors.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.colors.map((color) => (
+                        <div key={color} className="relative group">
+                          <Badge
+                            variant="secondary"
+                            className="px-4 py-2 bg-muted text-foreground border-border rounded-md flex items-center gap-1"
+                          >
+                            {color}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColor(color)}
+                              className="ml-1 hover:text-red-600"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Additional Information Section */}
@@ -740,6 +1017,7 @@ const AddProductPage = () => {
             </Card>
           )}
 
+          {/* Step 4: Product Preview */}
           {currentStep === 3 && (
             <div className="space-y-6">
               {/* Product Information Card */}
@@ -764,14 +1042,29 @@ const AddProductPage = () => {
                           <ChevronUp className="w-5 h-5" />
                         </Button>
 
-                        {[1, 2, 3, 4].map((i) => (
-                          <div
-                            key={i}
-                            className="w-12 h-12 bg-muted rounded border border-border flex items-center justify-center"
-                          >
-                            <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                          </div>
-                        ))}
+                        {formData.productImages.length > 0 ? (
+                          formData.productImages.slice(0, 4).map((url, i) => (
+                            <div
+                              key={i}
+                              className="w-12 h-12 bg-muted rounded border border-border overflow-hidden"
+                            >
+                              <img
+                                src={url}
+                                alt={`Thumbnail ${i + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ))
+                        ) : (
+                          [1, 2, 3, 4].map((i) => (
+                            <div
+                              key={i}
+                              className="w-12 h-12 bg-muted rounded border border-border flex items-center justify-center"
+                            >
+                              <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                            </div>
+                          ))
+                        )}
 
                         <Button
                           variant="outline"
@@ -783,13 +1076,21 @@ const AddProductPage = () => {
                       </div>
 
                       {/* Main Image */}
-                      <div className="w-80 h-96 bg-muted rounded-lg flex items-center justify-center">
-                        <div className="text-center">
-                          <ImageIcon className="w-20 h-20 mx-auto text-muted-foreground mb-2" />
-                          <p className="text-muted-foreground text-sm">
-                            Product Image
-                          </p>
-                        </div>
+                      <div className="w-80 h-96 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                        {formData.productImages.length > 0 ? (
+                          <img
+                            src={formData.productImages[0]}
+                            alt="Main product"
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <div className="text-center">
+                            <ImageIcon className="w-20 h-20 mx-auto text-muted-foreground mb-2" />
+                            <p className="text-muted-foreground text-sm">
+                              No images uploaded
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -797,13 +1098,13 @@ const AddProductPage = () => {
                     <div className="flex-1">
                       <div className="flex items-start justify-between mb-6">
                         <h3 className="text-2xl font-semibold">
-                          African Made Sandals
+                          {formData.title || "Product Title"}
                         </h3>
                         <Badge
                           variant="secondary"
                           className="px-3 py-1 bg-orange-50 text-[#CC5500] border border-orange-200"
                         >
-                          • Pending
+                          • Draft
                         </Badge>
                       </div>
 
@@ -814,23 +1115,27 @@ const AddProductPage = () => {
                             <Label className="text-sm font-medium text-muted-foreground block mb-2">
                               Category
                             </Label>
-                            <p className="text-muted-foreground">Footwear</p>
+                            <p className="text-foreground">
+                              {selectedCategory?.name || "Not selected"}
+                            </p>
                           </div>
 
                           <div className="p-4 bg-muted/50 rounded-lg">
                             <Label className="text-sm font-medium text-muted-foreground block mb-2">
                               Sub Category
                             </Label>
-                            <p className="text-muted-foreground">
-                              Ladies footwear
+                            <p className="text-foreground">
+                              {selectedSubcategory?.name || "Not selected"}
                             </p>
                           </div>
 
                           <div className="p-4 bg-muted/50 rounded-lg">
                             <Label className="text-sm font-medium text-muted-foreground block mb-2">
-                              Sub Category type
+                              Product Type
                             </Label>
-                            <p className="text-muted-foreground">Crafts</p>
+                            <p className="text-foreground">
+                              {selectedProductType?.name || "Not selected"}
+                            </p>
                           </div>
                         </div>
 
@@ -840,21 +1145,32 @@ const AddProductPage = () => {
                             <Label className="text-sm font-medium text-muted-foreground block mb-2">
                               Price
                             </Label>
-                            <p className="text-muted-foreground">$ 20</p>
+                            <p className="text-foreground">
+                              ${formData.basePrice || "0.00"}
+                              {formData.baseCompareAtPrice && (
+                                <span className="ml-2 line-through text-muted-foreground">
+                                  ${formData.baseCompareAtPrice}
+                                </span>
+                              )}
+                            </p>
                           </div>
 
                           <div className="p-4 bg-muted/50 rounded-lg">
                             <Label className="text-sm font-medium text-muted-foreground block mb-2">
-                              Available Stock
+                              Initial Stock
                             </Label>
-                            <p className="text-muted-foreground">30</p>
+                            <p className="text-foreground">
+                              {formData.quantity || "Not set"}
+                            </p>
                           </div>
 
                           <div className="p-4 bg-muted/50 rounded-lg">
                             <Label className="text-sm font-medium text-muted-foreground block mb-2">
-                              Low Stock Unit
+                              Low Stock Alert
                             </Label>
-                            <p className="text-muted-foreground">10</p>
+                            <p className="text-foreground">
+                              {formData.lowStockCount || "Not set"}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -865,7 +1181,7 @@ const AddProductPage = () => {
 
               {/* Tabs */}
               <div className="mt-8">
-                <Tabs defaultValue="additional-info" className="w-full">
+                <Tabs defaultValue="product-details" className="w-full">
                   <TabsList className="w-full justify-start rounded-lg p-4 min-h-16 h-auto bg-white mt-6 mb-6">
                     <TabsTrigger
                       value="product-details"
@@ -880,28 +1196,19 @@ const AddProductPage = () => {
                       Additional Information
                     </TabsTrigger>
                     <TabsTrigger
-                      value="reviews"
+                      value="attributes"
                       className="px-6 py-3 h-16 data-[state=active]:text-foreground border-0 data-[state=active]:border-b-2 data-[state=active]:border-[#CC5500] data-[state=active]:shadow-none rounded-none border-b-2 border-transparent"
                     >
-                      Reviews
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="messages"
-                      className="px-6 py-3 h-16 data-[state=active]:text-foreground border-0 data-[state=active]:border-b-2 data-[state=active]:border-[#CC5500] data-[state=active]:shadow-none rounded-none border-b-2 border-transparent"
-                    >
-                      Messages
+                      Attributes
                     </TabsTrigger>
                   </TabsList>
 
                   {/* Product Details Tab */}
-                  <TabsContent
-                    value="product-details"
-                    className="space-y-8 m-0"
-                  >
+                  <TabsContent value="product-details" className="space-y-8 m-0">
                     <Card className="shadow-none py-8 px-6 border-none">
                       <CardContent className="space-y-6">
                         {/* Description Section */}
-                        <div className="">
+                        <div>
                           <h3 className="text-xl font-semibold mb-4">
                             Description
                           </h3>
@@ -909,32 +1216,27 @@ const AddProductPage = () => {
                             <div
                               className="prose max-w-none text-foreground"
                               dangerouslySetInnerHTML={{
-                                __html:
-                                  formData.description ||
-                                  `Whether you're navigating city streets or strolling through weekend markets, these handcrafted leather sandals offer breathable comfort and effortless style. Made by skilled African artisans using locally sourced materials, each pair reflects a deep respect for tradition and a commitment to quality.
-                        
-                        The minimalist design pairs beautifully with jeans, linen trousers, or vibrant kitenge prints—making them a versatile staple for sunny getaways, casual outings, or cultural celebrations. More than footwear, they're a wearable tribute to African craftsmanship and everyday elegance.`,
+                                __html: formData.description || "No description provided.",
                               }}
                             />
                           </Card>
                         </div>
 
                         {/* Product Story Section */}
-                        <div>
-                          <h3 className="text-xl font-semibold mb-4">
-                            Product Story
-                          </h3>
-                          <Card className="overflow-hidden shadow-none p-0">
-                            <div className="bg-muted rounded-lg h-64 flex items-center justify-center">
-                              <div className="text-center">
-                                <ImageIcon className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                                <p className="text-muted-foreground">
-                                  Product story video preview
-                                </p>
-                              </div>
-                            </div>
-                          </Card>
-                        </div>
+                        {formData.productVideo && (
+                          <div>
+                            <h3 className="text-xl font-semibold mb-4">
+                              Product Story
+                            </h3>
+                            <Card className="overflow-hidden shadow-none p-0">
+                              <video
+                                src={formData.productVideo}
+                                controls
+                                className="w-full h-64 object-contain bg-black"
+                              />
+                            </Card>
+                          </div>
+                        )}
 
                         {/* Specifications Section */}
                         <div>
@@ -946,17 +1248,7 @@ const AddProductPage = () => {
                               <div
                                 className="prose max-w-none text-foreground"
                                 dangerouslySetInnerHTML={{
-                                  __html:
-                                    formData.specifications ||
-                                    `• Handcrafted from genuine African leather<br/>
-                           • Durable rubber sole (recycled or eco option available)<br/>
-                           • Breathable open-toe design for all-day comfort<br/>
-                           • Unisex sizing (EU 39–46 / US 6–12)<br/>
-                           • Available in natural brown, black, and tan<br/>
-                           • Slip-on style with optional adjustable strap<br/>
-                           • Locally made by artisans in Uganda<br/>
-                           • Lightweight and travel-friendly<br/>
-                           • Ethically sourced and eco-conscious materials`,
+                                  __html: formData.specifications || "No specifications provided.",
                                 }}
                               />
                             </Card>
@@ -964,18 +1256,10 @@ const AddProductPage = () => {
                               <div className="space-y-4">
                                 <div>
                                   <Label className="font-semibold mb-2 block">
-                                    SKU
-                                  </Label>
-                                  <p className="text-foreground">
-                                    UG-SNDL-LTHR-BRN-42
-                                  </p>
-                                </div>
-                                <div>
-                                  <Label className="font-semibold mb-2 block">
                                     Production Method
                                   </Label>
                                   <p className="text-foreground capitalize">
-                                    {formData.productionMethod || "Handmade"}
+                                    {formData.productionMethod || "Not specified"}
                                   </p>
                                 </div>
                                 <div>
@@ -983,7 +1267,7 @@ const AddProductPage = () => {
                                     Country of Origin
                                   </Label>
                                   <p className="text-foreground">
-                                    {formData.country || "Uganda"}
+                                    {formData.country || "Not specified"}
                                   </p>
                                 </div>
                               </div>
@@ -994,8 +1278,8 @@ const AddProductPage = () => {
                     </Card>
                   </TabsContent>
 
+                  {/* Additional Info Tab */}
                   <TabsContent value="additional-info">
-                    {/* Care Instructions Card */}
                     <Card className="p-8 shadow-none border-none">
                       <CardHeader className="px-0 pt-0">
                         <CardTitle className="text-2xl font-semibold">
@@ -1004,248 +1288,76 @@ const AddProductPage = () => {
                       </CardHeader>
 
                       <CardContent className="px-0">
-                        <Card className="border-border p-6 space-y-3 shadow-none">
-                          <div className="flex gap-2">
-                            <span>•</span>
-                            <p>
-                              <strong>Keep dry when possible</strong> – If
-                              sandals get wet, air-dry them in a shaded area.
-                              Avoid direct sunlight or heat sources.
+                        <Card className="border-border p-6 shadow-none">
+                          {formData.careInstructions ? (
+                            <div
+                              className="prose max-w-none"
+                              dangerouslySetInnerHTML={{
+                                __html: formData.careInstructions,
+                              }}
+                            />
+                          ) : (
+                            <p className="text-muted-foreground">
+                              No care instructions provided.
                             </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <span>•</span>
-                            <p>
-                              <strong>Clean gently</strong> – Wipe with a soft,
-                              damp cloth. Avoid soaking or using harsh
-                              detergents.
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <span>•</span>
-                            <p>
-                              <strong>Condition occasionally</strong> – Use a
-                              natural leather conditioner to maintain softness
-                              and prevent cracking.
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <span>•</span>
-                            <p>
-                              <strong>Store thoughtfully</strong> – Keep in a
-                              cool, dry place. Use a cloth bag or box to protect
-                              from dust and moisture.
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <span>•</span>
-                            <p>
-                              <strong>Avoid prolonged sun exposure</strong> –
-                              Extended sunlight can fade colors and dry out the
-                              leather.
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <span>•</span>
-                            <p>
-                              <strong>Check soles regularly</strong> – For
-                              long-term use, inspect for wear and consider
-                              resoling if needed.
-                            </p>
-                          </div>
+                          )}
                         </Card>
                       </CardContent>
                     </Card>
                   </TabsContent>
 
-                  {/* Reviews Tab */}
-                  <TabsContent value="reviews" className="m-0">
-                    <Card className="shadow-none border-none py-8 px-6">
-                      <CardContent>
-                        <div className="space-y-6">
-                          {/* Search and Filter */}
-                          <div className="flex gap-4">
-                            <Search />
-                            <Button
-                              variant="outline"
-                              className="flex items-center gap-2 h-11 px-8"
-                            >
-                              <span>Filter</span>
-                              <ListFilter className="w-4 h-4" />
-                            </Button>
-                          </div>
+                  {/* Attributes Tab */}
+                  <TabsContent value="attributes">
+                    <Card className="p-8 shadow-none border-none">
+                      <CardHeader className="px-0 pt-0">
+                        <CardTitle className="text-2xl font-semibold">
+                          Product Attributes
+                        </CardTitle>
+                      </CardHeader>
 
-                          {/* Reviews List */}
-                          <div className="space-y-6">
-                            {/* Review 1 */}
-                            <Card className="p-6 shadow-none border-0 border-b rounded-none">
-                              <div className="flex justify-between items-start mb-2">
-                                <h4 className="font-semibold">Annette Black</h4>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground">
-                                    Apr 11 2025
-                                  </span>
-                                  <div className="flex text-yellow-400">
-                                    {[1, 2, 3, 4].map((i) => (
-                                      <svg
-                                        key={i}
-                                        className="w-5 h-5 fill-current"
-                                        viewBox="0 0 20 20"
-                                      >
-                                        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                                      </svg>
-                                    ))}
-                                    <svg
-                                      className="w-5 h-5 fill-current opacity-50"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                                    </svg>
-                                  </div>
-                                  <span className="text-sm font-semibold">
-                                    4.5
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="text-foreground mb-2">
-                                I bought these for a weekend trip and ended up
-                                wearing them every day. The leather is soft but
-                                sturdy, and the sole feels surprisingly durable.
-                                You can tell they were made with care—every
-                                stitch is clean. I love that they're locally
-                                made and support Ugandan artisans. Will
-                                definitely be buying another pair in a different
-                                color!
-                              </p>
-                              <div className="flex gap-4 text-sm">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="flex items-center gap-1"
+                      <CardContent className="px-0 space-y-6">
+                        {/* Sizes */}
+                        <div>
+                          <Label className="font-semibold mb-3 block">
+                            Available Sizes
+                          </Label>
+                          {formData.sizes.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {formData.sizes.map((size) => (
+                                <Badge
+                                  key={size}
+                                  variant="secondary"
+                                  className="px-4 py-2"
                                 >
-                                  <ThumbsUp className="w-4 h-4" />
-                                  Like
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="flex items-center gap-1"
-                                >
-                                  <Reply className="w-4 h-4" />
-                                  Reply
-                                </Button>
-                              </div>
-                            </Card>
-
-                            {/* Review 2 */}
-                            <Card className="p-6 shadow-none border-0 border-b rounded-none">
-                              <div className="flex justify-between items-start mb-2">
-                                <h4 className="font-semibold">James Doe</h4>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground">
-                                    Nov 11 2025
-                                  </span>
-                                  <div className="flex text-yellow-400">
-                                    {[1, 2, 3, 4].map((i) => (
-                                      <svg
-                                        key={i}
-                                        className="w-5 h-5 fill-current"
-                                        viewBox="0 0 20 20"
-                                      >
-                                        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                                      </svg>
-                                    ))}
-                                    <svg
-                                      className="w-5 h-5"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="1.5"
-                                        d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"
-                                      />
-                                    </svg>
-                                  </div>
-                                  <span className="text-sm font-semibold">
-                                    4
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="text-foreground mb-2">
-                                These sandals are perfect for casual wear. I
-                                paired them with my kitenge trousers and got so
-                                many compliments. They're breathable and easy to
-                                slip on, and the fit was just right. I
-                                appreciate the eco-conscious materials too. Only
-                                wish they came in more vibrant colors!
-                              </p>
-                              <div className="flex gap-4 text-sm">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="flex items-center gap-1"
-                                >
-                                  <ThumbsUp className="w-4 h-4" />
-                                  Like
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="flex items-center gap-1"
-                                >
-                                  <Reply className="w-4 h-4" />
-                                  Reply
-                                </Button>
-                              </div>
-                            </Card>
-                          </div>
-
-                          {/* Pagination */}
-                          <div className="flex justify-end items-center gap-2">
-                            <Button variant="outline" size="sm">
-                              Prev
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="bg-[#CC5500] text-primary-foreground"
-                            >
-                              1
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              2
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              3
-                            </Button>
-                            <span className="px-2 text-muted-foreground">
-                              ...
-                            </span>
-                            <Button variant="outline" size="sm">
-                              10
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              Next
-                            </Button>
-                          </div>
+                                  {size}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground">No sizes specified</p>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
 
-                  {/* Messages Tab */}
-                  <TabsContent value="messages" className="m-0">
-                    <Card className="flex flex-col items-center justify-center py-16 shadow-none border-none">
-                      <CardContent className="text-center">
-                        <div className="w-48 h-48 mb-6 mx-auto">
-                          <div className="w-full h-full flex items-center justify-center">
-                            <img
-                              src={images.EmptyMessages}
-                              alt="Empty Message Fallback image"
-                              className=""
-                            />
-                          </div>
+                        {/* Colors */}
+                        <div>
+                          <Label className="font-semibold mb-3 block">
+                            Available Colors
+                          </Label>
+                          {formData.colors.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {formData.colors.map((color) => (
+                                <Badge
+                                  key={color}
+                                  variant="secondary"
+                                  className="px-4 py-2"
+                                >
+                                  {color}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground">No colors specified</p>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -1258,17 +1370,26 @@ const AddProductPage = () => {
                 <Button
                   variant="outline"
                   onClick={() => setCurrentStep(currentStep - 1)}
+                  disabled={isSubmitting}
                   className="px-8 py-3 h-12 w-xs"
                 >
                   Back
                 </Button>
                 <Button
-                  className="px-8 py-3 h-12 bg-[#CC5500] hover:bg-[#B34D00] w-xs"
+                  className="px-8 py-3 h-12 bg-[#CC5500] hover:bg-[#B34D00] w-xs flex items-center gap-2"
                   onClick={handleProductPublish}
+                  disabled={isSubmitting || createLoading}
                 >
+                  {(isSubmitting || createLoading) && (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  )}
                   Publish product
                 </Button>
               </div>
+
+              {createError && (
+                <p className="text-red-500 text-center mt-4">{createError}</p>
+              )}
             </div>
           )}
         </div>

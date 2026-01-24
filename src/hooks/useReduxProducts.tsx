@@ -1,66 +1,91 @@
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
+  // Product Creation
+  createProduct,
+
   // Public Products
   fetchPublicProducts,
+  fetchVendorPublicProducts,
   fetchAllProducts,
+
+  // Recently Viewed
+  trackProductView,
+  removeFromRecentlyViewed,
+  fetchRecentlyViewedProducts,
+
+  // Single Product
+  fetchProduct,
   fetchPublicProduct,
+  updateProduct,
+  submitForReview,
   fetchRelatedProducts,
+
+  // Reviews
+  fetchProductReviews,
+  fetchVendorReviews,
+
+  // Delete
+  softDeleteProduct,
+  deleteProduct,
+
+  // Admin
+  fetchAdminProductDetail,
+  reviewProduct,
 
   // Search & Filtering
   searchProducts,
   fetchSearchFilters,
   fetchSearchSuggestions,
 
-  // Recently Viewed
-  trackProductView,
-  fetchRecentlyViewedProducts,
-  removeFromRecentlyViewed,
+  // Our Picks
+  fetchOurPicks,
 
-  // Vendor Products
-  createProduct,
-  fetchProduct,
-  updateProduct,
-  deleteProduct,
-  submitForReview,
+  // Media
   uploadProductMedia,
-
-  // New Additions
-  softDeleteProduct,
-  fetchProductReviews,
-  fetchVendorReviews,
 
   // Selectors
   selectProducts,
   selectPublicProducts,
+  selectVendorProducts,
   selectAllProducts,
+  selectOurPicksProducts,
   selectSearchResults,
   selectRelatedProducts,
   selectRecentlyViewedProducts,
   selectProduct,
+  selectAdminProductDetail,
   selectProductReviews,
   selectVendorReviews,
   selectSearchSuggestions,
   selectAvailableFilters,
   selectProductsLoading,
-  selectAllProductsLoading,
   selectSearchLoading,
   selectRecentlyViewedLoading,
+  selectAllProductsLoading,
   selectReviewsLoading,
-  selectProductsError,
+  selectAdminLoading,
+  selectOurPicksLoading,
+  selectVendorProductsLoading,
   selectCreateProductLoading,
+  selectProductsError,
   selectCreateProductError,
+  selectAdminError,
   selectProductsPagination,
 
   // Actions
   setProduct,
   clearProduct,
+  clearAdminProductDetail,
   clearError,
   clearProducts,
+  clearAllProducts,
   clearPublicProducts,
+  clearVendorProducts,
   clearSearchResults,
   clearRelatedProducts,
   clearRecentlyViewedProducts,
+  clearOurPicks,
 
   // Types
   type CreateProductData,
@@ -68,6 +93,7 @@ import {
   type ProductSearchParams,
   type ProductListParams,
   type RecentlyViewedParams,
+  type AdminReviewData,
   type Product,
 } from "@/redux/slices/productsSlice";
 
@@ -77,30 +103,61 @@ export function useReduxProducts() {
   // ====================== SELECTORS ======================
   const products = useAppSelector(selectProducts);
   const publicProducts = useAppSelector(selectPublicProducts);
-  const allProducts = useAppSelector(selectAllProducts); // New
+  const vendorProducts = useAppSelector(selectVendorProducts);
+  const allProducts = useAppSelector(selectAllProducts);
+  const ourPicksProducts = useAppSelector(selectOurPicksProducts);
   const searchResults = useAppSelector(selectSearchResults);
   const relatedProducts = useAppSelector(selectRelatedProducts);
   const recentlyViewedProducts = useAppSelector(selectRecentlyViewedProducts);
   const product = useAppSelector(selectProduct);
-  const productReviews = useAppSelector(selectProductReviews); // New
-  const vendorReviews = useAppSelector(selectVendorReviews); // New
+  const adminProductDetail = useAppSelector(selectAdminProductDetail);
+  const productReviews = useAppSelector(selectProductReviews);
+  const vendorReviews = useAppSelector(selectVendorReviews);
   const searchSuggestions = useAppSelector(selectSearchSuggestions);
   const availableFilters = useAppSelector(selectAvailableFilters);
+
+  // Loading states
   const loading = useAppSelector(selectProductsLoading);
-  const allProductsLoading = useAppSelector(selectAllProductsLoading); // New
   const searchLoading = useAppSelector(selectSearchLoading);
   const recentlyViewedLoading = useAppSelector(selectRecentlyViewedLoading);
-  const reviewsLoading = useAppSelector(selectReviewsLoading); // New
-  const error = useAppSelector(selectProductsError);
+  const allProductsLoading = useAppSelector(selectAllProductsLoading);
+  const reviewsLoading = useAppSelector(selectReviewsLoading);
+  const adminLoading = useAppSelector(selectAdminLoading);
+  const ourPicksLoading = useAppSelector(selectOurPicksLoading);
+  const vendorProductsLoading = useAppSelector(selectVendorProductsLoading);
   const createLoading = useAppSelector(selectCreateProductLoading);
+
+  // Error states
+  const error = useAppSelector(selectProductsError);
   const createError = useAppSelector(selectCreateProductError);
+  const adminError = useAppSelector(selectAdminError);
+
+  // Pagination
   const pagination = useAppSelector(selectProductsPagination);
+
+  // ====================== PRODUCT CREATION ======================
+
+  /**
+   * POST /api/v1/products/create
+   * Create new product with base pricing and attributes
+   */
+  const createNewProduct = useCallback(
+    async (productData: CreateProductData) => {
+      try {
+        return await dispatch(createProduct(productData)).unwrap();
+      } catch (error) {
+        console.error("Failed to create product:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
 
   // ====================== PUBLIC PRODUCT LISTING ======================
 
   /**
-   * Get public product listing with filtering and pagination
-   * Displays variant prices, includes wishlist status (when authenticated)
+   * GET /api/v1/products/approved
+   * List approved products with pagination
    */
   const getPublicProducts = useCallback(
     async (params?: ProductListParams) => {
@@ -111,11 +168,28 @@ export function useReduxProducts() {
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   /**
-   * Get all products (any status) with filtering and pagination
+   * GET /api/v1/products/vendor/{vendorId}
+   * List approved products for a vendor (public)
+   */
+  const getVendorPublicProducts = useCallback(
+    async (vendorId: string, params?: ProductListParams) => {
+      try {
+        return await dispatch(fetchVendorPublicProducts({ vendorId, params })).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch vendor products:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * GET /api/v1/products/all
+   * List all products (any status) with optional filtering and pagination
    * For vendor/admin use only - requires authentication
    */
   const getAllProducts = useCallback(
@@ -123,7 +197,8 @@ export function useReduxProducts() {
       params?: ProductListParams & {
         productTypeId?: string;
         sellerId?: string;
-      },
+        status?: string;
+      }
     ) => {
       try {
         return await dispatch(fetchAllProducts(params || {})).unwrap();
@@ -132,132 +207,14 @@ export function useReduxProducts() {
         throw error;
       }
     },
-    [dispatch],
-  );
-
-  /**
-   * Get single public product with reviews and ratings
-   * Includes isInWishlist when user is authenticated
-   */
-  const getPublicProduct = useCallback(
-    async (id: string) => {
-      try {
-        return await dispatch(fetchPublicProduct(id)).unwrap();
-      } catch (error) {
-        console.error("Failed to fetch public product:", error);
-        throw error;
-      }
-    },
-    [dispatch],
-  );
-
-  /**
-   * Get related products from same subcategory
-   * Returns up to 10 products with ratings and wishlist status
-   */
-  const getRelatedProducts = useCallback(
-    async (productId: string) => {
-      try {
-        return await dispatch(fetchRelatedProducts(productId)).unwrap();
-      } catch (error) {
-        console.error("Failed to fetch related products:", error);
-        throw error;
-      }
-    },
-    [dispatch],
-  );
-
-  // ====================== REVIEWS ======================
-
-  /**
-   * Get reviews for a specific product
-   */
-  const getProductReviews = useCallback(
-    async (productId: string) => {
-      try {
-        return await dispatch(fetchProductReviews(productId)).unwrap();
-      } catch (error) {
-        console.error("Failed to fetch product reviews:", error);
-        throw error;
-      }
-    },
-    [dispatch],
-  );
-
-  /**
-   * Get all reviews for a vendor's products
-   */
-  const getVendorReviews = useCallback(
-    async (vendorId: string) => {
-      try {
-        return await dispatch(fetchVendorReviews(vendorId)).unwrap();
-      } catch (error) {
-        console.error("Failed to fetch vendor reviews:", error);
-        throw error;
-      }
-    },
-    [dispatch],
-  );
-
-  // ====================== PRODUCT SEARCH & FILTERING ======================
-
-  /**
-   * Search products with keyword, filters, and sorting
-   * Supports attribute filters, category filters, price sorting
-   * Example: { q: 'backpack', filters: { color: 'blue' }, sort: 'price_asc' }
-   */
-  const searchProductsCatalog = useCallback(
-    async (params: ProductSearchParams) => {
-      try {
-        return await dispatch(searchProducts(params)).unwrap();
-      } catch (error) {
-        console.error("Failed to search products:", error);
-        throw error;
-      }
-    },
-    [dispatch],
-  );
-
-  /**
-   * Get available filter options for search results
-   * Returns attribute values available in matching products
-   * Example: { filters: { color: ['blue', 'red'], size: ['M', 'L'] } }
-   */
-  const getSearchFilters = useCallback(
-    async (params?: { q?: string; categoryId?: string }) => {
-      try {
-        return await dispatch(fetchSearchFilters(params || {})).unwrap();
-      } catch (error) {
-        console.error("Failed to fetch search filters:", error);
-        throw error;
-      }
-    },
-    [dispatch],
-  );
-
-  /**
-   * Get search suggestions for autocomplete
-   * Returns product types and products matching query
-   * Minimum 3 characters required for results
-   */
-  const getSearchSuggestions = useCallback(
-    async (q: string, limit?: number) => {
-      try {
-        return await dispatch(fetchSearchSuggestions({ q, limit })).unwrap();
-      } catch (error) {
-        console.error("Failed to fetch search suggestions:", error);
-        throw error;
-      }
-    },
-    [dispatch],
+    [dispatch]
   );
 
   // ====================== RECENTLY VIEWED PRODUCTS ======================
 
   /**
+   * POST /api/v1/products/recently-viewed/{productId}
    * Track that a user viewed a product
-   * Silent endpoint - doesn't block UI on failure
-   * Increments viewCount on repeat views
    */
   const trackView = useCallback(
     async (productId: string) => {
@@ -268,29 +225,11 @@ export function useReduxProducts() {
         console.error("Failed to track product view:", error);
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   /**
-   * Get recently viewed products with filtering and sorting
-   * Supports price range, rating filters, and sorting by date/price/rating
-   * Example: { sortBy: 'price', order: 'asc', minPrice: 100, maxPrice: 1000 }
-   */
-  const getRecentlyViewedProducts = useCallback(
-    async (params?: RecentlyViewedParams) => {
-      try {
-        return await dispatch(
-          fetchRecentlyViewedProducts(params || {}),
-        ).unwrap();
-      } catch (error) {
-        console.error("Failed to fetch recently viewed products:", error);
-        throw error;
-      }
-    },
-    [dispatch],
-  );
-
-  /**
+   * DELETE /api/v1/products/recently-viewed/{productId}
    * Remove a product from recently viewed history
    */
   const removeFromHistory = useCallback(
@@ -303,38 +242,30 @@ export function useReduxProducts() {
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   /**
-   * Clear all recently viewed products from state
+   * GET /api/v1/products/recently-viewed
+   * Get recently viewed products with filtering and sorting
    */
-  const clearHistory = useCallback(() => {
-    dispatch(clearRecentlyViewedProducts());
-  }, [dispatch]);
-
-  // ====================== VENDOR PRODUCT MANAGEMENT ======================
-
-  /**
-   * Create new product with base pricing and attributes
-   * Automatically generates variants from attribute combinations
-   * Example: { name: 'T-Shirt', basePrice: 29.99, attributes: { size: 'S,M,L', color: 'red,blue' } }
-   */
-  const createNewProduct = useCallback(
-    async (productData: CreateProductData) => {
+  const getRecentlyViewedProducts = useCallback(
+    async (params?: RecentlyViewedParams) => {
       try {
-        return await dispatch(createProduct(productData)).unwrap();
+        return await dispatch(fetchRecentlyViewedProducts(params || {})).unwrap();
       } catch (error) {
-        console.error("Failed to create product:", error);
+        console.error("Failed to fetch recently viewed products:", error);
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
+  // ====================== SINGLE PRODUCT ======================
+
   /**
-   * Get product by ID (vendor access)
-   * Returns full product details with variants
+   * GET /api/v1/products/{id}
+   * Get public product details by ID
    */
   const getProduct = useCallback(
     async (id: string) => {
@@ -345,13 +276,28 @@ export function useReduxProducts() {
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   /**
+   * GET /api/v1/products/{id}
+   * Alias for getProduct - Get single public product
+   */
+  const getPublicProduct = useCallback(
+    async (id: string) => {
+      try {
+        return await dispatch(fetchPublicProduct(id)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch public product:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * PATCH /api/v1/products/{id}
    * Update product details
-   * Price increases on compareAtPrice are subject to 500% threshold rule
-   * Status may change to RE_EVALUATION for admin review
    */
   const updateExistingProduct = useCallback(
     async (id: string, data: UpdateProductData) => {
@@ -362,26 +308,79 @@ export function useReduxProducts() {
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   /**
-   * Delete a product permanently
+   * POST /api/v1/products/{id}/submit-for-review
+   * Submit product for admin approval
    */
-  const removeProduct = useCallback(
+  const submitProductForReview = useCallback(
     async (id: string) => {
       try {
-        await dispatch(deleteProduct(id)).unwrap();
-        return true;
+        return await dispatch(submitForReview(id)).unwrap();
       } catch (error) {
-        console.error("Failed to delete product:", error);
+        console.error("Failed to submit product for review:", error);
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   /**
+   * GET /api/v1/products/{productId}/related
+   * Get related products for a given product
+   */
+  const getRelatedProducts = useCallback(
+    async (productId: string) => {
+      try {
+        return await dispatch(fetchRelatedProducts(productId)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch related products:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // ====================== REVIEWS ======================
+
+  /**
+   * GET /api/v1/products/{productId}/reviews
+   * Get reviews for a specific product
+   */
+  const getProductReviews = useCallback(
+    async (productId: string) => {
+      try {
+        return await dispatch(fetchProductReviews(productId)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch product reviews:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * GET /api/v1/products/vendor/{vendorId}/reviews
+   * Get all reviews for a vendor's products
+   */
+  const getVendorReviews = useCallback(
+    async (vendorId: string) => {
+      try {
+        return await dispatch(fetchVendorReviews(vendorId)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch vendor reviews:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // ====================== DELETE ======================
+
+  /**
+   * PATCH /api/v1/product/status/delete/{id}
    * Soft delete a product (status -> deleted)
    */
   const softDelete = useCallback(
@@ -393,28 +392,130 @@ export function useReduxProducts() {
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   /**
-   * Submit product for admin approval
-   * Changes status from draft to pending_approval
+   * DELETE /api/v1/products/{id}
+   * Hard delete a product permanently
    */
-  const submitProductForReview = useCallback(
+  const removeProduct = useCallback(
     async (id: string) => {
       try {
-        return await dispatch(submitForReview(id)).unwrap();
+        await dispatch(deleteProduct(id)).unwrap();
+        return true;
       } catch (error) {
-        console.error("Failed to submit product for review:", error);
+        console.error("Failed to delete product:", error);
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
+  );
+
+  // ====================== ADMIN PRODUCT MANAGEMENT ======================
+
+  /**
+   * GET /api/v1/admin/products/{id}
+   * Get detailed product info for admin review
+   */
+  const getAdminProductDetail = useCallback(
+    async (id: string) => {
+      try {
+        return await dispatch(fetchAdminProductDetail(id)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch admin product detail:", error);
+        throw error;
+      }
+    },
+    [dispatch]
   );
 
   /**
+   * POST /api/v1/admin/products/{id}/review
+   * Review and update product status (approve/reject/re-evaluate)
+   */
+  const adminReviewProduct = useCallback(
+    async (id: string, data: AdminReviewData) => {
+      try {
+        return await dispatch(reviewProduct({ id, data })).unwrap();
+      } catch (error) {
+        console.error("Failed to review product:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // ====================== SEARCH & FILTERING ======================
+
+  /**
+   * GET /api/v1/public/products/search
+   * Search public products with keyword, filters, and sorting
+   */
+  const searchProductsCatalog = useCallback(
+    async (params: ProductSearchParams) => {
+      try {
+        return await dispatch(searchProducts(params)).unwrap();
+      } catch (error) {
+        console.error("Failed to search products:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * GET /api/v1/public/search/filters
+   * Get available filter options for products
+   */
+  const getSearchFilters = useCallback(
+    async (params?: { q?: string; categoryId?: string }) => {
+      try {
+        return await dispatch(fetchSearchFilters(params || {})).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch search filters:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * GET /api/v1/public/search/suggestions
+   * Get search suggestions for products and product types
+   */
+  const getSearchSuggestions = useCallback(
+    async (q: string, limit?: number) => {
+      try {
+        return await dispatch(fetchSearchSuggestions({ q, limit })).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch search suggestions:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * GET /api/v1/public/products/our-picks
+   * Get personalized product recommendations ("Our Picks")
+   */
+  const getOurPicks = useCallback(
+    async (params?: { page?: number; limit?: number }) => {
+      try {
+        return await dispatch(fetchOurPicks(params || {})).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch our picks:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // ====================== MEDIA ======================
+
+  /**
    * Upload product image/media
-   * Updates product images array
    */
   const uploadMedia = useCallback(
     async (id: string, file: File) => {
@@ -425,7 +526,7 @@ export function useReduxProducts() {
         throw error;
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   // ====================== HELPER FUNCTIONS ======================
@@ -437,7 +538,7 @@ export function useReduxProducts() {
     (id: string): Product | undefined => {
       return products.find((product) => product.id === id);
     },
-    [products],
+    [products]
   );
 
   /**
@@ -445,11 +546,9 @@ export function useReduxProducts() {
    */
   const getProductsByCategory = useCallback(
     (categoryId: string): Product[] => {
-      return publicProducts.filter(
-        (product) => product.categoryId === categoryId,
-      );
+      return publicProducts.filter((product) => product.categoryId === categoryId);
     },
-    [publicProducts],
+    [publicProducts]
   );
 
   /**
@@ -457,11 +556,9 @@ export function useReduxProducts() {
    */
   const getProductsBySubcategory = useCallback(
     (subcategoryId: string): Product[] => {
-      return publicProducts.filter(
-        (product) => product.subcategoryId === subcategoryId,
-      );
+      return publicProducts.filter((product) => product.subcategoryId === subcategoryId);
     },
-    [publicProducts],
+    [publicProducts]
   );
 
   /**
@@ -471,7 +568,7 @@ export function useReduxProducts() {
     (sellerId: string): Product[] => {
       return publicProducts.filter((product) => product.sellerId === sellerId);
     },
-    [publicProducts],
+    [publicProducts]
   );
 
   /**
@@ -479,23 +576,21 @@ export function useReduxProducts() {
    */
   const getProductsByMinRating = useCallback(
     (minRating: number): Product[] => {
-      return publicProducts.filter(
-        (product) => (product.averageRating ?? 0) >= minRating,
-      );
+      return publicProducts.filter((product) => (product.averageRating ?? 0) >= minRating);
     },
-    [publicProducts],
+    [publicProducts]
   );
 
   /**
-   * Get products in price range (uses variant prices)
+   * Get products in price range
    */
   const getProductsByPriceRange = useCallback(
     (minPrice: number, maxPrice: number): Product[] => {
       return publicProducts.filter(
-        (product) => product.price >= minPrice && product.price <= maxPrice,
+        (product) => product.price >= minPrice && product.price <= maxPrice
       );
     },
-    [publicProducts],
+    [publicProducts]
   );
 
   /**
@@ -505,7 +600,7 @@ export function useReduxProducts() {
     (productId: string): boolean => {
       return recentlyViewedProducts.some((product) => product.id === productId);
     },
-    [recentlyViewedProducts],
+    [recentlyViewedProducts]
   );
 
   /**
@@ -516,48 +611,48 @@ export function useReduxProducts() {
   }, [recentlyViewedProducts]);
 
   /**
-   * Check if product is in wishlist (from product data)
+   * Check if product is in wishlist
    */
   const isProductInWishlist = useCallback(
     (productId: string): boolean => {
       const prod = publicProducts.find((p) => p.id === productId);
       return prod?.isInWishlist || false;
     },
-    [publicProducts],
+    [publicProducts]
   );
 
   /**
-   * Get products with active variants only
+   * Get products with stock available
    */
   const getProductsWithStock = useCallback((): Product[] => {
     return publicProducts.filter((product) =>
-      product.variants.some((v) => v.isActive && v.stockQuantity > 0),
+      product.variants.some((v) => v.isActive && v.stockQuantity > 0)
     );
   }, [publicProducts]);
 
   /**
-   * Calculate total products in search results
+   * Get search results count
    */
   const getSearchResultsCount = useCallback((): number => {
     return searchResults.length;
   }, [searchResults]);
 
   /**
-   * Get products by status (for vendor dashboard)
+   * Get products by status
    */
   const getProductsByStatus = useCallback(
     (status: Product["status"]): Product[] => {
       return allProducts.filter((product) => product.status === status);
     },
-    [allProducts],
+    [allProducts]
   );
 
   /**
-   * Get products that need review/approval (for admin)
+   * Get products needing review (for admin)
    */
   const getProductsNeedingReview = useCallback((): Product[] => {
     return allProducts.filter((product) =>
-      ["pending_approval", "RE_EVALUATION"].includes(product.status),
+      ["pending_approval", "RE_EVALUATION"].includes(product.status)
     );
   }, [allProducts]);
 
@@ -569,14 +664,14 @@ export function useReduxProducts() {
   }, [allProducts]);
 
   /**
-   * Get draft products for vendor
+   * Get draft products
    */
   const getDraftProducts = useCallback((): Product[] => {
     return allProducts.filter((product) => product.status === "draft");
   }, [allProducts]);
 
   /**
-   * Get deleted products (soft-deleted)
+   * Get soft-deleted products
    */
   const getDeletedProducts = useCallback((): Product[] => {
     return allProducts.filter((product) => product.status === "deleted");
@@ -591,7 +686,7 @@ export function useReduxProducts() {
     (productData: Product) => {
       dispatch(setProduct(productData));
     },
-    [dispatch],
+    [dispatch]
   );
 
   /**
@@ -599,6 +694,13 @@ export function useReduxProducts() {
    */
   const clearCurrentProduct = useCallback(() => {
     dispatch(clearProduct());
+  }, [dispatch]);
+
+  /**
+   * Clear admin product detail from state
+   */
+  const clearAdminProduct = useCallback(() => {
+    dispatch(clearAdminProductDetail());
   }, [dispatch]);
 
   /**
@@ -611,8 +713,15 @@ export function useReduxProducts() {
   /**
    * Clear all products from state
    */
-  const clearAllProducts = useCallback(() => {
+  const clearAllProductsData = useCallback(() => {
     dispatch(clearProducts());
+  }, [dispatch]);
+
+  /**
+   * Clear all products list
+   */
+  const clearAllProductsList = useCallback(() => {
+    dispatch(clearAllProducts());
   }, [dispatch]);
 
   /**
@@ -623,12 +732,10 @@ export function useReduxProducts() {
   }, [dispatch]);
 
   /**
-   * Clear all products (vendor/admin) list
+   * Clear vendor products list
    */
-  const clearAllProductsList = useCallback(() => {
-    // Note: You might need to add this action to your slice
-    // For now, we'll use clearProducts as it clears everything
-    dispatch(clearProducts());
+  const clearVendorProductsList = useCallback(() => {
+    dispatch(clearVendorProducts());
   }, [dispatch]);
 
   /**
@@ -645,57 +752,95 @@ export function useReduxProducts() {
     dispatch(clearRelatedProducts());
   }, [dispatch]);
 
+  /**
+   * Clear recently viewed products
+   */
+  const clearHistory = useCallback(() => {
+    dispatch(clearRecentlyViewedProducts());
+  }, [dispatch]);
+
+  /**
+   * Clear our picks products
+   */
+  const clearOurPicksList = useCallback(() => {
+    dispatch(clearOurPicks());
+  }, [dispatch]);
+
   return {
     // ====================== STATE ======================
     products,
     publicProducts,
-    allProducts, // New
+    vendorProducts,
+    allProducts,
+    ourPicksProducts,
     searchResults,
     relatedProducts,
     recentlyViewedProducts,
     product,
-    productReviews, // New
-    vendorReviews, // New
+    adminProductDetail,
+    productReviews,
+    vendorReviews,
     searchSuggestions,
     availableFilters,
+
+    // Loading states
     loading,
-    allProductsLoading, // New
     searchLoading,
     recentlyViewedLoading,
-    reviewsLoading, // New
-    error,
+    allProductsLoading,
+    reviewsLoading,
+    adminLoading,
+    ourPicksLoading,
+    vendorProductsLoading,
     createLoading,
+
+    // Error states
+    error,
     createError,
+    adminError,
+
+    // Pagination
     pagination,
+
+    // ====================== PRODUCT CREATION ======================
+    createNewProduct,
 
     // ====================== PUBLIC PRODUCTS ======================
     getPublicProducts,
-    getAllProducts, // New
+    getVendorPublicProducts,
+    getAllProducts,
+
+    // ====================== RECENTLY VIEWED ======================
+    trackView,
+    removeFromHistory,
+    getRecentlyViewedProducts,
+
+    // ====================== SINGLE PRODUCT ======================
+    getProduct,
     getPublicProduct,
+    updateExistingProduct,
+    submitProductForReview,
     getRelatedProducts,
 
     // ====================== REVIEWS ======================
-    getProductReviews, // New
-    getVendorReviews, // New
+    getProductReviews,
+    getVendorReviews,
+
+    // ====================== DELETE ======================
+    softDelete,
+    removeProduct,
+
+    // ====================== ADMIN ======================
+    getAdminProductDetail,
+    adminReviewProduct,
 
     // ====================== SEARCH & FILTERING ======================
     searchProductsCatalog,
     getSearchFilters,
     getSearchSuggestions,
+    getOurPicks,
 
-    // ====================== RECENTLY VIEWED ======================
-    trackView,
-    getRecentlyViewedProducts,
-    removeFromHistory,
-    clearHistory,
-
-    // ====================== VENDOR PRODUCTS ======================
-    createNewProduct,
-    getProduct,
-    updateExistingProduct,
-    removeProduct,
-    softDelete, // New
-    submitProductForReview,
+    // ====================== MEDIA ======================
     uploadMedia,
 
     // ====================== HELPER FUNCTIONS ======================
@@ -711,20 +856,24 @@ export function useReduxProducts() {
     getProductsWithStock,
     getSearchResultsCount,
     getProductsByStatus,
-    getProductsNeedingReview, // New
-    getApprovedProductsFromAll, // New
-    getDraftProducts, // New
-    getDeletedProducts, // New
+    getProductsNeedingReview,
+    getApprovedProductsFromAll,
+    getDraftProducts,
+    getDeletedProducts,
 
     // ====================== UTILITY ACTIONS ======================
     setCurrentProduct,
     clearCurrentProduct,
+    clearAdminProduct,
     clearProductsErrors,
-    clearAllProducts,
+    clearAllProductsData,
+    clearAllProductsList,
     clearPublicProductsList,
-    clearAllProductsList, // New
+    clearVendorProductsList,
     clearSearchResultsList,
     clearRelatedProductsList,
+    clearHistory,
+    clearOurPicksList,
   };
 }
 
@@ -735,6 +884,7 @@ export type {
   ProductSearchParams,
   ProductListParams,
   RecentlyViewedParams,
+  AdminReviewData,
   Product,
   ProductImage,
   ProductVariant,

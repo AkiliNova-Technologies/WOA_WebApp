@@ -7,25 +7,20 @@ import { Separator } from "@/components/ui/separator";
 import { useReduxAuth } from "@/hooks/useReduxAuth";
 import { toast } from "sonner";
 import { PasswordInput } from "@/components/ui/password";
+import { cn } from "@/lib/utils";
 
 export default function CreatePassword() {
-  // Get the changePassword function from Redux auth hook
   const { changePassword } = useReduxAuth();
 
-  // Password states
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  
-  // Loading state
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-  // Handle update password
   const handleUpdatePassword = async () => {
     setPasswordError("");
 
-    // Validate passwords
     if (!currentPassword) {
       setPasswordError("Current password is required");
       toast.error("Current password is required");
@@ -50,20 +45,22 @@ export default function CreatePassword() {
       return;
     }
 
-    // Add more password strength validation if needed
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
-      setPasswordError("Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character");
-      toast.error("Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character");
+      setPasswordError(
+        "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character"
+      );
+      toast.error(
+        "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character"
+      );
       return;
     }
 
     setIsUpdatingPassword(true);
     try {
-      // Call the changePassword function from useReduxAuth
       await changePassword(currentPassword, newPassword);
 
-      // Clear form
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -78,78 +75,91 @@ export default function CreatePassword() {
     }
   };
 
-  // Handle cancel button
   const handleCancel = () => {
-    // Clear form and errors
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
     setPasswordError("");
-    
-    // You could also navigate away or close the modal depending on your use case
     toast.info("Password update cancelled");
   };
 
-  // Handle key press events (Enter key to submit)
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleUpdatePassword();
     }
   };
 
-  // Check if form is valid
   const isFormValid = () => {
-    return currentPassword && newPassword && confirmPassword && newPassword === confirmPassword;
+    return (
+      currentPassword &&
+      newPassword &&
+      confirmPassword &&
+      newPassword === confirmPassword
+    );
   };
 
-  // Show password strength indicator
   const getPasswordStrength = (password: string) => {
     if (!password) return null;
-    
+
     const hasLower = /[a-z]/.test(password);
     const hasUpper = /[A-Z]/.test(password);
     const hasNumber = /\d/.test(password);
     const hasSpecial = /[@$!%*?&]/.test(password);
     const hasLength = password.length >= 8;
-    
-    const strength = [hasLower, hasUpper, hasNumber, hasSpecial, hasLength].filter(Boolean).length;
-    
+
+    const strength = [hasLower, hasUpper, hasNumber, hasSpecial, hasLength].filter(
+      Boolean
+    ).length;
+
     return {
       strength,
       label: strength <= 2 ? "Weak" : strength <= 4 ? "Moderate" : "Strong",
-      color: strength <= 2 ? "text-red-500" : strength <= 4 ? "text-yellow-500" : "text-green-500"
+      color:
+        strength <= 2 ? "text-red-500" : strength <= 4 ? "text-yellow-500" : "text-green-500",
     };
   };
 
   const passwordStrength = getPasswordStrength(newPassword);
 
+  // Password requirement check helper
+  const PasswordCheck = ({
+    passed,
+    text,
+  }: {
+    passed: boolean;
+    text: string;
+  }) => (
+    <p className={cn("text-xs", passed ? "text-green-500" : "text-gray-400")}>
+      {passed ? "✓" : "○"} {text}
+    </p>
+  );
+
   return (
-    <div className="flex relative flex-1 w-full max-w-8xl">
-      <Card className="flex flex-1 shadow-none min-w-5xl w-full max-w-7xl py-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Create Your Password</CardTitle>
-          <p className="text-sm text-gray-500">
-            For security reasons, please create a new permanent password for
-            your account.
+    <div className="w-full">
+      <Card className="w-full shadow-sm border bg-white">
+        <CardHeader className="p-4 sm:p-5 lg:p-6 pb-2 sm:pb-3">
+          <CardTitle className="text-base sm:text-lg">Create Your Password</CardTitle>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+            For security reasons, please create a new permanent password for your account.
           </p>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
+        <CardContent className="p-4 sm:p-5 lg:p-6 pt-2 sm:pt-3">
+          <div className="space-y-4 sm:space-y-5 lg:space-y-6">
             {/* Error Message */}
             {passwordError && (
-              <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">
+              <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs sm:text-sm">
                 {passwordError}
               </div>
             )}
 
             {/* Current Password */}
-            <div className="space-y-3">
-              <Label className="font-medium">Current Password</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-sm font-medium">Current Password</Label>
               <PasswordInput
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Enter your current password"
-                className="h-11"
+                className="h-10 sm:h-11 text-sm sm:text-base"
                 type="password"
                 disabled={isUpdatingPassword}
                 onKeyPress={handleKeyPress}
@@ -157,11 +167,11 @@ export default function CreatePassword() {
             </div>
 
             {/* New Password */}
-            <div className="space-y-3">
+            <div className="space-y-1.5 sm:space-y-2">
               <div className="flex justify-between items-center">
-                <Label className="font-medium">New Password</Label>
+                <Label className="text-sm font-medium">New Password</Label>
                 {passwordStrength && (
-                  <span className={`text-sm ${passwordStrength.color}`}>
+                  <span className={cn("text-xs sm:text-sm", passwordStrength.color)}>
                     {passwordStrength.label}
                   </span>
                 )}
@@ -170,75 +180,93 @@ export default function CreatePassword() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter your new password"
-                className="h-11"
+                className="h-10 sm:h-11 text-sm sm:text-base"
                 type="password"
                 disabled={isUpdatingPassword}
                 onKeyPress={handleKeyPress}
               />
+
+              {/* Password Requirements - Responsive Grid */}
               {newPassword && (
-                <div className="text-xs text-gray-500 mt-1 space-y-1">
-                  <p className={newPassword.length >= 8 ? "text-green-500" : "text-gray-400"}>
-                    ✓ At least 8 characters
-                  </p>
-                  <p className={/[a-z]/.test(newPassword) ? "text-green-500" : "text-gray-400"}>
-                    ✓ At least one lowercase letter
-                  </p>
-                  <p className={/[A-Z]/.test(newPassword) ? "text-green-500" : "text-gray-400"}>
-                    ✓ At least one uppercase letter
-                  </p>
-                  <p className={/\d/.test(newPassword) ? "text-green-500" : "text-gray-400"}>
-                    ✓ At least one number
-                  </p>
-                  <p className={/[@$!%*?&]/.test(newPassword) ? "text-green-500" : "text-gray-400"}>
-                    ✓ At least one special character (@$!%*?&)
-                  </p>
+                <div className="grid grid-cols-1 xs:grid-cols-2 gap-0.5 sm:gap-1 mt-2">
+                  <PasswordCheck passed={newPassword.length >= 8} text="At least 8 characters" />
+                  <PasswordCheck passed={/[a-z]/.test(newPassword)} text="One lowercase letter" />
+                  <PasswordCheck passed={/[A-Z]/.test(newPassword)} text="One uppercase letter" />
+                  <PasswordCheck passed={/\d/.test(newPassword)} text="One number" />
+                  <PasswordCheck
+                    passed={/[@$!%*?&]/.test(newPassword)}
+                    text="One special character (@$!%*?&)"
+                  />
                 </div>
               )}
             </div>
 
             {/* Confirm Password */}
-            <div className="space-y-3">
-              <Label className="font-medium">Confirm Password</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-sm font-medium">Confirm Password</Label>
               <Input
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm your new password"
-                className={`h-11 ${confirmPassword && newPassword !== confirmPassword ? "border-red-500" : ""}`}
+                className={cn(
+                  "h-10 sm:h-11 text-sm sm:text-base",
+                  confirmPassword && newPassword !== confirmPassword && "border-red-500"
+                )}
                 type="password"
                 disabled={isUpdatingPassword}
                 onKeyPress={handleKeyPress}
               />
               {confirmPassword && newPassword !== confirmPassword && (
-                <p className="text-sm text-red-500">Passwords do not match</p>
+                <p className="text-xs sm:text-sm text-red-500">Passwords do not match</p>
               )}
               {confirmPassword && newPassword === confirmPassword && newPassword && (
-                <p className="text-sm text-green-500">✓ Passwords match</p>
+                <p className="text-xs sm:text-sm text-green-500">✓ Passwords match</p>
               )}
             </div>
 
-            <Separator />
+            <Separator className="my-2 sm:my-3" />
 
-            {/* Buttons */}
-            <div className="flex flex-1 flex-row gap-5 items-center">
-              <Button 
-                variant={"secondary"} 
-                className="h-11 flex-1"
+            {/* Action Buttons - Stack on mobile */}
+            <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
+              <Button
+                variant="secondary"
+                className="h-10 sm:h-11 w-full sm:flex-1 text-sm sm:text-base"
                 onClick={handleCancel}
                 disabled={isUpdatingPassword}
               >
                 Cancel
               </Button>
-              <Button 
-                variant={"secondary"} 
-                className={`h-11 flex-1 ${!isFormValid() || isUpdatingPassword ? "bg-[#CC5500]/50 cursor-not-allowed" : "bg-[#CC5500] hover:bg-[#CC5500]/80"} text-white`}
+              <Button
+                className={cn(
+                  "h-10 sm:h-11 w-full sm:flex-1 text-sm sm:text-base text-white transition-colors",
+                  !isFormValid() || isUpdatingPassword
+                    ? "bg-[#CC5500]/50 cursor-not-allowed"
+                    : "bg-[#CC5500] hover:bg-[#CC5500]/90"
+                )}
                 onClick={handleUpdatePassword}
                 disabled={!isFormValid() || isUpdatingPassword}
               >
                 {isUpdatingPassword ? (
                   <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 sm:h-5 sm:w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
                     </svg>
                     Updating...
                   </span>
@@ -248,10 +276,12 @@ export default function CreatePassword() {
               </Button>
             </div>
 
-            {/* Additional Security Tips */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-md">
-              <h3 className="text-sm font-medium text-blue-800 mb-2">Security Tips:</h3>
-              <ul className="text-xs text-blue-700 space-y-1">
+            {/* Security Tips */}
+            <div className="p-3 sm:p-4 bg-blue-50 rounded-lg mt-2 sm:mt-4">
+              <h3 className="text-xs sm:text-sm font-medium text-blue-800 mb-1.5 sm:mb-2">
+                Security Tips:
+              </h3>
+              <ul className="text-xs text-blue-700 space-y-0.5 sm:space-y-1">
                 <li>• Use a unique password that you don't use elsewhere</li>
                 <li>• Avoid using personal information like your name or birthdate</li>
                 <li>• Consider using a password manager to generate and store passwords</li>

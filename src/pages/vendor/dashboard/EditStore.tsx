@@ -19,7 +19,6 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { VideoUpload } from "@/components/video-upload";
 
-// Store categories
 const STORE_CATEGORIES = [
   { value: "fashion", label: "Fashion & Apparel" },
   { value: "home", label: "Home Decor & Lifestyle" },
@@ -34,7 +33,6 @@ const STORE_CATEGORIES = [
   { value: "other", label: "Other" },
 ];
 
-// Define the store form data type
 interface StoreFormData {
   businessName: string;
   category: string;
@@ -48,7 +46,6 @@ interface StoreFormData {
 }
 
 export function EditStore() {
-  // Hooks
   const { user } = useReduxAuth();
   const {
     selectedVendor,
@@ -58,13 +55,11 @@ export function EditStore() {
     actionLoading,
   } = useReduxVendors();
 
-  // State for countries and cities
   const [countries, setCountries] = useState<Country[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [countriesLoading, setCountriesLoading] = useState(true);
   const [citiesLoading, setCitiesLoading] = useState(false);
 
-  // Store form state
   const [formData, setFormData] = useState<StoreFormData>({
     businessName: "",
     category: "",
@@ -77,24 +72,17 @@ export function EditStore() {
     storyVideoUrl: "",
   });
 
-  // Form state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isDirty, setIsDirty] = useState(false);
 
-  // Helper to update form data
   const updateFormData = (field: keyof StoreFormData, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     setIsDirty(true);
   };
 
-  // Parse address to extract street, city, and country
   const parseAddress = (address: string = "") => {
     const addressParts = address.split(",").map((part) => part.trim());
-
     let street = "";
     let city = "";
     let country = "";
@@ -113,7 +101,6 @@ export function EditStore() {
     return { street, city, country };
   };
 
-  // Fetch countries on component mount
   useEffect(() => {
     const fetchCountries = async () => {
       try {
@@ -127,15 +114,12 @@ export function EditStore() {
         setCountriesLoading(false);
       }
     };
-
     fetchCountries();
   }, []);
 
-  // Fetch vendor data
   useEffect(() => {
     const loadVendorData = async () => {
       if (!user?.id) return;
-
       try {
         await getVendor(user.id);
       } catch (error) {
@@ -143,26 +127,19 @@ export function EditStore() {
         toast.error("Failed to load vendor information");
       }
     };
-
     loadVendorData();
   }, [user?.id, getVendor]);
 
-  // Initialize form with vendor data
   useEffect(() => {
     if (selectedVendor) {
-      // Parse address to extract street, city, and country
-      const { street, city, country } = parseAddress(
-        selectedVendor.businessAddress,
-      );
+      const { street, city, country } = parseAddress(selectedVendor.businessAddress);
 
-      // Get category from vendor data
       const category =
         (selectedVendor as any).category ||
         (selectedVendor as any).storeCategory ||
         (selectedVendor as any).businessType ||
         "";
 
-      // Get story video URL from vendor data
       const storyVideoUrl =
         (selectedVendor as any).storyVideoUrl ||
         (selectedVendor as any).introVideoUrl ||
@@ -175,7 +152,7 @@ export function EditStore() {
         businessDescription: selectedVendor.businessDescription || "",
         businessEmail: selectedVendor.businessEmail || "",
         businessPhone: selectedVendor.businessPhone || "",
-        businessAddress: street, // Only street address
+        businessAddress: street,
         country: country,
         city: city,
         storyVideoUrl: storyVideoUrl,
@@ -186,7 +163,6 @@ export function EditStore() {
     }
   }, [selectedVendor]);
 
-  // Fetch cities when country changes
   useEffect(() => {
     const fetchCities = async () => {
       if (!formData.country) {
@@ -196,9 +172,7 @@ export function EditStore() {
 
       try {
         setCitiesLoading(true);
-        const citiesData = await countriesApi.getCitiesByCountry(
-          formData.country,
-        );
+        const citiesData = await countriesApi.getCitiesByCountry(formData.country);
         setCities(citiesData);
       } catch (error) {
         console.error("Error fetching cities:", error);
@@ -208,7 +182,6 @@ export function EditStore() {
         setCitiesLoading(false);
       }
     };
-
     fetchCities();
   }, [formData.country]);
 
@@ -222,19 +195,14 @@ export function EditStore() {
 
   const handleCitySearch = async (searchValue: string) => {
     if (!formData.country) return;
-
     try {
-      const filteredCities = await countriesApi.searchCities(
-        formData.country,
-        searchValue,
-      );
+      const filteredCities = await countriesApi.searchCities(formData.country, searchValue);
       setCities(filteredCities);
     } catch (error) {
       console.error("Error searching cities:", error);
     }
   };
 
-  // Handle video upload changes
   const handleVideoChange = (videoUrl: string | null) => {
     updateFormData("storyVideoUrl", videoUrl || "");
     toast.info(videoUrl ? "Video uploaded successfully!" : "Video removed", {
@@ -242,7 +210,6 @@ export function EditStore() {
     });
   };
 
-  // Form validation
   const validateForm = useCallback(() => {
     const errors: Record<string, string> = {};
 
@@ -259,8 +226,7 @@ export function EditStore() {
     if (!formData.businessDescription.trim()) {
       errors.businessDescription = "Store description is required";
     } else if (formData.businessDescription.trim().length < 50) {
-      errors.businessDescription =
-        "Description should be at least 50 characters";
+      errors.businessDescription = "Description should be at least 50 characters";
     }
 
     if (!formData.country) {
@@ -271,17 +237,11 @@ export function EditStore() {
       errors.city = "City is required";
     }
 
-    if (
-      formData.businessEmail &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.businessEmail)
-    ) {
+    if (formData.businessEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.businessEmail)) {
       errors.businessEmail = "Please enter a valid email address";
     }
 
-    if (
-      formData.businessPhone &&
-      !/^[\d\s\+\-\(\)]{10,20}$/.test(formData.businessPhone)
-    ) {
+    if (formData.businessPhone && !/^[\d\s\+\-\(\)]{10,20}$/.test(formData.businessPhone)) {
       errors.businessPhone = "Please enter a valid phone number";
     }
 
@@ -289,7 +249,6 @@ export function EditStore() {
     return Object.keys(errors).length === 0;
   }, [formData]);
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -300,14 +259,12 @@ export function EditStore() {
 
     setIsSubmitting(true);
     try {
-      // Construct full address
       const fullAddress = formData.businessAddress.trim()
         ? `${formData.businessAddress}, ${formData.city}, ${formData.country}`
         : `${formData.city}, ${formData.country}`;
 
-      // Create updated vendor data
       const updatedVendorData: any = {
-        ...selectedVendor, // Keep existing data
+        ...selectedVendor,
         businessName: formData.businessName.trim(),
         businessDescription: formData.businessDescription.trim(),
         businessEmail: formData.businessEmail.trim() || user?.email || "",
@@ -316,14 +273,9 @@ export function EditStore() {
         storyVideoUrl: formData.storyVideoUrl || null,
       };
 
-      // Add category if it exists in VendorProfile type
       updatedVendorData.category = formData.category;
 
-      // Update vendor in Redux store
       updateVendor(updatedVendorData);
-
-      // Here you would typically make an API call to update the vendor
-      // For now, we'll simulate a successful update
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       toast.success("Store updated successfully!");
@@ -336,14 +288,9 @@ export function EditStore() {
     }
   };
 
-  // Handle cancel
   const handleCancel = () => {
     if (isDirty) {
-      if (
-        window.confirm(
-          "You have unsaved changes. Are you sure you want to cancel?",
-        )
-      ) {
+      if (window.confirm("You have unsaved changes. Are you sure you want to cancel?")) {
         resetForm();
         toast.info("Changes discarded");
       }
@@ -352,22 +299,16 @@ export function EditStore() {
     }
   };
 
-  // Reset form to initial values
   const resetForm = () => {
     if (selectedVendor) {
-      // Parse address to extract street, city, and country
-      const { street, city, country } = parseAddress(
-        selectedVendor.businessAddress,
-      );
+      const { street, city, country } = parseAddress(selectedVendor.businessAddress);
 
-      // Get category from vendor data
       const category =
         (selectedVendor as any).category ||
         (selectedVendor as any).storeCategory ||
         (selectedVendor as any).businessType ||
         "";
 
-      // Get story video URL from vendor data
       const storyVideoUrl =
         (selectedVendor as any).storyVideoUrl ||
         (selectedVendor as any).introVideoUrl ||
@@ -392,79 +333,83 @@ export function EditStore() {
     setIsDirty(false);
   };
 
-  // Show loading state while fetching vendor data
   if (vendorLoading && !selectedVendor) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#CC5500]" />
-        <span className="ml-2">Loading store information...</span>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] sm:min-h-[60vh] px-4">
+        <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 animate-spin text-[#CC5500] mb-3 sm:mb-4" />
+        <span className="text-sm sm:text-base text-gray-600 text-center">
+          Loading store information...
+        </span>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 w-full">
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 lg:space-y-6 w-full">
       {/* ================= STORE DETAILS ================= */}
-      <Card className="w-full max-w-full mx-auto shadow-xs border bg-white py-4 sm:py-6">
-        <CardContent className="px-3 sm:px-6">
-          <div className="space-y-4 sm:space-y-6">
+      <Card className="w-full shadow-sm border bg-white">
+        <CardContent className="p-4 sm:p-5 lg:p-6">
+          <div className="space-y-4 sm:space-y-5 lg:space-y-6">
             {/* Header */}
             <div>
-              <h2 className="text-lg font-semibold mb-2">Store Details</h2>
-              <p className="text-sm text-gray-600">
-                This is how your shop will appear to buyers. Keep it clear and
-                memorable.
+              <h2 className="text-base sm:text-lg font-semibold mb-1 sm:mb-2">Store Details</h2>
+              <p className="text-xs sm:text-sm text-gray-600">
+                This is how your shop will appear to buyers. Keep it clear and memorable.
               </p>
             </div>
 
-            {/* Form Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {/* Form Grid - Responsive */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 lg:gap-6">
               {/* Store Name */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Store Name *</label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm font-medium">Store Name *</Label>
                 <Input
                   value={formData.businessName}
-                  onChange={(e) =>
-                    updateFormData("businessName", e.target.value)
-                  }
+                  onChange={(e) => updateFormData("businessName", e.target.value)}
                   placeholder="e.g. Your fit"
-                  className={`h-11 ${formErrors.businessName ? "border-red-500" : ""}`}
+                  className={`h-10 sm:h-11 text-sm sm:text-base ${
+                    formErrors.businessName ? "border-red-500" : ""
+                  }`}
                 />
                 {formErrors.businessName && (
-                  <p className="text-sm text-red-500">
-                    {formErrors.businessName}
-                  </p>
+                  <p className="text-xs sm:text-sm text-red-500">{formErrors.businessName}</p>
                 )}
               </div>
 
               {/* Store Category */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Store Category *</label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm font-medium">Store Category *</Label>
                 <Select
                   value={formData.category}
                   onValueChange={(value) => updateFormData("category", value)}
                 >
                   <SelectTrigger
-                    className={`min-h-11 ${formErrors.category ? "border-red-500" : ""}`}
+                    className={`h-10 sm:h-11 text-sm sm:text-base ${
+                      formErrors.category ? "border-red-500" : ""
+                    }`}
                   >
-                    <SelectValue placeholder="Choose the category that best fits your products" />
+                    <SelectValue placeholder="Choose category" />
                   </SelectTrigger>
                   <SelectContent>
                     {STORE_CATEGORIES.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
+                      <SelectItem
+                        key={category.value}
+                        value={category.value}
+                        className="text-sm sm:text-base"
+                      >
                         {category.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {formErrors.category && (
-                  <p className="text-sm text-red-500">{formErrors.category}</p>
+                  <p className="text-xs sm:text-sm text-red-500">{formErrors.category}</p>
                 )}
               </div>
 
               {/* Country Select */}
-              <div className="space-y-2">
-                <Label htmlFor="country" className="block">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="country" className="text-sm font-medium">
                   Country / Region *
                 </Label>
                 <Select
@@ -474,32 +419,34 @@ export function EditStore() {
                 >
                   <SelectTrigger
                     id="country"
-                    className={`min-h-11 w-full ${formErrors.country ? "border-red-500" : ""}`}
+                    className={`h-10 sm:h-11 w-full text-sm sm:text-base ${
+                      formErrors.country ? "border-red-500" : ""
+                    }`}
                   >
                     <SelectValue
-                      placeholder={
-                        countriesLoading
-                          ? "Loading countries..."
-                          : "Select country"
-                      }
+                      placeholder={countriesLoading ? "Loading..." : "Select country"}
                     />
                   </SelectTrigger>
                   <SearchSelectContent searchPlaceholder="Search countries...">
                     {countries.map((country) => (
-                      <SelectItem key={country.code} value={country.name}>
+                      <SelectItem
+                        key={country.code}
+                        value={country.name}
+                        className="text-sm sm:text-base"
+                      >
                         {country.name}
                       </SelectItem>
                     ))}
                   </SearchSelectContent>
                 </Select>
                 {formErrors.country && (
-                  <p className="text-sm text-red-500">{formErrors.country}</p>
+                  <p className="text-xs sm:text-sm text-red-500">{formErrors.country}</p>
                 )}
               </div>
 
               {/* City Select */}
-              <div className="space-y-2">
-                <Label htmlFor="city" className="block">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="city" className="text-sm font-medium">
                   City *
                 </Label>
                 <Select
@@ -509,15 +456,17 @@ export function EditStore() {
                 >
                   <SelectTrigger
                     id="city"
-                    className={`min-h-11 w-full ${formErrors.city ? "border-red-500" : ""}`}
+                    className={`h-10 sm:h-11 w-full text-sm sm:text-base ${
+                      formErrors.city ? "border-red-500" : ""
+                    }`}
                   >
                     <SelectValue
                       placeholder={
                         !formData.country
                           ? "Select country first"
                           : citiesLoading
-                            ? "Loading cities..."
-                            : "Select city"
+                          ? "Loading..."
+                          : "Select city"
                       }
                     />
                   </SelectTrigger>
@@ -529,105 +478,93 @@ export function EditStore() {
                       <SelectItem
                         key={`${city.countryCode}-${city.name}`}
                         value={city.name}
+                        className="text-sm sm:text-base"
                       >
                         {city.name}
                       </SelectItem>
                     ))}
                     {cities.length === 0 && formData.country && (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground text-center">
+                      <div className="px-2 py-1.5 text-xs sm:text-sm text-muted-foreground text-center">
                         No cities found
                       </div>
                     )}
                   </SearchSelectContent>
                 </Select>
                 {formErrors.city && (
-                  <p className="text-sm text-red-500">{formErrors.city}</p>
+                  <p className="text-xs sm:text-sm text-red-500">{formErrors.city}</p>
                 )}
               </div>
 
               {/* Business Email */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Business Email</label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm font-medium">Business Email</Label>
                 <Input
                   value={formData.businessEmail}
-                  onChange={(e) =>
-                    updateFormData("businessEmail", e.target.value)
-                  }
+                  onChange={(e) => updateFormData("businessEmail", e.target.value)}
                   placeholder="business@example.com"
-                  className={`h-11 ${formErrors.businessEmail ? "border-red-500" : ""}`}
+                  className={`h-10 sm:h-11 text-sm sm:text-base ${
+                    formErrors.businessEmail ? "border-red-500" : ""
+                  }`}
                   type="email"
                 />
                 <p className="text-xs text-gray-500">
-                  Leave empty to use your account email: {user?.email}
+                  Leave empty to use: {user?.email || "your account email"}
                 </p>
                 {formErrors.businessEmail && (
-                  <p className="text-sm text-red-500">
-                    {formErrors.businessEmail}
-                  </p>
+                  <p className="text-xs sm:text-sm text-red-500">{formErrors.businessEmail}</p>
                 )}
               </div>
 
               {/* Business Phone */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Business Phone</label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-sm font-medium">Business Phone</Label>
                 <Input
                   value={formData.businessPhone}
-                  onChange={(e) =>
-                    updateFormData("businessPhone", e.target.value)
-                  }
+                  onChange={(e) => updateFormData("businessPhone", e.target.value)}
                   placeholder="+256 XXX XXX XXX"
-                  className={`h-11 ${formErrors.businessPhone ? "border-red-500" : ""}`}
+                  className={`h-10 sm:h-11 text-sm sm:text-base ${
+                    formErrors.businessPhone ? "border-red-500" : ""
+                  }`}
                 />
                 <p className="text-xs text-gray-500">
-                  Leave empty to use your account phone:{" "}
-                  {user?.phoneNumber || "Not set"}
+                  Leave empty to use: {user?.phoneNumber || "your account phone"}
                 </p>
                 {formErrors.businessPhone && (
-                  <p className="text-sm text-red-500">
-                    {formErrors.businessPhone}
-                  </p>
+                  <p className="text-xs sm:text-sm text-red-500">{formErrors.businessPhone}</p>
                 )}
               </div>
 
-              {/* Business Address */}
-              <div className="md:col-span-2 space-y-2">
-                <label className="text-sm font-medium">
-                  Business Address (Street)
-                </label>
+              {/* Business Address - Full Width */}
+              <div className="sm:col-span-2 space-y-1.5 sm:space-y-2">
+                <Label className="text-sm font-medium">Business Address (Street)</Label>
                 <Input
                   value={formData.businessAddress}
-                  onChange={(e) =>
-                    updateFormData("businessAddress", e.target.value)
-                  }
+                  onChange={(e) => updateFormData("businessAddress", e.target.value)}
                   placeholder="Street address, building, etc."
-                  className="h-11"
+                  className="h-10 sm:h-11 text-sm sm:text-base"
                 />
                 <p className="text-xs text-gray-500">
-                  Street address only. Country and city will be added
-                  automatically.
+                  Street address only. Country and city will be added automatically.
                 </p>
               </div>
 
               {/* Store Description - Full Width */}
-              <div className="md:col-span-2 space-y-2">
-                <label className="text-sm font-medium">
-                  Store Description *
-                </label>
+              <div className="sm:col-span-2 space-y-1.5 sm:space-y-2">
+                <Label className="text-sm font-medium">Store Description *</Label>
                 <Textarea
                   value={formData.businessDescription}
-                  onChange={(e) =>
-                    updateFormData("businessDescription", e.target.value)
-                  }
+                  onChange={(e) => updateFormData("businessDescription", e.target.value)}
                   placeholder="Tell buyers about your store, your products, and what makes you unique..."
-                  className={`min-h-[120px] resize-none ${formErrors.businessDescription ? "border-red-500" : ""}`}
+                  className={`min-h-[100px] sm:min-h-[120px] resize-none text-sm sm:text-base ${
+                    formErrors.businessDescription ? "border-red-500" : ""
+                  }`}
                 />
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col xs:flex-row xs:justify-between xs:items-center gap-1">
                   <p className="text-xs text-gray-500">
-                    Minimum 50 characters. {formData.businessDescription.length}
-                    /50
+                    Minimum 50 characters. {formData.businessDescription.length}/50
                   </p>
                   {formErrors.businessDescription && (
-                    <p className="text-sm text-red-500">
+                    <p className="text-xs sm:text-sm text-red-500">
                       {formErrors.businessDescription}
                     </p>
                   )}
@@ -639,14 +576,13 @@ export function EditStore() {
       </Card>
 
       {/* ================= VENDOR STORY ================= */}
-      <Card className="max-w-full mx-auto shadow-xs border bg-white py-4 sm:py-6">
-        <CardContent className="px-3 sm:px-6">
-          <div className="space-y-4 sm:space-y-6">
+      <Card className="w-full shadow-sm border bg-white">
+        <CardContent className="p-4 sm:p-5 lg:p-6">
+          <div className="space-y-4 sm:space-y-5 lg:space-y-6">
             <div>
-              <h2 className="text-lg font-semibold mb-2">Vendor Story</h2>
-              <p className="text-sm text-gray-600 mb-4">
-                Share your story through a short video to connect better with
-                customers.
+              <h2 className="text-base sm:text-lg font-semibold mb-1 sm:mb-2">Vendor Story</h2>
+              <p className="text-xs sm:text-sm text-gray-600">
+                Share your story through a short video to connect better with customers.
               </p>
             </div>
 
@@ -654,7 +590,7 @@ export function EditStore() {
             <VideoUpload
               onVideoChange={handleVideoChange}
               initialUrl={formData.storyVideoUrl}
-              maxSize={50} // 50MB max size for story videos
+              maxSize={50}
               description="Upload a short video introducing yourself and your business. Keep it under 2 minutes for best results."
               footer={true}
               bucket="videos"
@@ -663,11 +599,11 @@ export function EditStore() {
             />
 
             {/* Video Guidelines */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-blue-800 mb-2">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+              <h3 className="text-xs sm:text-sm font-semibold text-blue-800 mb-1.5 sm:mb-2">
                 Video Guidelines
               </h3>
-              <ul className="text-xs text-blue-700 space-y-1">
+              <ul className="text-xs text-blue-700 space-y-0.5 sm:space-y-1">
                 <li>• Keep your video under 2 minutes</li>
                 <li>• Introduce yourself and your passion</li>
                 <li>• Showcase your products or craft</li>
@@ -678,11 +614,11 @@ export function EditStore() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-5 items-center pt-4 sm:pt-6">
+            <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 pt-2 sm:pt-4">
               <Button
                 type="button"
                 variant="secondary"
-                className="h-10 sm:h-11 w-full sm:flex-1"
+                className="h-10 sm:h-11 w-full sm:flex-1 text-sm sm:text-base"
                 onClick={handleCancel}
                 disabled={isSubmitting || actionLoading}
               >
@@ -690,8 +626,11 @@ export function EditStore() {
               </Button>
               <Button
                 type="submit"
-                variant="secondary"
-                className={`h-10 sm:h-11 w-full sm:flex-1 ${isSubmitting || actionLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`h-10 sm:h-11 w-full sm:flex-1 text-sm sm:text-base ${
+                  isSubmitting || actionLoading || !isDirty
+                    ? "bg-[#CC5500]/50 cursor-not-allowed"
+                    : "bg-[#CC5500] hover:bg-[#CC5500]/90"
+                } text-white`}
                 disabled={isSubmitting || actionLoading || !isDirty}
               >
                 {isSubmitting || actionLoading ? (
@@ -705,18 +644,12 @@ export function EditStore() {
               </Button>
             </div>
 
-            {/* Form status indicators */}
-            <div className="flex items-center justify-between text-sm">
+            {/* Form Status */}
+            <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-1 text-xs sm:text-sm">
               <div>
-                {isDirty && (
-                  <span className="text-amber-600">
-                    You have unsaved changes
-                  </span>
-                )}
+                {isDirty && <span className="text-amber-600">You have unsaved changes</span>}
               </div>
-              <div className="text-gray-500">
-                Required fields are marked with *
-              </div>
+              <div className="text-gray-500">Required fields are marked with *</div>
             </div>
           </div>
         </CardContent>
