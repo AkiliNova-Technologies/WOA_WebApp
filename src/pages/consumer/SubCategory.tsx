@@ -79,7 +79,7 @@ export default function SubCategoryPage() {
   } = useReduxProducts();
 
   const {
-    categories,
+    categoryFeed,
     subcategories,
     getCategory,
     getSubcategoriesByCategory,
@@ -120,7 +120,7 @@ export default function SubCategoryPage() {
     if (!categoryId) return null;
     
     // Find category in categories list
-    const categoryData = categories.find(cat => cat.id === categoryId);
+    const categoryData = categoryFeed.find(cat => cat.id === categoryId);
     if (!categoryData) return null;
 
     // Get subcategories for this category
@@ -138,7 +138,7 @@ export default function SubCategoryPage() {
         image: subCat.coverImageUrl || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400",
       })),
     };
-  }, [categoryId, categories, subcategories, getCategoryName]);
+  }, [categoryId, categoryFeed, subcategories, getCategoryName]);
 
   // Get products for this category
   const products = useMemo(() => {

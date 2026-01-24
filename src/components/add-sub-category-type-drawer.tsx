@@ -135,6 +135,7 @@ export function AddSubCategoryTypeDrawer({
             <ImageUpload
               onImageChange={handleImageChange}
               maxSize={10}
+              maxImages={1}
               bucket="World_of_Africa"
               className="w-full"
               initialUrls={uploadedUrls}

@@ -141,21 +141,26 @@ function App() {
 
               <Route path="/category" element={<CategoryLayout />}>
                 <Route index element={<CategoryPage />} />
+                {/* Support both URL structures */}
+                <Route path=":categoryId" element={<SubCategoryPage />} />
+                <Route
+                  path="sub-category/:categoryId"
+                  element={<SubCategoryPage />}
+                />
+                <Route
+                  path="sub-category/:categoryId/type"
+                  element={<TypePage />}
+                />
                 <Route
                   path="product/:productId"
                   element={<ProductDetailPage />}
                 />
                 <Route
-                  path="sub-category/:categoryId"
-                  element={<SubCategoryPage />}
+                  path="vendor-profile/:vendorId"
+                  element={<VendorProfilePage />}
                 />
-                {/* Add this new route for types */}
-                <Route
-                  path="sub-category/:categoryId/type"
-                  element={<TypePage />}
-                />
-                <Route path="vendor-profile/:vendorId" element={<VendorProfilePage />} />
               </Route>
+
               <Route path="/*" element={<PageNotFound />} />
             </Route>
 
@@ -202,7 +207,10 @@ function App() {
               <Route path="revenue" element={<RevenuePage />} />
               <Route path="inventory" element={<SimpleLayout />}>
                 <Route index element={<InventoryPage />} />
-                <Route path=":id/details" element={<VendorInventoryDetailsPage />} />
+                <Route
+                  path=":id/details"
+                  element={<VendorInventoryDetailsPage />}
+                />
               </Route>
               <Route path="wishlist" element={<SimpleLayout />}>
                 <Route index element={<VendorWishlistPage />} />

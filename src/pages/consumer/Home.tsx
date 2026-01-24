@@ -1,11 +1,14 @@
-import { ProductCard } from "@/components/productCard";
+import { ProductCard, ProductCardSkeleton } from "@/components/productCard";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import images from "@/assets/images";
 import icons from "@/assets/icons";
 import { FeaturedStories } from "@/components/FeaturedStories";
 import { ClippedButton } from "@/components/clipped-button";
-import { HomeCategoryCard } from "@/components/home-category-card";
+import {
+  HomeCategoryCard,
+  HomeCategoryCardSkeleton,
+} from "@/components/home-category-card";
 import {
   Select,
   SelectContent,
@@ -28,9 +31,9 @@ export default function HomePage() {
   } = useReduxProducts();
 
   const {
-    categories,
+    categoryFeed,
     loading: categoriesLoading,
-    getCategories,
+    getCategoryFeed,
   } = useReduxCategories();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -43,14 +46,14 @@ export default function HomePage() {
     const fetchData = async () => {
       try {
         await getPublicProducts();
-        await getCategories();
+        await getCategoryFeed();
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
 
     fetchData();
-  }, [getPublicProducts, getCategories]);
+  }, [getPublicProducts, getCategoryFeed]);
 
   // Mock data for featured stories (kept as is since this might be static content)
   const featuredStories = [
@@ -73,7 +76,7 @@ export default function HomePage() {
       name: "Irene Ntende",
       location: "A Story from Uganda",
       image: images.Seller3 || "/stories/irene.jpg",
-      isVideo: true, // Featured video story
+      isVideo: true,
     },
     {
       id: "4",
@@ -98,7 +101,7 @@ export default function HomePage() {
     // Filter by category
     if (selectedCategory !== "all") {
       filteredProducts = filteredProducts.filter(
-        (product) => product.categoryId === selectedCategory,
+        (product) => product.categoryId === selectedCategory
       );
     }
 
@@ -109,15 +112,14 @@ export default function HomePage() {
       filteredProducts.sort((a, b) => b.price - a.price);
     }
 
-    // Sort by review rating - using averageRating instead of rating
+    // Sort by review rating
     if (reviewSort === "highest-rated") {
       filteredProducts.sort(
-        (a, b) => (b.averageRating || 0) - (a.averageRating || 0),
+        (a, b) => (b.averageRating || 0) - (a.averageRating || 0)
       );
     } else if (reviewSort === "most-reviews") {
-      // Use reviewCount instead of reviews
       filteredProducts.sort(
-        (a, b) => (b.reviewCount || 0) - (a.reviewCount || 0),
+        (a, b) => (b.reviewCount || 0) - (a.reviewCount || 0)
       );
     }
 
@@ -125,10 +127,9 @@ export default function HomePage() {
     if (sortBy === "newest") {
       filteredProducts.sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } else if (sortBy === "popular") {
-      // Popular sort - use viewCount if available, otherwise use averageRating
       filteredProducts.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
     }
 
@@ -141,12 +142,24 @@ export default function HomePage() {
     console.log(`Category selected: ${categoryId}`);
   };
 
+  // Helper function to get category image - handles the type issue
+  // Cast to any to access coverImageUrl which may not be in the Category type
+  const getCategoryImage = (category: (typeof categoryFeed)[number]): string => {
+    const cat = category as any;
+    return (
+      cat.coverImageUrl ||
+      cat.icon ||
+      cat.image ||
+      "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"
+    );
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#121212]">
       {/* Hero Section with Overlapping Trust Badges */}
       <section className="relative mb-8">
         {/* Hero Image */}
-        <div className="relative w-full h-[400px] md:h-[500px] overflow-hidden">
+        <div className="relative w-full h-[300px] sm:h-[400px] md:h-[500px] overflow-hidden">
           <img
             src={images.HeroImage || "/hero-marketplace.jpg"}
             alt="African Marketplace"
@@ -156,10 +169,10 @@ export default function HomePage() {
         </div>
 
         {/* Trust Badges - Overlapping Hero */}
-        <div className="relative -mt-14 z-10">
+        <div className="relative -mt-10 sm:-mt-14 z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-20">
-            <div className="bg-white dark:bg-[#1E1E1E] border border-gray-100 dark:border-gray-800 shadow-md rounded-2xl p-6 md:p-8">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="bg-white dark:bg-[#1E1E1E] border border-gray-100 dark:border-gray-800 shadow-md rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                 <TrustBadge
                   icon={icons.Shipping}
                   title="Free Shipping"
@@ -187,41 +200,46 @@ export default function HomePage() {
       </section>
 
       {/* Shop by Category */}
-      <section className="py-12 md:py-16 px-4 sm:px-6 lg:px-20">
+      <section className="py-8 sm:py-12 md:py-16 px-4 sm:px-6 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center mb-12">
-            <h2 className="text-2xl md:text-3xl text-center font-semibold text-[#1A1A1A] dark:text-white">
+          <div className="flex items-center justify-center mb-8 sm:mb-12">
+            <h2 className="text-xl sm:text-2xl md:text-3xl text-center font-semibold text-[#1A1A1A] dark:text-white">
               Shop by Category
             </h2>
           </div>
 
           {categoriesLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-[#CC5500]" />
-            </div>
-          ) : (
+            // Skeleton loading state for categories
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
-              {categories.slice(0, 5).map((category) => (
+              {Array.from({ length: 6 }).map((_, index) => (
+                <HomeCategoryCardSkeleton key={index} />
+              ))}
+            </div>
+          ) : categoryFeed.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
+              {categoryFeed.slice(0, 5).map((category) => (
                 <HomeCategoryCard
                   key={category.id}
-                  id={parseInt(category.id)}
+                  id={category.id}
                   name={category.name}
-                  image={
-                    // Use a default image or category.icon if available
-                    category.icon ||
-                    "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"
-                  }
+                  image={getCategoryImage(category)}
                 />
               ))}
               <div className="flex flex-col items-center justify-center">
                 <Button
                   variant="secondary"
-                  className="h-20 w-20 text-[#3A3A3A] bg-[#F5F6FA] hover:scale-105 transition-all hover:shadow-xs duration-300 hover:bg-[#F5F6FA]/90 flex items-center rounded-full justify-center p-0"
+                  className="h-16 w-16 sm:h-20 sm:w-20 text-[#3A3A3A] bg-[#F5F6FA] hover:scale-105 transition-all hover:shadow-xs duration-300 hover:bg-[#F5F6FA]/90 flex items-center rounded-full justify-center p-0"
                 >
-                  <ArrowRight className="size-8" />
+                  <ArrowRight className="size-6 sm:size-8" />
                 </Button>
-                <p className="mt-6 text-sm text-center">View All</p>
+                <p className="mt-4 sm:mt-6 text-sm text-center">View All</p>
               </div>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-500 dark:text-gray-400">
+                No categories available
+              </p>
             </div>
           )}
         </div>
@@ -231,25 +249,28 @@ export default function HomePage() {
       <FeaturedStories stories={featuredStories} />
 
       {/* All Products */}
-      <section className="py-12 md:py-16 px-4 sm:px-6 lg:px-20">
+      <section className="py-8 sm:py-12 md:py-16 px-4 sm:px-6 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col items-start justify-between mb-8 space-y-8">
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#1A1A1A] dark:text-white">
+          <div className="flex flex-col items-start justify-between mb-6 sm:mb-8 space-y-4 sm:space-y-8">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#1A1A1A] dark:text-white">
               All Products
             </h2>
-            <div className="flex items-center justify-between w-full gap-4">
-              <div className="flex gap-4">
+
+            {/* Filters - Responsive */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-3 sm:gap-4">
+              {/* Left side filters */}
+              <div className="flex gap-2 sm:gap-4 w-full sm:w-auto">
                 {/* Category Select */}
                 <Select
                   value={selectedCategory}
                   onValueChange={handleCategorySelect}
                 >
-                  <SelectTrigger className="px-4 py-2 bg-[#CC5500] text-white border-none rounded-lg text-sm dark:bg-[#CC5500] dark:text-white">
+                  <SelectTrigger className="px-3 sm:px-4 py-2 h-9 sm:h-10 bg-[#CC5500] text-white border-none rounded-lg text-xs sm:text-sm dark:bg-[#CC5500] dark:text-white min-w-[120px] sm:min-w-[140px]">
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((category) => (
+                    {categoryFeed.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.name}
                       </SelectItem>
@@ -259,7 +280,7 @@ export default function HomePage() {
 
                 {/* Price Select */}
                 <Select value={priceSort} onValueChange={setPriceSort}>
-                  <SelectTrigger className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700">
+                  <SelectTrigger className="px-3 sm:px-4 py-2 h-9 sm:h-10 border border-gray-200 rounded-lg text-xs sm:text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700 min-w-[90px] sm:min-w-[100px]">
                     <SelectValue placeholder="Price" />
                   </SelectTrigger>
                   <SelectContent>
@@ -269,9 +290,9 @@ export default function HomePage() {
                   </SelectContent>
                 </Select>
 
-                {/* Review Select */}
+                {/* Review Select - Hide on very small screens */}
                 <Select value={reviewSort} onValueChange={setReviewSort}>
-                  <SelectTrigger className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700">
+                  <SelectTrigger className="hidden xs:flex px-3 sm:px-4 py-2 h-9 sm:h-10 border border-gray-200 rounded-lg text-xs sm:text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700 min-w-[90px] sm:min-w-[100px]">
                     <SelectValue placeholder="Review" />
                   </SelectTrigger>
                   <SelectContent>
@@ -282,9 +303,9 @@ export default function HomePage() {
                 </Select>
               </div>
 
-              {/* Sort Select */}
+              {/* Sort Select - Right side */}
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="px-4 py-2 w-40 border border-gray-200 rounded-lg text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700">
+                <SelectTrigger className="px-3 sm:px-4 py-2 h-9 sm:h-10 w-full sm:w-36 border border-gray-200 rounded-lg text-xs sm:text-sm focus:outline-none dark:bg-[#2D2D2D] dark:border-gray-700">
                   <SelectValue placeholder="Sort by:" />
                 </SelectTrigger>
                 <SelectContent>
@@ -297,29 +318,32 @@ export default function HomePage() {
 
           {/* Products Grid */}
           {productsLoading ? (
-            <div className="flex justify-center items-center py-20">
-              <Loader2 className="h-12 w-12 animate-spin text-[#CC5500]" />
+            // Skeleton loading state for products
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <ProductCardSkeleton key={index} />
+              ))}
             </div>
           ) : displayProducts.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
                 {displayProducts.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
 
-              <div className="flex justify-center mt-12">
+              <div className="flex justify-center mt-8 sm:mt-12">
                 <Button
                   variant="secondary"
-                  className="rounded-full px-8 py-6 w-3xs text-base hover:bg-gray-50 dark:hover:bg-[#2D2D2D] hover:scale-105 transition-all duration-300"
+                  className="rounded-full px-6 sm:px-8 py-4 sm:py-6 text-sm sm:text-base hover:bg-gray-50 dark:hover:bg-[#2D2D2D] hover:scale-105 transition-all duration-300"
                 >
                   View more
                 </Button>
               </div>
             </>
           ) : (
-            <div className="text-center py-20">
-              <p className="text-gray-500 dark:text-gray-400 text-lg">
+            <div className="text-center py-16 sm:py-20">
+              <p className="text-gray-500 dark:text-gray-400 text-base sm:text-lg">
                 No products available in this category.
               </p>
               <Button
@@ -335,26 +359,26 @@ export default function HomePage() {
       </section>
 
       {/* About Section */}
-      <section className="py-16 md:py-24 px-4 sm:px-6 lg:px-20 bg-[#F5F7FA] dark:bg-[#1A1A1A]">
-        <div className="max-w-7xl mx-auto bg-white dark:bg-[#2D2D2D] p-8 md:p-12 rounded-[40px] shadow-sm">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
+      <section className="py-12 sm:py-16 md:py-24 px-4 sm:px-6 lg:px-20 bg-[#F5F7FA] dark:bg-[#1A1A1A]">
+        <div className="max-w-7xl mx-auto bg-white dark:bg-[#2D2D2D] p-6 sm:p-8 md:p-12 rounded-2xl sm:rounded-[40px] shadow-sm">
+          <div className="grid md:grid-cols-2 gap-8 sm:gap-12 items-center">
             <div className="space-y-8">
               <div className="grid grid-cols-1 gap-4">
-                <div className="relative h-[500px]">
+                <div className="relative h-[300px] sm:h-[400px] md:h-[500px]">
                   <img
                     src={images.AboutUsImage || "/about-us-artisan.jpg"}
                     alt="African Woman Art"
-                    className="w-full h-[500px] object-contain"
+                    className="w-full h-full object-contain"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="space-y-6">
-              <h2 className="text-3xl md:text-4xl font-bold text-[#1A1A1A] dark:text-white">
+            <div className="space-y-4 sm:space-y-6">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#1A1A1A] dark:text-white">
                 About Us
               </h2>
-              <p className="text-gray-600 dark:text-gray-400 text-lg leading-relaxed">
+              <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg leading-relaxed">
                 Born from a love of African craftsmanship and community, we
                 created this platform to connect local creators with global
                 customers. We believe every product carries a story, and every
@@ -383,13 +407,15 @@ function TrustBadge({
   subtitle: string;
 }) {
   return (
-    <div className="flex items-start gap-3">
-      <img src={icon} alt={title} className="" />
-      <div>
-        <h3 className="font-semibold text-[#1A1A1A] dark:text-white text-sm mb-1">
+    <div className="flex items-start gap-2 sm:gap-3">
+      <img src={icon} alt={title} className="w-8 h-8 sm:w-10 sm:h-10 shrink-0" />
+      <div className="min-w-0">
+        <h3 className="font-semibold text-[#1A1A1A] dark:text-white text-xs sm:text-sm mb-0.5 sm:mb-1 line-clamp-1">
           {title}
         </h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
+        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+          {subtitle}
+        </p>
       </div>
     </div>
   );
