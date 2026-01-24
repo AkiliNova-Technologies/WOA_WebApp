@@ -1,12 +1,19 @@
 import { useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import {
+  // User cart actions
   fetchCart,
   addToCart,
   updateCartItem,
   removeFromCart,
+  changeCartItemVariant,
   moveToWishlist,
   mergeCart,
+  
+  // Admin cart actions
+  fetchAllAdminCartItems,
+  
+  // User cart selectors
   selectCart,
   selectCartItems,
   selectCartTotal,
@@ -14,17 +21,31 @@ import {
   selectCartLoading,
   selectCartError,
   selectCartUpdating,
+  
+  // Admin cart selectors
+  selectAdminCartItems,
+  selectAdminCartStats,
+  selectAdminCartLoading,
+  selectAdminCartError,
+  selectAdminCartItemCount,
+  selectAdminCartTotalValue,
+  
+  // Actions
   setCart,
   clearCart,
   clearError as clearCartError,
+  clearAdminError,
   updateCartItemQuantity,
+  
+  // Types
   type CartItem,
+  type AdminCartItem,
 } from '@/redux/slices/cartSlice';
 
 export function useReduxCart() {
   const dispatch = useAppDispatch();
 
-  // Selectors
+  // ==================== USER CART SELECTORS ====================
   const cart = useAppSelector(selectCart);
   const items = useAppSelector(selectCartItems);
   const total = useAppSelector(selectCartTotal);
@@ -33,7 +54,17 @@ export function useReduxCart() {
   const error = useAppSelector(selectCartError);
   const updating = useAppSelector(selectCartUpdating);
 
-  // Cart actions
+  // ==================== ADMIN CART SELECTORS ====================
+  const adminCartItems = useAppSelector(selectAdminCartItems);
+  const adminCartStats = useAppSelector(selectAdminCartStats);
+  const adminLoading = useAppSelector(selectAdminCartLoading);
+  const adminError = useAppSelector(selectAdminCartError);
+  const adminItemCount = useAppSelector(selectAdminCartItemCount);
+  const adminTotalValue = useAppSelector(selectAdminCartTotalValue);
+
+  // ==================== USER CART ACTIONS ====================
+
+  // Get or create cart (guest or authenticated)
   const getCart = useCallback(async () => {
     try {
       return await dispatch(fetchCart()).unwrap();
@@ -43,15 +74,21 @@ export function useReduxCart() {
     }
   }, [dispatch]);
 
-  const addItem = useCallback(async (productId: string, quantity: number = 1) => {
+  // Add item to cart (guest or authenticated)
+  const addItem = useCallback(async (
+    productId: string, 
+    quantity: number = 1,
+    variantId?: string
+  ) => {
     try {
-      return await dispatch(addToCart({ productId, quantity })).unwrap();
+      return await dispatch(addToCart({ productId, quantity, variantId })).unwrap();
     } catch (error) {
       console.error('Failed to add item to cart:', error);
       throw error;
     }
   }, [dispatch]);
 
+  // Update cart item quantity
   const updateItem = useCallback(async (id: string, quantity: number) => {
     try {
       return await dispatch(updateCartItem({ id, quantity })).unwrap();
@@ -61,6 +98,7 @@ export function useReduxCart() {
     }
   }, [dispatch]);
 
+  // Remove cart item
   const removeItem = useCallback(async (id: string) => {
     try {
       await dispatch(removeFromCart(id)).unwrap();
@@ -71,6 +109,17 @@ export function useReduxCart() {
     }
   }, [dispatch]);
 
+  // Change cart item variant (e.g., change size or color)
+  const changeItemVariant = useCallback(async (id: string, variantId: string) => {
+    try {
+      return await dispatch(changeCartItemVariant({ id, variantId })).unwrap();
+    } catch (error) {
+      console.error('Failed to change item variant:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  // Move cart item to wishlist (auth required)
   const moveItemToWishlist = useCallback(async (id: string) => {
     try {
       return await dispatch(moveToWishlist(id)).unwrap();
@@ -80,6 +129,7 @@ export function useReduxCart() {
     }
   }, [dispatch]);
 
+  // Merge guest cart into user cart on login
   const mergeCarts = useCallback(async () => {
     try {
       return await dispatch(mergeCart()).unwrap();
@@ -89,7 +139,27 @@ export function useReduxCart() {
     }
   }, [dispatch]);
 
-  // Helper functions
+  // ==================== ADMIN CART ACTIONS ====================
+
+  // List all cart items with product details (Admin)
+  const getAllAdminCartItems = useCallback(async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => {
+    try {
+      return await dispatch(fetchAllAdminCartItems(params)).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch admin cart items:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  // ==================== USER CART HELPER FUNCTIONS ====================
+
   const getItem = useCallback((id: string): CartItem | undefined => {
     return items.find(item => item.id === id);
   }, [items]);
@@ -134,7 +204,22 @@ export function useReduxCart() {
     return null;
   }, [getItem, updateItem]);
 
-  // Utility actions
+  // ==================== ADMIN CART HELPER FUNCTIONS ====================
+
+  const getAdminCartItem = useCallback((cartItemId: string): AdminCartItem | undefined => {
+    return adminCartItems.find(item => item.cartItemId === cartItemId);
+  }, [adminCartItems]);
+
+  const calculateAdminSubtotal = useCallback((): number => {
+    return adminCartItems.reduce((sum, item) => {
+      // Use priceAtAdd, or fall back to variant price, or product basePrice
+      const price = item.priceAtAdd ?? item.variant?.price ?? item.product?.basePrice ?? 0;
+      return sum + (price * item.quantity);
+    }, 0);
+  }, [adminCartItems]);
+
+  // ==================== UTILITY ACTIONS ====================
+
   const setCurrentCart = useCallback((cartData: any) => {
     dispatch(setCart(cartData));
   }, [dispatch]);
@@ -147,8 +232,12 @@ export function useReduxCart() {
     dispatch(clearCartError());
   }, [dispatch]);
 
+  const clearAdminCartErrors = useCallback(() => {
+    dispatch(clearAdminError());
+  }, [dispatch]);
+
   return {
-    // State
+    // ==================== USER CART STATE ====================
     cart,
     items,
     total,
@@ -157,15 +246,27 @@ export function useReduxCart() {
     error,
     updating,
     
-    // Cart actions
+    // ==================== ADMIN CART STATE ====================
+    adminCartItems,
+    adminCartStats,
+    adminLoading,
+    adminError,
+    adminItemCount,
+    adminTotalValue,
+    
+    // ==================== USER CART ACTIONS ====================
     getCart,
     addItem,
     updateItem,
     removeItem,
+    changeItemVariant,
     moveItemToWishlist,
     mergeCarts,
     
-    // Helper functions
+    // ==================== ADMIN CART ACTIONS ====================
+    getAllAdminCartItems,
+    
+    // ==================== USER CART HELPER FUNCTIONS ====================
     getItem,
     getItemByProductId,
     isInCart,
@@ -175,9 +276,17 @@ export function useReduxCart() {
     incrementQuantity,
     decrementQuantity,
     
-    // Utility actions
+    // ==================== ADMIN CART HELPER FUNCTIONS ====================
+    getAdminCartItem,
+    calculateAdminSubtotal,
+    
+    // ==================== UTILITY ACTIONS ====================
     setCurrentCart,
     clearCurrentCart,
     clearCartErrors,
+    clearAdminCartErrors,
   };
 }
+
+// Export types for convenience
+export type { CartItem, AdminCartItem } from '@/redux/slices/cartSlice';

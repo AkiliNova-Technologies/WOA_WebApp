@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DataTable,
@@ -6,7 +6,7 @@ import {
   type TableField,
 } from "@/components/data-table";
 import { SectionCards, type CardData } from "@/components/section-cards";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,57 +17,69 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
 import { SiteHeader } from "@/components/site-header";
-import { Filter, Download, Eye } from "lucide-react";
+import { Filter, Download, Eye, Loader2 } from "lucide-react";
 import { useReduxCart } from "@/hooks/useReduxCart";
 import images from "@/assets/images";
+import { toast } from "sonner";
 
 type CartStatus = "in-stock" | "limited-stock" | "out-of-stock" | "suspended";
 type TabFilter = "all" | "in-stock" | "limited-stock" | "out-of-stock" | "suspended";
 
-// interface CartStats {
-//   totalItems: number;
-//   cartToPurchase: number;
-//   cartAbandonment: number;
-//   grossRevenue: number;
-// }
-
-interface CartItemWithId {
-  id: string;
+// Extended interface for table display
+interface CartItemForTable {
+  id: string; // Required for DataTable - will use cartItemId
+  cartItemId: string;
+  cartId: string;
+  clientId: string | null;
+  vendorId: string;
   productId: string;
-  product: {
-    id: string;
-    name: string;
-    sku: string;
-    price: number;
-    salePrice?: number;
-    images: { url: string; isPrimary: boolean }[];
-    vendor: { id: string; businessName: string };
-    stock: number;
-    category?: string; // Added category property
-  };
   quantity: number;
+  price: number;
+  salePrice?: number;
   addedAt: string;
-  carts: number;
+  productName: string;
+  variantName: string | null;
+  sku: string;
+  stock: number;
   status: CartStatus;
+  cartsCount: number;
   [key: string]: any;
 }
+
+// Helper to determine stock status
+const getStockStatus = (stock: number): CartStatus => {
+  if (stock === 0) return "out-of-stock";
+  if (stock <= 5) return "limited-stock";
+  return "in-stock";
+};
 
 export default function AdminCartPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<CartStatus[]>([]);
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
+  const [dateFilter, setDateFilter] = useState<"7days" | "30days" | "all">("7days");
 
   const {
-    items,
-    itemCount,
-    getCart,
-    calculateSubtotal,
+    adminCartItems,
+    adminLoading,
+    adminError,
+    getAllAdminCartItems,
   } = useReduxCart();
 
+  // Fetch admin cart items on mount
   useEffect(() => {
-    getCart();
-  }, [getCart]);
+    const fetchData = async () => {
+      try {
+        await getAllAdminCartItems();
+      } catch (error) {
+        console.error("Failed to fetch cart items:", error);
+        toast.error("Failed to load cart items");
+      }
+    };
+    
+    fetchData();
+  }, [getAllAdminCartItems]);
 
   const statusOptions: { value: CartStatus; label: string }[] = [
     { value: "in-stock", label: "In stock" },
@@ -90,66 +102,107 @@ export default function AdminCartPage() {
     setActiveTab("all");
   };
 
-  // Transform cart items for table display
-  const transformCartItemForTable = (item: any, index: number): CartItemWithId => {
-    const statuses: CartStatus[] = ["in-stock", "limited-stock", "out-of-stock", "suspended"];
-    const status = statuses[index % statuses.length];
-    
-    return {
-      id: item.id || `cart-${index}`,
-      productId: item.productId || item.product?.id || `product-${index}`,
-      product: {
-        id: item.product?.id || `product-${index}`,
-        name: item.product?.name || "Unknown Product",
-        sku: item.product?.sku || "N/A",
-        price: item.price || item.product?.price || 0,
-        salePrice: item.salePrice || item.product?.salePrice,
-        images: item.product?.images || [],
-        vendor: item.product?.vendor || { id: "unknown", businessName: "Unknown Vendor" },
-        stock: item.product?.stock || 0,
-        category: item.product?.category?.name || "Uncategorized", // Fixed category access
-      },
-      quantity: item.quantity || 1,
-      addedAt: item.addedAt || new Date().toISOString(),
-      carts: 10, // Placeholder
-      status: status,
-    };
-  };
-
-  const tableCartItems: CartItemWithId[] = items.map(transformCartItemForTable);
+  // Transform admin cart items for table display
+  const tableCartItems: CartItemForTable[] = useMemo(() => {
+    return adminCartItems.map((item: any) => {
+      // Get stock from variant or default to 0
+      const stock = item.variant?.stockQuantity ?? 0;
+      
+      // Get price - use priceAtAdd, variant price, or product basePrice
+      const price = item.priceAtAdd ?? item.variant?.price ?? item.product?.basePrice ?? 0;
+      const comparePrice = item.compareAtPriceAtAdd ?? item.variant?.compareAtPrice ?? item.product?.baseCompareAtPrice;
+      
+      // If there's a compare price that's higher than price, it's on sale
+      const salePrice = comparePrice && comparePrice > price ? price : undefined;
+      const displayPrice = comparePrice && comparePrice > price ? comparePrice : price;
+      
+      return {
+        id: item.cartItemId, // Use cartItemId as the unique id for DataTable
+        cartItemId: item.cartItemId,
+        cartId: item.cartId,
+        clientId: item.clientId,
+        vendorId: item.vendorId,
+        productId: item.product?.id || '',
+        quantity: item.quantity,
+        price: displayPrice,
+        salePrice: salePrice,
+        addedAt: item.createdAt,
+        productName: item.productNameSnapshot || item.product?.name || 'Unknown Product',
+        variantName: item.variantNameSnapshot || item.variant?.name || null,
+        sku: item.variant?.sku || 'N/A',
+        stock: stock,
+        status: getStockStatus(stock),
+        cartsCount: 1, // This would come from API aggregation ideally
+      };
+    });
+  }, [adminCartItems]);
 
   // Filter cart items
-  const filteredCartItems = tableCartItems.filter((item) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      item.product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.product.vendor.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.product.category && item.product.category.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredCartItems = useMemo(() => {
+    return tableCartItems.filter((item) => {
+      const matchesSearch =
+        searchQuery === "" ||
+        item.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.variantName && item.variantName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        item.sku.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatusFilter =
-      selectedStatuses.length === 0 ||
-      selectedStatuses.includes(item.status);
+      const matchesStatusFilter =
+        selectedStatuses.length === 0 ||
+        selectedStatuses.includes(item.status);
 
-    const matchesTabFilter = 
-      activeTab === "all" ||
-      activeTab === item.status;
+      const matchesTabFilter = 
+        activeTab === "all" ||
+        activeTab === item.status;
 
-    return matchesSearch && matchesStatusFilter && matchesTabFilter;
-  });
+      // Date filter
+      let matchesDateFilter = true;
+      if (dateFilter !== "all" && item.addedAt) {
+        const itemDate = new Date(item.addedAt);
+        const now = new Date();
+        const daysDiff = Math.floor((now.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (dateFilter === "7days") {
+          matchesDateFilter = daysDiff <= 7;
+        } else if (dateFilter === "30days") {
+          matchesDateFilter = daysDiff <= 30;
+        }
+      }
+
+      return matchesSearch && matchesStatusFilter && matchesTabFilter && matchesDateFilter;
+    });
+  }, [tableCartItems, searchQuery, selectedStatuses, activeTab, dateFilter]);
 
   // Calculate statistics for cards
-  const totalItems = itemCount;
-  const inStockItems = tableCartItems.filter(item => item.status === "in-stock").length;
-  const limitedStockItems = tableCartItems.filter(item => item.status === "limited-stock").length;
-  const grossRevenue = calculateSubtotal();
-  
-  const cartToPurchaseRate = totalItems > 0 
-    ? Math.round((inStockItems / totalItems) * 100).toString()
-    : "0";
+  const stats = useMemo(() => {
+    const totalItems = tableCartItems.length;
+    const inStockItems = tableCartItems.filter(item => item.status === "in-stock").length;
+    const limitedStockItems = tableCartItems.filter(item => item.status === "limited-stock").length;
+    const outOfStockItems = tableCartItems.filter(item => item.status === "out-of-stock").length;
     
-  const cartAbandonmentRate = totalItems > 0 
-    ? Math.round((limitedStockItems / totalItems) * 100).toString()
-    : "0";
+    // Calculate gross revenue from table items
+    const grossRevenue = tableCartItems.reduce((sum, item) => {
+      const price = item.salePrice || item.price;
+      return sum + (price * item.quantity);
+    }, 0);
+    
+    const cartToPurchaseRate = totalItems > 0 
+      ? Math.round((inStockItems / totalItems) * 100)
+      : 0;
+      
+    const cartAbandonmentRate = totalItems > 0 
+      ? Math.round(((limitedStockItems + outOfStockItems) / totalItems) * 100)
+      : 0;
+
+    return {
+      totalItems,
+      inStockItems,
+      limitedStockItems,
+      outOfStockItems,
+      grossRevenue,
+      cartToPurchaseRate,
+      cartAbandonmentRate,
+    };
+  }, [tableCartItems]);
 
   const formatNumberShort = (num: number): string => {
     if (num >= 1_000_000) {
@@ -164,7 +217,7 @@ export default function AdminCartPage() {
   const statsCards: CardData[] = [
     {
       title: "Total products on cart",
-      value: totalItems.toString(),
+      value: stats.totalItems.toString(),
       change: {
         value: "10%",
         trend: "up",
@@ -173,7 +226,7 @@ export default function AdminCartPage() {
     },
     {
       title: "Cart to purchase",
-      value: `${cartToPurchaseRate}%`,
+      value: `${stats.cartToPurchaseRate}%`,
       change: {
         value: "5%",
         trend: "down",
@@ -182,7 +235,7 @@ export default function AdminCartPage() {
     },
     {
       title: "Cart Abandonment",
-      value: `${cartAbandonmentRate}%`,
+      value: `${stats.cartAbandonmentRate}%`,
       change: {
         value: "5%",
         trend: "down",
@@ -191,7 +244,7 @@ export default function AdminCartPage() {
     },
     {
       title: "Gross Revenue on cart",
-      value: formatNumberShort(grossRevenue),
+      value: formatNumberShort(stats.grossRevenue),
       change: {
         value: "10%",
         trend: "up",
@@ -201,9 +254,7 @@ export default function AdminCartPage() {
   ];
 
   const handleViewProduct = (productId: string) => {
-    if (window.confirm("View product details?")) {
-      navigate(`/admin/products/${productId}/details`);
-    }
+    navigate(`/admin/products/${productId}/details`);
   };
 
   const getInitials = (name: string): string => {
@@ -214,26 +265,21 @@ export default function AdminCartPage() {
       .slice(0, 2);
   };
 
-  const cartFields: TableField<CartItemWithId>[] = [
+  const cartFields: TableField<CartItemForTable>[] = [
     {
-      key: "name",
+      key: "productName",
       header: "Product name",
       cell: (_, row) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12 rounded-md">
-            <AvatarImage 
-              src={row.product.images.find(img => img.isPrimary)?.url || row.product.images[0]?.url} 
-              alt={row.product.name} 
-              className="object-cover" 
-            />
             <AvatarFallback className="bg-muted text-muted-foreground font-medium rounded-md">
-              {getInitials(row.product.name)}
+              {getInitials(row.productName)}
             </AvatarFallback>
           </Avatar>
           <div>
-            <span className="font-medium text-md">{row.product.name}</span>
+            <span className="font-medium text-md">{row.productName}</span>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              SKU: {row.product.sku} • {row.product.vendor.businessName}
+              SKU: {row.sku} {row.variantName && `• ${row.variantName}`}
             </p>
           </div>
         </div>
@@ -241,9 +287,11 @@ export default function AdminCartPage() {
       align: "left",
     },
     {
-      key: "category",
-      header: "Category",
-      cell: (_, row) => <span className="font-medium">{row.product.category || "Uncategorized"}</span>,
+      key: "stock",
+      header: "Stock",
+      cell: (value) => (
+        <span className="font-medium">{value as number}</span>
+      ),
       align: "center",
       enableSorting: true,
     },
@@ -252,13 +300,13 @@ export default function AdminCartPage() {
       header: "Price (USD)",
       cell: (_, row) => (
         <div className="text-center">
-          {row.product.salePrice ? (
+          {row.salePrice ? (
             <>
-              <span className="line-through text-gray-400">${row.product.price.toFixed(2)}</span>
-              <span className="ml-2 font-medium text-green-600">${row.product.salePrice.toFixed(2)}</span>
+              <span className="line-through text-gray-400">${row.price.toFixed(2)}</span>
+              <span className="ml-2 font-medium text-green-600">${row.salePrice.toFixed(2)}</span>
             </>
           ) : (
-            <span className="font-medium">${row.product.price.toFixed(2)}</span>
+            <span className="font-medium">${row.price.toFixed(2)}</span>
           )}
         </div>
       ),
@@ -266,7 +314,14 @@ export default function AdminCartPage() {
       enableSorting: true,
     },
     {
-      key: "carts",
+      key: "quantity",
+      header: "Quantity",
+      cell: (value) => <span className="font-medium">{value as number}</span>,
+      align: "center",
+      enableSorting: true,
+    },
+    {
+      key: "cartsCount",
       header: "Carts",
       cell: (value) => <span className="font-medium">{value as number}</span>,
       align: "center",
@@ -311,7 +366,7 @@ export default function AdminCartPage() {
     },
   ];
 
-  const cartActions: TableAction<CartItemWithId>[] = [
+  const cartActions: TableAction<CartItemForTable>[] = [
     {
       type: "view",
       label: "View Product",
@@ -340,11 +395,36 @@ export default function AdminCartPage() {
     return `${baseClass} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white`;
   };
 
+  const getTabCount = (tab: TabFilter): number => {
+    if (tab === "all") return tableCartItems.length;
+    return tableCartItems.filter(item => item.status === tab).length;
+  };
+
+  const handleExport = () => {
+    // TODO: Implement export functionality
+    toast.info("Export functionality coming soon");
+  };
+
+  // Show error state
+  if (adminError) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-[#1a1a1a]">
+        <SiteHeader label="Cart Management" />
+        <div className="p-6">
+          <div className="flex flex-col items-center justify-center py-12">
+            <p className="text-red-500 mb-4">Error loading cart items: {adminError}</p>
+            <Button onClick={() => getAllAdminCartItems()}>
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#1a1a1a]">
-      <SiteHeader
-        label="Cart Management"
-      />
+      <SiteHeader label="Cart Management" />
       <div className="p-6 space-y-6">
         <SectionCards cards={statsCards} layout="1x4" />
 
@@ -362,7 +442,7 @@ export default function AdminCartPage() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="w-full sm:w-96">
                 <Search
-                  placeholder="Search"
+                  placeholder="Search by product, vendor, or category..."
                   value={searchQuery}
                   onSearchChange={setSearchQuery}
                   className="h-10"
@@ -371,13 +451,34 @@ export default function AdminCartPage() {
 
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050] rounded-l-lg">
+                  <button 
+                    className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
+                      dateFilter === "7days" 
+                        ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]" 
+                        : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
+                    }`}
+                    onClick={() => setDateFilter("7days")}
+                  >
                     Last 7 days
                   </button>
-                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]">
+                  <button 
+                    className={`px-4 py-2 text-sm ${
+                      dateFilter === "30days" 
+                        ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]" 
+                        : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
+                    }`}
+                    onClick={() => setDateFilter("30days")}
+                  >
                     Last 30 days
                   </button>
-                  <button className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848] rounded-r-lg">
+                  <button 
+                    className={`px-4 py-2 text-sm rounded-r-lg ${
+                      dateFilter === "all" 
+                        ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]" 
+                        : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
+                    }`}
+                    onClick={() => setDateFilter("all")}
+                  >
                     All time
                   </button>
                 </div>
@@ -412,7 +513,7 @@ export default function AdminCartPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Button variant="outline" className="gap-2 h-10">
+                <Button variant="outline" className="gap-2 h-10" onClick={handleExport}>
                   <Download className="w-4 h-4" />
                   Export
                 </Button>
@@ -436,50 +537,59 @@ export default function AdminCartPage() {
                 className={getTabButtonClass("all")}
                 onClick={() => handleTabClick("all")}
               >
-                All Carts
+                All Carts ({getTabCount("all")})
               </button>
               <button 
                 className={getTabButtonClass("in-stock")}
                 onClick={() => handleTabClick("in-stock")}
               >
-                In Stock
+                In Stock ({getTabCount("in-stock")})
               </button>
               <button 
                 className={getTabButtonClass("limited-stock")}
                 onClick={() => handleTabClick("limited-stock")}
               >
-                Limited Stock
+                Limited Stock ({getTabCount("limited-stock")})
               </button>
               <button 
                 className={getTabButtonClass("out-of-stock")}
                 onClick={() => handleTabClick("out-of-stock")}
               >
-                Out of Stock
+                Out of Stock ({getTabCount("out-of-stock")})
               </button>
               <button 
                 className={getTabButtonClass("suspended")}
                 onClick={() => handleTabClick("suspended")}
               >
-                Suspended
+                Suspended ({getTabCount("suspended")})
               </button>
             </div>
           </div>
 
           <div className="p-6">
-            {filteredCartItems.length === 0 ? (
+            {adminLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+                <span className="ml-3 text-gray-600">Loading cart items...</span>
+              </div>
+            ) : filteredCartItems.length === 0 ? (
               <div className="flex flex-col items-center text-center py-12">
                 <img src={images.EmptyFallback} alt="" className="h-60 mb-6"/>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                   No Cart Items Found
                 </h3>
-                {items.length === 0 && (
+                {tableCartItems.length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     No products have been added to cart yet.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    No items match your current filters. Try adjusting your search or filters.
                   </p>
                 )}
               </div>
             ) : (
-              <DataTable<CartItemWithId>
+              <DataTable<CartItemForTable>
                 data={filteredCartItems}
                 fields={cartFields}
                 actions={cartActions}
