@@ -31,6 +31,7 @@ export interface SubCategoryType {
   name: string;
   description?: string;
   image: string;
+  code: string;
   appliesTo: string[]; // Array of subcategory IDs
 }
 
@@ -59,6 +60,17 @@ export interface Attribute {
 const VALIDATION_RULES = {
   categoryName: { min: 1, max: 100 },
   description: { max: 500 },
+};
+
+// Helper function to generate a unique code
+const generateCode = (name: string): string => {
+  const sanitized = name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 10);
+  const timestamp = Date.now().toString(36).toUpperCase();
+  return `${sanitized}-${timestamp}`;
 };
 
 export default function AdminCreateCategoriesPage() {
@@ -245,6 +257,7 @@ export default function AdminCreateCategoriesPage() {
     name: string;
     description?: string;
     image: string[] | null;
+    code?: string; // Optional - will be auto-generated if not provided
     appliesTo: string[]; // Array of subcategory IDs
   }) => {
     if (!categoryId) {
@@ -268,16 +281,19 @@ export default function AdminCreateCategoriesPage() {
     try {
       toast.loading("Creating subcategory type...", { id: "create-type" });
 
+      // Generate a code if not provided
+      const typeCode = subCategoryTypeData.code || generateCode(subCategoryTypeData.name);
+
       // Create a product type for each selected subcategory
       const createdTypes: SubCategoryType[] = [];
 
       for (const subcategoryId of subCategoryTypeData.appliesTo) {
+        // API expects: name, description, code, coverImageUrl
         const productTypeData = {
           name: subCategoryTypeData.name,
           description: subCategoryTypeData.description || "",
-          subcategoryId: subcategoryId,
-          isActive: true,
-          image: subCategoryTypeData.image[0],
+          code: `${typeCode}-${subcategoryId.slice(0, 8)}`, // Make code unique per subcategory
+          coverImageUrl: subCategoryTypeData.image[0],
         };
 
         try {
@@ -291,6 +307,7 @@ export default function AdminCreateCategoriesPage() {
             name: createdType.name,
             description: createdType.description,
             image: subCategoryTypeData.image[0],
+            code: createdType.code,
             appliesTo: [subcategoryId],
           });
         } catch (error) {
@@ -312,6 +329,7 @@ export default function AdminCreateCategoriesPage() {
         name: subCategoryTypeData.name,
         description: subCategoryTypeData.description,
         image: subCategoryTypeData.image[0],
+        code: typeCode,
         appliesTo: subCategoryTypeData.appliesTo,
       };
 

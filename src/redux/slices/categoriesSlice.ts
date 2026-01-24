@@ -59,7 +59,8 @@ export interface ProductType {
   id: string;
   name: string;
   description?: string;
-  image?: string;
+  code: string;
+  coverImageUrl?: string;
   subcategoryId: string;
   isActive: boolean;
   createdAt: string;
@@ -73,8 +74,8 @@ interface CategoriesState {
   productTypes: ProductType[];
   selectedCategory: Category | null;
   selectedSubcategory: SubCategory | null;
-  categoryFeed: Category[]; // New state for home screen feed
-  popularCategories: Category[]; // New state for popular categories
+  categoryFeed: Category[];
+  popularCategories: Category[];
   loading: boolean;
   error: string | null;
   createLoading: boolean;
@@ -88,8 +89,8 @@ const initialState: CategoriesState = {
   productTypes: [],
   selectedCategory: null,
   selectedSubcategory: null,
-  categoryFeed: [], // New
-  popularCategories: [], // New
+  categoryFeed: [],
+  popularCategories: [],
   loading: false,
   error: null,
   createLoading: false,
@@ -98,12 +99,12 @@ const initialState: CategoriesState = {
 
 // ==================== CATEGORY ENDPOINTS ====================
 
-// Get all categories
+// Get all categories (Admin)
 export const fetchCategories = createAsyncThunk(
   "categories/fetchAll",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/api/v1/categories");
+      const response = await api.get("/api/v1/admin/categories");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -113,7 +114,7 @@ export const fetchCategories = createAsyncThunk(
   }
 );
 
-// Get category feed for home screen
+// Get category feed for home screen (Public - if available)
 export const fetchCategoryFeed = createAsyncThunk(
   "categories/fetchFeed",
   async (_, { rejectWithValue }) => {
@@ -128,7 +129,7 @@ export const fetchCategoryFeed = createAsyncThunk(
   }
 );
 
-// Get categories sorted by popularity
+// Get categories sorted by popularity (Public - if available)
 export const fetchPopularCategories = createAsyncThunk(
   "categories/fetchPopular",
   async (_, { rejectWithValue }) => {
@@ -143,12 +144,12 @@ export const fetchPopularCategories = createAsyncThunk(
   }
 );
 
-// Get a category by ID
+// Get a category by ID (Admin)
 export const fetchCategory = createAsyncThunk(
   "categories/fetchOne",
   async (id: string, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/api/v1/categories/${id}`);
+      const response = await api.get(`/api/v1/admin/categories/${id}`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -158,174 +159,7 @@ export const fetchCategory = createAsyncThunk(
   }
 );
 
-// ==================== SUBCATEGORY ENDPOINTS ====================
-
-// Get all subcategories for a category
-export const fetchSubcategoriesByCategory = createAsyncThunk(
-  "subcategories/fetchByCategory",
-  async (categoryId: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(`/api/v1/categories/${categoryId}/subcategories`);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch subcategories"
-      );
-    }
-  }
-);
-
-// Get a subcategory by ID under a specific category
-export const fetchSubcategory = createAsyncThunk(
-  "subcategories/fetchOne",
-  async (
-    { categoryId, id }: { categoryId: string; id: string },
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.get(`/api/v1/categories/${categoryId}/subcategories/${id}`);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch subcategory"
-      );
-    }
-  }
-);
-
-// ==================== ATTRIBUTE ENDPOINTS ====================
-
-// Get all attributes
-export const fetchAttributes = createAsyncThunk(
-  "attributes/fetchAll",
-  async (_, { rejectWithValue }) => {
-    try {
-      const response = await api.get("/api/v1/attributes");
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch attributes"
-      );
-    }
-  }
-);
-
-// Get attributes by category
-export const fetchAttributesByCategory = createAsyncThunk(
-  "attributes/fetchByCategory",
-  async (categoryId: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(`/api/v1/attributes/category/${categoryId}`);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch category attributes"
-      );
-    }
-  }
-);
-
-// Get an attribute by ID
-export const fetchAttribute = createAsyncThunk(
-  "attributes/fetchOne",
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const response = await api.get(`/api/v1/attributes/${id}`);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch attribute"
-      );
-    }
-  }
-);
-
-// Create a new attribute for a category
-export const createAttribute = createAsyncThunk(
-  "attributes/create",
-  async (
-    { 
-      categoryId, 
-      data 
-    }: { 
-      categoryId: string; 
-      data: Omit<Attribute, "id" | "createdAt" | "updatedAt">
-    },
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.post(`/api/v1/attributes/category/${categoryId}`, data);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to create attribute"
-      );
-    }
-  }
-);
-
-// Update an attribute
-export const updateAttribute = createAsyncThunk(
-  "attributes/update",
-  async (
-    { id, data }: { id: string; data: Partial<Attribute> },
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.patch(`/api/v1/attributes/${id}`, data);
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to update attribute"
-      );
-    }
-  }
-);
-
-// Delete an attribute
-export const deleteAttribute = createAsyncThunk(
-  "attributes/delete",
-  async (id: string, { rejectWithValue }) => {
-    try {
-      await api.delete(`/api/v1/attributes/${id}`);
-      return id;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to delete attribute"
-      );
-    }
-  }
-);
-
-// Assign attributes to subcategory
-export const assignAttributesToSubcategory = createAsyncThunk(
-  "attributes/assignToSubcategory",
-  async (
-    {
-      subcategoryId,
-      attributeIds,
-    }: { subcategoryId: string; attributeIds: string[] },
-    { rejectWithValue }
-  ) => {
-    try {
-      const response = await api.post(
-        `/api/v1/attributes/subcategory/${subcategoryId}/assign`,
-        { attributeIds }
-      );
-      return response.data;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to assign attributes"
-      );
-    }
-  }
-);
-
-// ==================== ADMIN ENDPOINTS (Based on common patterns) ====================
-
-// Note: Swagger doesn't show admin endpoints. These are based on typical REST patterns.
-// You may need to adjust based on actual API.
-
+// Create a new category (Admin)
 export const createCategory = createAsyncThunk(
   "categories/create",
   async (
@@ -333,7 +167,7 @@ export const createCategory = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await api.post("/api/v1/categories", categoryData);
+      const response = await api.post("/api/v1/admin/categories/create", categoryData);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -343,6 +177,7 @@ export const createCategory = createAsyncThunk(
   }
 );
 
+// Update a category (Admin)
 export const updateCategory = createAsyncThunk(
   "categories/update",
   async (
@@ -350,7 +185,7 @@ export const updateCategory = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await api.patch(`/api/v1/categories/${id}`, data);
+      const response = await api.patch(`/api/v1/admin/categories/${id}`, data);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -360,11 +195,30 @@ export const updateCategory = createAsyncThunk(
   }
 );
 
+// Update category status (Admin)
+export const updateCategoryStatus = createAsyncThunk(
+  "categories/updateStatus",
+  async (
+    { id, isActive }: { id: string; isActive: boolean },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.patch(`/api/v1/admin/categories/${id}/status`, { isActive });
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update category status"
+      );
+    }
+  }
+);
+
+// Delete a category (Admin)
 export const deleteCategory = createAsyncThunk(
   "categories/delete",
   async (id: string, { rejectWithValue }) => {
     try {
-      await api.delete(`/api/v1/categories/${id}`);
+      await api.delete(`/api/v1/admin/categories/${id}`);
       return id;
     } catch (error: any) {
       return rejectWithValue(
@@ -374,6 +228,24 @@ export const deleteCategory = createAsyncThunk(
   }
 );
 
+// ==================== SUBCATEGORY ENDPOINTS ====================
+
+// Get all subcategories for a category (Admin)
+export const fetchSubcategoriesByCategory = createAsyncThunk(
+  "subcategories/fetchByCategory",
+  async (categoryId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/admin/categories/${categoryId}/subcategories`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch subcategories"
+      );
+    }
+  }
+);
+
+// Create a new subcategory (Admin)
 export const createSubcategory = createAsyncThunk(
   "subcategories/create",
   async (
@@ -388,11 +260,12 @@ export const createSubcategory = createAsyncThunk(
   ) => {
     try {
       const response = await api.post(
-        `/api/v1/categories/${data.categoryId}/subcategories`,
+        `/api/v1/admin/categories/${data.categoryId}/subcategories`,
         {
           name: data.name,
           description: data.description,
           coverImageUrl: data.coverImageUrl,
+          isActive: data.isActive,
         }
       );
       return response.data;
@@ -404,6 +277,7 @@ export const createSubcategory = createAsyncThunk(
   }
 );
 
+// Update a subcategory (Admin)
 export const updateSubcategory = createAsyncThunk(
   "subcategories/update",
   async (
@@ -420,7 +294,7 @@ export const updateSubcategory = createAsyncThunk(
   ) => {
     try {
       const response = await api.patch(
-        `/api/v1/categories/${categoryId}/subcategories/${id}`,
+        `/api/v1/admin/categories/${categoryId}/subcategories/${id}`,
         data
       );
       return response.data;
@@ -432,6 +306,28 @@ export const updateSubcategory = createAsyncThunk(
   }
 );
 
+// Update subcategory status (Admin)
+export const updateSubcategoryStatus = createAsyncThunk(
+  "subcategories/updateStatus",
+  async (
+    { categoryId, id, isActive }: { categoryId: string; id: string; isActive: boolean },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.patch(
+        `/api/v1/admin/categories/${categoryId}/subcategories/${id}/status`,
+        { isActive }
+      );
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update subcategory status"
+      );
+    }
+  }
+);
+
+// Delete a subcategory (Admin)
 export const deleteSubcategory = createAsyncThunk(
   "subcategories/delete",
   async (
@@ -440,7 +336,7 @@ export const deleteSubcategory = createAsyncThunk(
   ) => {
     try {
       await api.delete(
-        `/api/v1/categories/${categoryId}/subcategories/${id}`
+        `/api/v1/admin/categories/${categoryId}/subcategories/${id}`
       );
       return id;
     } catch (error: any) {
@@ -451,14 +347,142 @@ export const deleteSubcategory = createAsyncThunk(
   }
 );
 
+// ==================== ATTRIBUTE ENDPOINTS ====================
+
+// Get all attributes (Admin)
+export const fetchAttributes = createAsyncThunk(
+  "attributes/fetchAll",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get("/api/v1/admin/attributes");
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch attributes"
+      );
+    }
+  }
+);
+
+// Get attributes by category (Admin)
+export const fetchAttributesByCategory = createAsyncThunk(
+  "attributes/fetchByCategory",
+  async (categoryId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/admin/attributes/category/${categoryId}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch category attributes"
+      );
+    }
+  }
+);
+
+// Get an attribute by ID (Admin)
+export const fetchAttribute = createAsyncThunk(
+  "attributes/fetchOne",
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/admin/attributes/${id}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch attribute"
+      );
+    }
+  }
+);
+
+// Create a new attribute for a category (Admin)
+export const createAttribute = createAsyncThunk(
+  "attributes/create",
+  async (
+    { 
+      categoryId, 
+      data 
+    }: { 
+      categoryId: string; 
+      data: Omit<Attribute, "id" | "createdAt" | "updatedAt">
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.post(`/api/v1/admin/attributes/category/${categoryId}`, data);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to create attribute"
+      );
+    }
+  }
+);
+
+// Update an attribute (Admin)
+export const updateAttribute = createAsyncThunk(
+  "attributes/update",
+  async (
+    { id, data }: { id: string; data: Partial<Attribute> },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.patch(`/api/v1/admin/attributes/${id}`, data);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update attribute"
+      );
+    }
+  }
+);
+
+// Delete an attribute (Admin)
+export const deleteAttribute = createAsyncThunk(
+  "attributes/delete",
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await api.delete(`/api/v1/admin/attributes/${id}`);
+      return id;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to delete attribute"
+      );
+    }
+  }
+);
+
+// Assign attributes to subcategory (Admin)
+export const assignAttributesToSubcategory = createAsyncThunk(
+  "attributes/assignToSubcategory",
+  async (
+    {
+      subcategoryId,
+      attributeIds,
+    }: { subcategoryId: string; attributeIds: string[] },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.post(
+        `/api/v1/admin/attributes/assign/subcategory/${subcategoryId}`,
+        { attributeIds }
+      );
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to assign attributes"
+      );
+    }
+  }
+);
+
 // ==================== PRODUCT TYPE ENDPOINTS ====================
 
-// Note: These aren't in Swagger, but you may still need them
+// Get all product types (Admin)
 export const fetchProductTypes = createAsyncThunk(
   "productTypes/fetchAll",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/api/v1/product-types"); // Adjust endpoint as needed
+      const response = await api.get("/api/v1/admin/product-types");
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -468,6 +492,37 @@ export const fetchProductTypes = createAsyncThunk(
   }
 );
 
+// Get product types by subcategory (Admin)
+export const fetchProductTypesBySubcategory = createAsyncThunk(
+  "productTypes/fetchBySubcategory",
+  async (subcategoryId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/admin/product-types/subcategory/${subcategoryId}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch product types by subcategory"
+      );
+    }
+  }
+);
+
+// Get a product type by ID (Admin)
+export const fetchProductType = createAsyncThunk(
+  "productTypes/fetchOne",
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/admin/product-types/${id}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch product type"
+      );
+    }
+  }
+);
+
+// Create a new product type (Admin)
 export const createProductType = createAsyncThunk(
   "productTypes/create",
   async (
@@ -476,19 +531,62 @@ export const createProductType = createAsyncThunk(
       data,
     }: {
       subcategoryId: string;
-      data: Omit<ProductType, "id" | "createdAt" | "updatedAt">;
+      data: {
+        name: string;
+        description?: string;
+        code: string;
+        coverImageUrl?: string;
+      };
     },
     { rejectWithValue }
   ) => {
     try {
       const response = await api.post(
-        `/api/v1/product-types/subcategory/${subcategoryId}`, // Adjust endpoint as needed
-        data
+        `/api/v1/admin/product-types/subcategory/${subcategoryId}`,
+        {
+          name: data.name,
+          description: data.description || "",
+          code: data.code,
+          coverImageUrl: data.coverImageUrl || "",
+        }
       );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || "Failed to create product type"
+      );
+    }
+  }
+);
+
+// Update a product type (Admin)
+export const updateProductType = createAsyncThunk(
+  "productTypes/update",
+  async (
+    { id, data }: { id: string; data: Partial<ProductType> },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await api.patch(`/api/v1/admin/product-types/${id}`, data);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update product type"
+      );
+    }
+  }
+);
+
+// Delete a product type (Admin)
+export const deleteProductType = createAsyncThunk(
+  "productTypes/delete",
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await api.delete(`/api/v1/admin/product-types/${id}`);
+      return id;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to delete product type"
       );
     }
   }
@@ -605,6 +703,24 @@ const categoriesSlice = createSlice({
         }
       })
 
+      .addCase(updateCategoryStatus.fulfilled, (state, action) => {
+        const index = state.categories.findIndex(
+          (cat) => cat.id === action.payload.id
+        );
+        if (index !== -1) {
+          state.categories[index] = {
+            ...state.categories[index],
+            ...action.payload,
+          };
+        }
+        if (state.selectedCategory?.id === action.payload.id) {
+          state.selectedCategory = {
+            ...state.selectedCategory,
+            ...action.payload,
+          };
+        }
+      })
+
       .addCase(deleteCategory.fulfilled, (state, action) => {
         state.categories = state.categories.filter(
           (cat) => cat.id !== action.payload
@@ -628,19 +744,6 @@ const categoriesSlice = createSlice({
         state.error = action.payload as string;
       })
 
-      .addCase(fetchSubcategory.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchSubcategory.fulfilled, (state, action) => {
-        state.loading = false;
-        state.selectedSubcategory = action.payload;
-      })
-      .addCase(fetchSubcategory.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-
       .addCase(createSubcategory.pending, (state) => {
         state.createLoading = true;
         state.createError = null;
@@ -655,6 +758,24 @@ const categoriesSlice = createSlice({
       })
 
       .addCase(updateSubcategory.fulfilled, (state, action) => {
+        const index = state.subcategories.findIndex(
+          (sub) => sub.id === action.payload.id
+        );
+        if (index !== -1) {
+          state.subcategories[index] = {
+            ...state.subcategories[index],
+            ...action.payload,
+          };
+        }
+        if (state.selectedSubcategory?.id === action.payload.id) {
+          state.selectedSubcategory = {
+            ...state.selectedSubcategory,
+            ...action.payload,
+          };
+        }
+      })
+
+      .addCase(updateSubcategoryStatus.fulfilled, (state, action) => {
         const index = state.subcategories.findIndex(
           (sub) => sub.id === action.payload.id
         );
@@ -714,8 +835,6 @@ const categoriesSlice = createSlice({
       })
       .addCase(fetchAttribute.fulfilled, (state, action) => {
         state.loading = false;
-        // You might want to handle this differently
-        // For now, just update the attributes array
         const index = state.attributes.findIndex(attr => attr.id === action.payload.id);
         if (index !== -1) {
           state.attributes[index] = action.payload;
@@ -765,7 +884,6 @@ const categoriesSlice = createSlice({
       })
       .addCase(assignAttributesToSubcategory.fulfilled, (state, action) => {
         state.loading = false;
-        // Update the subcategory with assigned attributes if needed
         if (state.selectedSubcategory) {
           state.selectedSubcategory = action.payload;
         }
@@ -789,6 +907,37 @@ const categoriesSlice = createSlice({
         state.error = action.payload as string;
       })
 
+      .addCase(fetchProductTypesBySubcategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProductTypesBySubcategory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.productTypes = action.payload;
+      })
+      .addCase(fetchProductTypesBySubcategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(fetchProductType.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProductType.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.productTypes.findIndex(pt => pt.id === action.payload.id);
+        if (index !== -1) {
+          state.productTypes[index] = action.payload;
+        } else {
+          state.productTypes.push(action.payload);
+        }
+      })
+      .addCase(fetchProductType.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
       .addCase(createProductType.pending, (state) => {
         state.createLoading = true;
         state.createError = null;
@@ -800,6 +949,24 @@ const categoriesSlice = createSlice({
       .addCase(createProductType.rejected, (state, action) => {
         state.createLoading = false;
         state.createError = action.payload as string;
+      })
+
+      .addCase(updateProductType.fulfilled, (state, action) => {
+        const index = state.productTypes.findIndex(
+          (pt) => pt.id === action.payload.id
+        );
+        if (index !== -1) {
+          state.productTypes[index] = {
+            ...state.productTypes[index],
+            ...action.payload,
+          };
+        }
+      })
+
+      .addCase(deleteProductType.fulfilled, (state, action) => {
+        state.productTypes = state.productTypes.filter(
+          (pt) => pt.id !== action.payload
+        );
       });
   },
 });

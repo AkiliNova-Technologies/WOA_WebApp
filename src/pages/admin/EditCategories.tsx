@@ -17,7 +17,7 @@ import { useReduxCategories } from "@/hooks/useReduxCategories";
 import { toast } from "sonner";
 import { ImageUpload } from "@/components/image-upload";
 
-// Interfaces (reuse from create page)
+// Interfaces
 export interface SubCategory {
   id: string;
   name: string;
@@ -31,6 +31,7 @@ export interface SubCategoryType {
   name: string;
   description?: string;
   image: string;
+  code: string;
   appliesTo: string[]; // Array of subcategory IDs
 }
 
@@ -61,6 +62,17 @@ const VALIDATION_RULES = {
   description: { max: 500 },
 };
 
+// Helper function to generate a unique code
+const generateCode = (name: string): string => {
+  const sanitized = name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 10);
+  const timestamp = Date.now().toString(36).toUpperCase();
+  return `${sanitized}-${timestamp}`;
+};
+
 export default function AdminEditCategoryPage() {
   const navigate = useNavigate();
   const { categoryId } = useParams<{ categoryId: string }>();
@@ -84,16 +96,16 @@ export default function AdminEditCategoryPage() {
   // Use the Redux categories hook
   const {
     getCategory,
-    getSubcategoriesForCategory,
+    getSubcategoriesByCategory,
     updateExistingCategory,
     createNewSubcategory,
     removeSubcategory,
+    getProductTypesBySubcategory,
     createNewProductType,
-    // removeProductType,
+    removeProductType,
+    getAttributesByCategory,
     createNewAttribute,
-
-    getAttributes,
-    getProductTypes,
+    removeAttribute,
   } = useReduxCategories();
 
   // Steps configuration
@@ -126,8 +138,8 @@ export default function AdminEditCategoryPage() {
           category.coverImageUrl ? [category.coverImageUrl] : []
         );
 
-        // Fetch subcategories
-        const subcategoriesData = await getSubcategoriesForCategory(categoryId);
+        // Fetch subcategories for this category
+        const subcategoriesData = await getSubcategoriesByCategory(categoryId);
         const transformedSubcategories: SubCategory[] = subcategoriesData.map(
           (subcat: any) => ({
             id: subcat.id,
@@ -139,38 +151,54 @@ export default function AdminEditCategoryPage() {
         );
         setSubCategories(transformedSubcategories);
 
-        // Fetch product types for all subcategories
-        const allProductTypes = await getProductTypes();
-        const categoryProductTypes = allProductTypes.filter((type: any) =>
-          subcategoriesData.some(
-            (subcat: any) => subcat.id === type.subcategoryId
-          )
-        );
+        // Fetch product types for each subcategory
+        const productTypeMap = new Map<string, SubCategoryType>();
 
-        // Group product types by name and collect which subcategories they apply to
-        const groupedTypes = new Map<string, SubCategoryType>();
-        categoryProductTypes.forEach((type: any) => {
-          const existing = groupedTypes.get(type.name);
-          if (existing) {
-            existing.appliesTo.push(type.subcategoryId);
-          } else {
-            groupedTypes.set(type.name, {
-              id: type.id,
-              name: type.name,
-              description: type.description,
-              image: type.image || "",
-              appliesTo: [type.subcategoryId],
+        for (const subcat of subcategoriesData) {
+          try {
+            const productTypes = await getProductTypesBySubcategory(subcat.id);
+            
+            productTypes.forEach((type: any) => {
+              // Group product types by name - same name means same type applied to multiple subcategories
+              const existingType = productTypeMap.get(type.name);
+              if (existingType) {
+                existingType.appliesTo.push(subcat.id);
+              } else {
+                productTypeMap.set(type.name, {
+                  id: type.id,
+                  name: type.name,
+                  description: type.description || "",
+                  image: type.coverImageUrl || "",
+                  code: type.code || "",
+                  appliesTo: [subcat.id],
+                });
+              }
             });
+          } catch (error) {
+            console.error(`Failed to fetch product types for subcategory ${subcat.id}:`, error);
           }
-        });
-        setSubCategoryTypes(Array.from(groupedTypes.values()));
+        }
 
-        // Fetch attributes
-        const attributesData = await getAttributes();
-        const categoryAttributes = attributesData.filter(
-          (attr: any) => attr.categoryId === categoryId
+        setSubCategoryTypes(Array.from(productTypeMap.values()));
+
+        // Fetch attributes for this category
+        const attributesData = await getAttributesByCategory(categoryId);
+        const transformedAttributes: Attribute[] = attributesData.map(
+          (attr: any) => ({
+            id: attr.id,
+            name: attr.name,
+            description: attr.description || "",
+            inputType: attr.inputType,
+            purpose: attr.purpose,
+            values: attr.values || [],
+            filterStatus: attr.filterStatus,
+            isRequired: attr.isRequired,
+            order: attr.order,
+            appliesTo: attr.subcategoryId ? [attr.subcategoryId] : [],
+            additionalDetails: attr.additionalDetails,
+          })
         );
-        setAttributes(categoryAttributes);
+        setAttributes(transformedAttributes);
 
         toast.success("Category data loaded", { id: "load-category" });
       } catch (error: any) {
@@ -285,7 +313,7 @@ export default function AdminEditCategoryPage() {
 
       const subcategoryPayload = {
         name: subCategoryData.name,
-        categoryId: categoryId,
+        description: subCategoryData.description,
         coverImageUrl: subCategoryData.image[0],
       };
 
@@ -331,7 +359,12 @@ export default function AdminEditCategoryPage() {
 
         // Also remove product types that applied to this subcategory
         setSubCategoryTypes((prev) =>
-          prev.filter((type) => !type.appliesTo.includes(id))
+          prev
+            .map((type) => ({
+              ...type,
+              appliesTo: type.appliesTo.filter((subId) => subId !== id),
+            }))
+            .filter((type) => type.appliesTo.length > 0)
         );
 
         toast.success("Subcategory removed", { id: "remove-subcategory" });
@@ -351,6 +384,7 @@ export default function AdminEditCategoryPage() {
     name: string;
     description?: string;
     image: string[] | null;
+    code?: string;
     appliesTo: string[];
   }) => {
     if (!categoryId) {
@@ -374,15 +408,18 @@ export default function AdminEditCategoryPage() {
     try {
       toast.loading("Creating subcategory type...", { id: "create-type" });
 
+      // Generate a code if not provided
+      const typeCode = subCategoryTypeData.code || generateCode(subCategoryTypeData.name);
+
       const createdTypes: SubCategoryType[] = [];
 
       for (const subcategoryId of subCategoryTypeData.appliesTo) {
+        // API expects: name, description, code, coverImageUrl
         const productTypeData = {
           name: subCategoryTypeData.name,
           description: subCategoryTypeData.description || "",
-          subcategoryId: subcategoryId,
-          isActive: true,
-          image: subCategoryTypeData.image[0],
+          code: `${typeCode}-${subcategoryId.slice(0, 8)}`, // Make code unique per subcategory
+          coverImageUrl: subCategoryTypeData.image[0],
         };
 
         try {
@@ -396,6 +433,7 @@ export default function AdminEditCategoryPage() {
             name: createdType.name,
             description: createdType.description,
             image: subCategoryTypeData.image[0],
+            code: createdType.code,
             appliesTo: [subcategoryId],
           });
         } catch (error) {
@@ -411,11 +449,13 @@ export default function AdminEditCategoryPage() {
         return;
       }
 
+      // Combine types with same name into one entry with multiple appliesTo
       const combinedType: SubCategoryType = {
         id: createdTypes[0].id,
         name: subCategoryTypeData.name,
         description: subCategoryTypeData.description,
         image: subCategoryTypeData.image[0],
+        code: typeCode,
         appliesTo: subCategoryTypeData.appliesTo,
       };
 
@@ -433,14 +473,16 @@ export default function AdminEditCategoryPage() {
   };
 
   const handleRemoveSubCategoryType = async (id: string) => {
-    if(!categoryId) return;
-    
+    if (!categoryId) return;
+
     if (
       window.confirm("Are you sure you want to delete this subcategory type?")
     ) {
       try {
         toast.loading("Removing subcategory type...", { id: "remove-type" });
-        await removeSubcategory(categoryId, id);
+        
+        // Use removeProductType instead of removeSubcategory
+        await removeProductType(id);
 
         setSubCategoryTypes((prev) => prev.filter((type) => type.id !== id));
         toast.success("Subcategory type removed", { id: "remove-type" });
@@ -493,7 +535,6 @@ export default function AdminEditCategoryPage() {
         isRequired: attributeData.isRequired,
         filterStatus: attributeData.filterStatus,
         order: attributeData.order,
-        categoryId: categoryId,
       };
 
       const createdAttribute = await createNewAttribute(categoryId, apiData);
@@ -504,7 +545,7 @@ export default function AdminEditCategoryPage() {
         description: createdAttribute.description,
         inputType: createdAttribute.inputType,
         purpose: createdAttribute.purpose,
-        values: createdAttribute.values,
+        values: createdAttribute.values || [],
         filterStatus: createdAttribute.filterStatus,
         isRequired: createdAttribute.isRequired,
         order: createdAttribute.order,
@@ -529,8 +570,8 @@ export default function AdminEditCategoryPage() {
     if (window.confirm("Are you sure you want to delete this attribute?")) {
       try {
         toast.loading("Removing attribute...", { id: "remove-attribute" });
-        // TODO: Add delete API call when endpoint is available
-        // await removeAttribute(id);
+        
+        await removeAttribute(id);
 
         setAttributes((prev) => prev.filter((attr) => attr.id !== id));
         toast.success("Attribute removed", { id: "remove-attribute" });
@@ -554,7 +595,7 @@ export default function AdminEditCategoryPage() {
     try {
       toast.loading("Finalizing changes...", { id: "submit-category" });
 
-      // TODO: Update category to set isActive = true if needed
+      // Update category to set isActive = true
       await updateExistingCategory(categoryId, { isActive: true });
 
       toast.success("Category updated successfully!", {
