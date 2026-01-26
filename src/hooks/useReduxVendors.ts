@@ -10,6 +10,7 @@ import {
   approveVendorKYC,
   fetchPendingVendors,
   fetchVendor,
+  fetchOwnVendorProfile,
   reactivateVendor,
   fetchPublicVendor,
   toggleFollowVendor,
@@ -465,6 +466,17 @@ export function useReduxVendors() {
     }
   }, [dispatch]);
 
+  // Get own vendor profile (for authenticated vendor users)
+  const getOwnVendorProfile = useCallback(async () => {
+    try {
+      return await dispatch(fetchOwnVendorProfile()).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch own vendor profile:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  // Get vendor by ID (admin endpoint) or public vendor
   const getVendor = useCallback(async (id: string, isPublic: boolean = false) => {
     try {
       if (isPublic) {
@@ -650,6 +662,7 @@ export function useReduxVendors() {
     approveKYC,
     getPendingVendors,
     getVendor,
+    getOwnVendorProfile,
     reactivate,
     toggleFollow,
     getFollowedVendors,
@@ -699,6 +712,7 @@ export function useReduxVendors() {
     approveKYC,
     getPendingVendors,
     getVendor,
+    getOwnVendorProfile,
     reactivate,
     toggleFollow,
     getFollowedVendors,

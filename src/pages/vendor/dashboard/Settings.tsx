@@ -99,7 +99,7 @@ export default function SettingsPage() {
   const { user, getFullName } = useReduxAuth();
   const {
     selectedVendor,
-    getVendor,
+    getOwnVendorProfile,
     deleteProfile,
     loading: vendorLoading,
     actionLoading,
@@ -115,14 +115,14 @@ export default function SettingsPage() {
     const loadVendorData = async () => {
       if (!user?.id) return;
       try {
-        await getVendor(user.id);
+        await getOwnVendorProfile();
       } catch (error) {
         console.error("Failed to load vendor data:", error);
         toast.error("Failed to load vendor information");
       }
     };
     loadVendorData();
-  }, [user?.id, getVendor]);
+  }, [user?.id, getOwnVendorProfile]);
 
   const parseAddress = (address: string | undefined) => {
     if (!address) return { country: "Not set", city: "Not set" };
@@ -169,30 +169,29 @@ export default function SettingsPage() {
       };
     }
 
-    const userData = selectedVendor.user || {};
     const vendorData = selectedVendor;
 
-    const userFirstName =
-      typeof userData === "object" && userData !== null && "firstName" in userData
-        ? (userData as any).firstName
-        : "";
-    const userLastName =
-      typeof userData === "object" && userData !== null && "lastName" in userData
-        ? (userData as any).lastName
-        : "";
-    const userEmail =
-      typeof userData === "object" && userData !== null && "email" in userData
-        ? (userData as any).email
-        : "";
+    // Get user info from the vendor profile or from the nested user object
+    const userFirstName = vendorData.legalFirstName || vendorData.user?.firstName || "";
+    const userLastName = vendorData.legalLastName || vendorData.user?.lastName || "";
+    const userEmail = vendorData.user?.email || vendorData.businessEmail || "";
 
-    const { country, city } = parseAddress(vendorData.businessAddress);
+    // Get country and city - prefer direct fields, fallback to parsing address
+    let country = vendorData.country || "";
+    let city = vendorData.city || "";
+    
+    // If country/city not directly available, try to parse from address
+    if (!country || !city) {
+      const { country: parsedCountry, city: parsedCity } = parseAddress(vendorData.businessAddress);
+      country = country || parsedCountry;
+      city = city || parsedCity;
+    }
 
-    const bankName =
-      (vendorData as any).bankName || (vendorData as any).bankDetails?.name || "Not provided";
-    const accountNumber =
-      (vendorData as any).accountNumber || (vendorData as any).bankDetails?.accountNumber || "Not provided";
-    const swiftCode =
-      (vendorData as any).swiftCode || (vendorData as any).bankDetails?.swiftCode || "Not provided";
+    // Bank details - use the direct fields from KYC profile
+    const bankName = vendorData.bankName || (vendorData as any).bankDetails?.name || "Not provided";
+    const accountNumber = vendorData.accNumber || (vendorData as any).accountNumber || (vendorData as any).bankDetails?.accountNumber || "Not provided";
+    const swiftCode = vendorData.swiftCode || (vendorData as any).bankDetails?.swiftCode || "Not provided";
+    const accountName = vendorData.accName || (vendorData as any).accountName || `${vendorData.businessName || ""} Inc.`.trim() || "Your Store Inc.";
 
     const category =
       (vendorData as any).category ||
@@ -207,11 +206,11 @@ export default function SettingsPage() {
       "";
 
     return {
-      storeName: vendorData.businessName || "Your Store",
+      storeName: vendorData.storeName || vendorData.businessName || "Your Store",
       businessEmail: vendorData.businessEmail || userEmail || "Not set",
-      businessPhone: vendorData.businessPhone || (userData as any).phoneNumber || "Not set",
+      businessPhone: vendorData.businessPhone || "Not set",
       businessDescription:
-        vendorData.businessDescription ||
+        vendorData.businessDescription || vendorData.storyText ||
         "No description provided. Update your store details to add a description.",
       businessAddress: vendorData.businessAddress || "",
       businessLogo: vendorData.businessLogo || "",
@@ -223,10 +222,8 @@ export default function SettingsPage() {
       bankName,
       accountNumber,
       swiftCode,
-      accountName:
-        `${vendorData.businessName || ""} ${vendorData.businessName ? "Inc." : ""}`.trim() ||
-        "Your Store Inc.",
-      joinedAt: vendorData.joinedAt || (userData as any).createdAt || new Date().toISOString(),
+      accountName,
+      joinedAt: vendorData.joinedAt || new Date().toISOString(),
       rating: vendorData.rating || 0,
       followerCount: vendorData.followerCount || 0,
       productCount: vendorData.productCount || 0,
@@ -305,12 +302,12 @@ export default function SettingsPage() {
         </div>
 
         {/* ================= STORE SUMMARY ================= */}
-        <Card className="relative mx-2 sm:mx-4 lg:mx-6 -mt-12 sm:-mt-16 lg:-mt-20 shadow-sm border bg-white">
+        <Card className="relative mx-2 sm:mx-4 lg:mx-6 -mt-12 sm:-mt-16 lg:-mt-20 border bg-white">
           <CardContent className="p-4 sm:p-5 lg:p-6">
             {/* Profile Section */}
             <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-5 lg:gap-6">
               {/* Logo */}
-              <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full bg-[#EFEFEF] flex items-center justify-center text-2xl sm:text-3xl lg:text-4xl font-bold text-[#5B5B5B] shrink-0 mx-auto sm:mx-0 -mt-14 sm:-mt-16 lg:-mt-20 border-4 border-white shadow-md">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full bg-[#EFEFEF] flex items-center justify-center text-2xl sm:text-3xl lg:text-4xl font-bold text-[#5B5B5B] shrink-0 mx-auto sm:mx-0  border-4 border-white shadow-md">
                 {vendorData.businessLogo ? (
                   <img
                     src={vendorData.businessLogo}
@@ -457,7 +454,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* ================= STORE DESCRIPTION ================= */}
-        <Card className="mx-2 sm:mx-4 lg:mx-6 mt-4 sm:mt-6 shadow-sm border bg-white">
+        <Card className="mx-2 sm:mx-4 lg:mx-6 mt-4 sm:mt-6 border bg-white">
           <CardContent className="p-4 sm:p-5 lg:p-6">
             <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Store Description</h2>
             <div className="border rounded-lg p-3 sm:p-4 bg-gray-50/50">
@@ -498,7 +495,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* ================= DELETE ACCOUNT ================= */}
-        <Card className="mx-2 sm:mx-4 lg:mx-6 mt-4 sm:mt-6 shadow-sm border bg-white">
+        <Card className="mx-2 sm:mx-4 lg:mx-6 mt-4 sm:mt-6 border bg-white">
           <CardHeader className="p-4 sm:p-5 lg:p-6 pb-0">
             <CardTitle>
               <h1 className="text-lg sm:text-xl lg:text-2xl font-medium">Delete your account</h1>

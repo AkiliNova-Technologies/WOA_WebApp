@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
   // Category endpoints
   fetchCategories,
+  fetchPublicCategories,
   fetchCategoryFeed,
   fetchPopularCategories,
   fetchCategory,
@@ -14,6 +15,7 @@ import {
 
   // Subcategory endpoints
   fetchSubcategoriesByCategory,
+  fetchPublicSubcategoriesByCategory,
   createSubcategory,
   updateSubcategory,
   updateSubcategoryStatus,
@@ -31,6 +33,7 @@ import {
   // Product type endpoints
   fetchProductTypes,
   fetchProductTypesBySubcategory,
+  fetchPublicProductTypesBySubcategory,
   fetchProductType,
   createProductType,
   updateProductType,
@@ -90,6 +93,16 @@ export function useReduxCategories() {
       return await dispatch(fetchCategories()).unwrap();
     } catch (error) {
       console.error("Failed to fetch categories:", error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  // Get all categories (Public) - for vendors and public access
+  const getPublicCategories = useCallback(async () => {
+    try {
+      return await dispatch(fetchPublicCategories()).unwrap();
+    } catch (error) {
+      console.error("Failed to fetch public categories:", error);
       throw error;
     }
   }, [dispatch]);
@@ -193,6 +206,19 @@ export function useReduxCategories() {
         return await dispatch(fetchSubcategoriesByCategory(categoryId)).unwrap();
       } catch (error) {
         console.error("Failed to fetch subcategories:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  // Get all subcategories for a category (Public) - for vendors and public access
+  const getPublicSubcategoriesByCategory = useCallback(
+    async (categoryId: string) => {
+      try {
+        return await dispatch(fetchPublicSubcategoriesByCategory(categoryId)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch public subcategories:", error);
         throw error;
       }
     },
@@ -387,6 +413,19 @@ export function useReduxCategories() {
     [dispatch]
   );
 
+  // Get product types by subcategory (Public) - for vendors and public access
+  const getPublicProductTypesBySubcategory = useCallback(
+    async (subcategoryId: string) => {
+      try {
+        return await dispatch(fetchPublicProductTypesBySubcategory(subcategoryId)).unwrap();
+      } catch (error) {
+        console.error("Failed to fetch public product types by subcategory:", error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
   // Get a product type by ID (Admin)
   const getProductType = useCallback(
     async (id: string) => {
@@ -559,6 +598,7 @@ export function useReduxCategories() {
 
     // ==================== CATEGORY ACTIONS ====================
     getCategories,
+    getPublicCategories,
     getCategoryFeed,
     getPopularCategories,
     getCategory,
@@ -569,6 +609,7 @@ export function useReduxCategories() {
 
     // ==================== SUBCATEGORY ACTIONS ====================
     getSubcategoriesByCategory,
+    getPublicSubcategoriesByCategory,
     createNewSubcategory,
     updateExistingSubcategory,
     updateSubcategoryActiveStatus,
@@ -586,6 +627,7 @@ export function useReduxCategories() {
     // ==================== PRODUCT TYPE ACTIONS ====================
     getProductTypes,
     getProductTypesBySubcategory,
+    getPublicProductTypesBySubcategory,
     getProductType,
     createNewProductType,
     updateExistingProductType,

@@ -33,14 +33,13 @@ export interface VendorKYC {
   reviewNotes?: string;
 }
 
-export type VendorStatus = 
+export type VendorStatus =
   | "pending"
-  | "active" 
+  | "active"
   | "suspended"
   | "deactivated"
-  | "rejected" 
+  | "rejected"
   | "deleted";
-
 
 export interface VendorProfile {
   id: string;
@@ -79,6 +78,21 @@ export interface VendorProfile {
   emailVerified?: boolean;
   vendorProfileId?: string;
   idDocUrls?: string[];
+  // Additional fields from KYC profile response
+  storeName?: string;
+  legalFirstName?: string;
+  legalMiddleName?: string;
+  legalLastName?: string;
+  country?: string;
+  city?: string;
+  district?: string;
+  street?: string;
+  geoLocation?: string;
+  storyText?: string;
+  bankName?: string;
+  accName?: string;
+  accNumber?: string;
+  swiftCode?: string;
 }
 
 export interface PublicVendor {
@@ -131,6 +145,108 @@ const initialState: VendorsState = {
   actionLoading: false,
   actionError: null,
 };
+
+// Get current vendor's own profile (for authenticated vendor users)
+export const fetchOwnVendorProfile = createAsyncThunk(
+  "vendors/fetchOwn",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get("/api/v1/vendor/kyc");
+      const data = response.data;
+
+      // The API returns: { kycStatus, emailVerified, profile: {...}, idDocUrls: [...] }
+      const profile = data.profile || {};
+
+      // Build the full address from components
+      const addressParts = [
+        profile.street,
+        profile.district,
+        profile.city,
+        profile.country,
+      ].filter(Boolean);
+      const fullAddress = addressParts.join(", ");
+
+      // Determine vendor status from kycStatus and profile.vendorStatus
+      let vendorStatus: "pending" | "active" | "suspended" | "deactivated" | "deleted" = "pending";
+      if (profile.vendorStatus) {
+        vendorStatus = profile.vendorStatus;
+      } else if (data.kycStatus === "approved") {
+        vendorStatus = "active";
+      }
+
+      // Map the KYC response to VendorProfile format
+      const vendorProfile: VendorProfile = {
+        // Core identifiers
+        id: data.vendorProfileId || data.id || "",
+        userId: data.userId || "",
+
+        // Business info - map from profile fields
+        businessName: profile.storeName || "",
+        businessDescription: profile.description || profile.storyText || "",
+        businessLogo: profile.businessLogo || profile.logo || "",
+        businessBanner: profile.businessBanner || profile.banner || "",
+        businessEmail: profile.email || profile.businessEmail || "",
+        businessPhone: profile.phoneNumber || profile.phone || "",
+        businessAddress: fullAddress,
+
+        // Social/web
+        website: profile.website || "",
+        socialMedia: profile.socialMedia || {},
+
+        // Stats (defaults if not provided)
+        rating: profile.rating || 0,
+        reviewCount: profile.reviewCount || 0,
+        followerCount: profile.followerCount || 0,
+        productCount: profile.productCount || 0,
+
+        // Status
+        vendorStatus: vendorStatus,
+        isVerified: data.emailVerified || false,
+
+        // Timestamps
+        joinedAt: profile.joinedAt || profile.createdAt || new Date().toISOString(),
+        lastActiveAt: profile.lastActiveAt || profile.updatedAt || new Date().toISOString(),
+
+        // KYC specific data
+        kycStatus: data.kycStatus,
+        emailVerified: data.emailVerified,
+        vendorProfileId: data.vendorProfileId,
+        idDocUrls: data.idDocUrls || [],
+
+        // Additional profile fields for display
+        storeName: profile.storeName,
+        legalFirstName: profile.legalFirstName,
+        legalMiddleName: profile.legalMiddleName,
+        legalLastName: profile.legalLastName,
+        country: profile.country,
+        city: profile.city,
+        district: profile.district,
+        street: profile.street,
+        geoLocation: profile.geoLocation,
+        storyText: profile.storyText,
+        bankName: profile.bankName,
+        accName: profile.accName,
+        accNumber: profile.accNumber,
+        swiftCode: profile.swiftCode,
+
+        // User info constructed from legal name
+        user: {
+          id: data.userId || "",
+          firstName: profile.legalFirstName || "",
+          lastName: profile.legalLastName || "",
+          email: profile.email || "",
+          avatar: profile.avatar,
+        },
+      };
+
+      return vendorProfile;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch vendor profile"
+      );
+    }
+  }
+);
 
 // @/redux/slices/vendorsSlice.ts - Update submitVendorKYC thunk
 export const submitVendorKYC = createAsyncThunk(
@@ -274,7 +390,7 @@ export const fetchPendingVendors = createAsyncThunk(
   }
 );
 
-// Get single vendor details
+// Get single vendor details (admin endpoint)
 export const fetchVendor = createAsyncThunk(
   "vendors/fetchOne",
   async (id: string, { rejectWithValue }) => {
@@ -392,6 +508,20 @@ const vendorsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // Fetch own vendor profile
+      .addCase(fetchOwnVendorProfile.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchOwnVendorProfile.fulfilled, (state, action) => {
+        state.loading = false;
+        state.selectedVendor = action.payload;
+      })
+      .addCase(fetchOwnVendorProfile.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
       // Submit KYC
       .addCase(submitVendorKYC.pending, (state) => {
         state.actionLoading = true;

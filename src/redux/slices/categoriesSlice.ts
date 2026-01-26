@@ -114,6 +114,21 @@ export const fetchCategories = createAsyncThunk(
   }
 );
 
+// Get all categories (Public) - for vendors and public access
+export const fetchPublicCategories = createAsyncThunk(
+  "categories/fetchPublic",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get("/api/v1/categories");
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch categories"
+      );
+    }
+  }
+);
+
 // Get category feed for home screen (Public - if available)
 export const fetchCategoryFeed = createAsyncThunk(
   "categories/fetchFeed",
@@ -236,6 +251,21 @@ export const fetchSubcategoriesByCategory = createAsyncThunk(
   async (categoryId: string, { rejectWithValue }) => {
     try {
       const response = await api.get(`/api/v1/admin/categories/${categoryId}/subcategories`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch subcategories"
+      );
+    }
+  }
+);
+
+// Get all subcategories for a category (Public) - for vendors and public access
+export const fetchPublicSubcategoriesByCategory = createAsyncThunk(
+  "subcategories/fetchPublicByCategory",
+  async (categoryId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/categories/${categoryId}/subcategories`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
@@ -507,6 +537,21 @@ export const fetchProductTypesBySubcategory = createAsyncThunk(
   }
 );
 
+// Get product types by subcategory (Public) - for vendors and public access
+export const fetchPublicProductTypesBySubcategory = createAsyncThunk(
+  "productTypes/fetchPublicBySubcategory",
+  async (subcategoryId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/api/v1/product-types/subcategory/${subcategoryId}`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch product types by subcategory"
+      );
+    }
+  }
+);
+
 // Get a product type by ID (Admin)
 export const fetchProductType = createAsyncThunk(
   "productTypes/fetchOne",
@@ -633,6 +678,20 @@ const categoriesSlice = createSlice({
         state.error = action.payload as string;
       })
 
+      // Public categories
+      .addCase(fetchPublicCategories.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPublicCategories.fulfilled, (state, action) => {
+        state.loading = false;
+        state.categories = action.payload;
+      })
+      .addCase(fetchPublicCategories.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
       .addCase(fetchCategoryFeed.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -740,6 +799,20 @@ const categoriesSlice = createSlice({
         state.subcategories = action.payload;
       })
       .addCase(fetchSubcategoriesByCategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // Public subcategories
+      .addCase(fetchPublicSubcategoriesByCategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPublicSubcategoriesByCategory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.subcategories = action.payload;
+      })
+      .addCase(fetchPublicSubcategoriesByCategory.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
@@ -916,6 +989,20 @@ const categoriesSlice = createSlice({
         state.productTypes = action.payload;
       })
       .addCase(fetchProductTypesBySubcategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // Public product types
+      .addCase(fetchPublicProductTypesBySubcategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPublicProductTypesBySubcategory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.productTypes = action.payload;
+      })
+      .addCase(fetchPublicProductTypesBySubcategory.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })

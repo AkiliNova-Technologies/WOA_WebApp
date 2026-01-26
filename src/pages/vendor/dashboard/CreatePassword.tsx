@@ -136,14 +136,14 @@ export default function CreatePassword() {
 
   return (
     <div className="w-full">
-      <Card className="w-full shadow-sm border bg-white">
-        <CardHeader className="p-4 sm:p-5 lg:p-6 pb-2 sm:pb-3">
+      <Card className="w-full border bg-white">
+        <CardHeader className="p-4 sm:p-5 lg:p-6">
           <CardTitle className="text-base sm:text-lg">Create Your Password</CardTitle>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
             For security reasons, please create a new permanent password for your account.
           </p>
         </CardHeader>
-        <CardContent className="p-4 sm:p-5 lg:p-6 pt-2 sm:pt-3">
+        <CardContent className="p-4 sm:p-5 lg:px-6 sm:pt-0 lg:pt-0">
           <div className="space-y-4 sm:space-y-5 lg:space-y-6">
             {/* Error Message */}
             {passwordError && (

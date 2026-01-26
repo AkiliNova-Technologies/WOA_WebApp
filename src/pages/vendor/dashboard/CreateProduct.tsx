@@ -21,7 +21,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, X, MoreVertical, Pencil, Plus, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  X,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Loader2,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { SiteHeader } from "@/components/site-header";
 import { useReduxProducts } from "@/hooks/useReduxProducts";
@@ -29,35 +36,22 @@ import { useReduxCategories } from "@/hooks/useReduxCategories";
 import { toast } from "sonner";
 
 interface ProductFormData {
-  // Basic Information
   name: string;
   categoryId: string;
   subcategoryId: string;
   productTypeId: string;
   description: string;
-
-  // Product Upload - Now using URLs instead of Files
   imageUrls: string[];
-  storyOption: "image-text" | "video";
-  storyText: string;
-  storyImageUrl?: string;
-  storyVideoUrl?: string;
-
-  // Additional Details
-  specifications: string;
-  careInstructions: string;
-
-  // Pricing
+  material: string;
   basePrice: string;
   baseCompareAtPrice: string;
-
-  // Variants
+  storyText: string;
+  storyVideoUrl: string;
   variants: ProductVariant[];
 }
 
 interface ProductVariant {
   id: string;
-  attributeName: string;
   size: string;
   options: VariantOption[];
   lowStockUnit: number;
@@ -75,20 +69,21 @@ export default function ProductAddPage() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [showVariantDialog, setShowVariantDialog] = useState(false);
-  const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
+  const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(
+    null,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redux hooks
   const { createNewProduct, createLoading, createError } = useReduxProducts();
-  
+
   const {
     categories,
     subcategories,
     productTypes,
     loading: categoriesLoading,
-    getCategories,
-    getSubcategoriesByCategory,
-    getProductTypesBySubcategory,
+    getPublicCategories,
+    getPublicSubcategoriesByCategory,
+    getPublicProductTypesBySubcategory,
   } = useReduxCategories();
 
   const [formData, setFormData] = useState<ProductFormData>({
@@ -98,20 +93,16 @@ export default function ProductAddPage() {
     productTypeId: "",
     description: "",
     imageUrls: [],
-    storyOption: "image-text",
-    storyText: "",
-    storyImageUrl: undefined,
-    storyVideoUrl: undefined,
-    specifications: "",
-    careInstructions: "",
+    material: "",
     basePrice: "",
     baseCompareAtPrice: "",
+    storyText: "",
+    storyVideoUrl: "",
     variants: [],
   });
 
   const [tempVariant, setTempVariant] = useState<ProductVariant>({
     id: "",
-    attributeName: "",
     size: "",
     options: [],
     lowStockUnit: 10,
@@ -124,68 +115,70 @@ export default function ProductAddPage() {
     price: "",
   });
 
-  // Fetch categories on mount
+  // Fetch categories on mount using public endpoint
   useEffect(() => {
-    getCategories();
-  }, [getCategories]);
+    getPublicCategories();
+  }, [getPublicCategories]);
 
-  // Fetch subcategories when category changes
+  // Fetch subcategories when category changes using public endpoint
   useEffect(() => {
     if (formData.categoryId) {
-      getSubcategoriesByCategory(formData.categoryId);
-      // Reset subcategory and product type when category changes
-      setFormData(prev => ({
+      getPublicSubcategoriesByCategory(formData.categoryId);
+      setFormData((prev) => ({
         ...prev,
         subcategoryId: "",
         productTypeId: "",
       }));
     }
-  }, [formData.categoryId, getSubcategoriesByCategory]);
+  }, [formData.categoryId, getPublicSubcategoriesByCategory]);
 
-  // Fetch product types when subcategory changes
+  // Fetch product types when subcategory changes using public endpoint
   useEffect(() => {
     if (formData.subcategoryId) {
-      getProductTypesBySubcategory(formData.subcategoryId);
-      // Reset product type when subcategory changes
-      setFormData(prev => ({
+      getPublicProductTypesBySubcategory(formData.subcategoryId);
+      setFormData((prev) => ({
         ...prev,
         productTypeId: "",
       }));
     }
-  }, [formData.subcategoryId, getProductTypesBySubcategory]);
+  }, [formData.subcategoryId, getPublicProductTypesBySubcategory]);
 
-  // Filter subcategories for selected category
   const filteredSubcategories = useMemo(() => {
     if (!formData.categoryId) return [];
-    return subcategories.filter(sub => sub.categoryId === formData.categoryId);
+    // Handle both categoryId and parentCategoryId (public API uses parentCategoryId)
+    return subcategories.filter(
+      (sub) =>
+        sub.categoryId === formData.categoryId ||
+        (sub as any).parentCategoryId === formData.categoryId,
+    );
   }, [subcategories, formData.categoryId]);
 
-  // Filter product types for selected subcategory
   const filteredProductTypes = useMemo(() => {
     if (!formData.subcategoryId) return [];
-    return productTypes.filter(pt => pt.subcategoryId === formData.subcategoryId);
+    return productTypes.filter(
+      (pt) => pt.subcategoryId === formData.subcategoryId,
+    );
   }, [productTypes, formData.subcategoryId]);
 
-  // Get selected names for preview
-  const selectedCategory = useMemo(() => 
-    categories.find(c => c.id === formData.categoryId),
-    [categories, formData.categoryId]
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.id === formData.categoryId),
+    [categories, formData.categoryId],
   );
 
-  const selectedSubcategory = useMemo(() => 
-    subcategories.find(s => s.id === formData.subcategoryId),
-    [subcategories, formData.subcategoryId]
+  const selectedSubcategory = useMemo(
+    () => subcategories.find((s) => s.id === formData.subcategoryId),
+    [subcategories, formData.subcategoryId],
   );
 
-  const selectedProductType = useMemo(() => 
-    productTypes.find(pt => pt.id === formData.productTypeId),
-    [productTypes, formData.productTypeId]
+  const selectedProductType = useMemo(
+    () => productTypes.find((pt) => pt.id === formData.productTypeId),
+    [productTypes, formData.productTypeId],
   );
 
   const steps: StepItem[] = [
     { title: "Basic Information" },
     { title: "Product Upload" },
-    { title: "Additional Details" },
+    { title: "Product Story" },
     { title: "Add Variants" },
     { title: "Preview and submit" },
   ];
@@ -211,16 +204,12 @@ export default function ProductAddPage() {
   };
 
   const saveVariant = () => {
-    if (
-      tempVariant.attributeName &&
-      tempVariant.size &&
-      tempVariant.options.length > 0
-    ) {
+    if (tempVariant.size && tempVariant.options.length > 0) {
       if (editingVariant) {
         setFormData((prev) => ({
           ...prev,
           variants: prev.variants.map((v) =>
-            v.id === editingVariant.id ? tempVariant : v
+            v.id === editingVariant.id ? tempVariant : v,
           ),
         }));
       } else {
@@ -234,13 +223,7 @@ export default function ProductAddPage() {
       }
       setShowVariantDialog(false);
       setEditingVariant(null);
-      setTempVariant({
-        id: "",
-        attributeName: "",
-        size: "",
-        options: [],
-        lowStockUnit: 10,
-      });
+      setTempVariant({ id: "", size: "", options: [], lowStockUnit: 10 });
     }
   };
 
@@ -251,7 +234,6 @@ export default function ProductAddPage() {
   };
 
   const handleNext = () => {
-    // Validate current step before proceeding
     if (currentStep === 0) {
       if (!formData.name.trim()) {
         toast.error("Please enter a product name");
@@ -269,15 +251,23 @@ export default function ProductAddPage() {
         toast.error("Please enter a product description");
         return;
       }
+      if (!formData.material.trim()) {
+        toast.error("Please enter material");
+        return;
+      }
     }
-
     if (currentStep === 1) {
       if (formData.imageUrls.length === 0) {
         toast.error("Please upload at least one product image");
         return;
       }
     }
-
+    if (currentStep === 2) {
+      if (!formData.storyText.trim() && !formData.storyVideoUrl.trim()) {
+        toast.error("Please add either a story text or video");
+        return;
+      }
+    }
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -290,26 +280,29 @@ export default function ProductAddPage() {
     }
 
     setIsSubmitting(true);
-
     try {
-      // Build attributes from variants and other data
+      // Build attributes in the expected format
       const attributes: Record<string, string> = {};
-      
-      // Add specifications and care instructions as attributes
-      if (formData.specifications) {
-        attributes.specifications = formData.specifications;
-      }
-      if (formData.careInstructions) {
-        attributes.careInstructions = formData.careInstructions;
-      }
+
+      // Always include material since it's required
+      attributes.material = formData.material || "";
+
+      // Include story text/video if provided
       if (formData.storyText) {
         attributes.storyText = formData.storyText;
       }
+      if (formData.storyVideoUrl) {
+        attributes.storyVideoUrl = formData.storyVideoUrl;
+      }
 
-      // Extract sizes and colors from variants
-      const sizes = [...new Set(formData.variants.map(v => v.size))];
-      const colors = [...new Set(formData.variants.flatMap(v => v.options.map(o => o.color)))];
-      
+      // Collect size and color from variants
+      const sizes = [...new Set(formData.variants.map((v) => v.size))];
+      const colors = [
+        ...new Set(
+          formData.variants.flatMap((v) => v.options.map((o) => o.color)),
+        ),
+      ];
+
       if (sizes.length > 0) {
         attributes.size = sizes.join(",");
       }
@@ -317,22 +310,24 @@ export default function ProductAddPage() {
         attributes.color = colors.join(",");
       }
 
+      // Prepare product data - ensure all required fields are provided with default values
       const productData = {
-        name: formData.name.trim(),
-        description: formData.description || undefined,
+        name: formData.name.trim() || "Untitled Product",
+        description: formData.description || "",
         basePrice: formData.basePrice ? parseFloat(formData.basePrice) : 0,
-        baseCompareAtPrice: formData.baseCompareAtPrice 
-          ? parseFloat(formData.baseCompareAtPrice) 
-          : undefined,
+        baseCompareAtPrice: formData.baseCompareAtPrice
+          ? parseFloat(formData.baseCompareAtPrice)
+          : 0,
         attributes,
-        images: formData.imageUrls.length > 0 ? formData.imageUrls : undefined,
-        categoryId: formData.categoryId || undefined,
-        subcategoryId: formData.subcategoryId || undefined,
-        productTypeId: formData.productTypeId || undefined,
+        images: formData.imageUrls.length > 0 ? formData.imageUrls : [],
+        categoryId: formData.categoryId || "",
+        subcategoryId: formData.subcategoryId || "",
+        productTypeId: formData.productTypeId || "",
       };
 
-      await createNewProduct(productData as any);
-      
+      console.log("Sending product data:", productData); // Debug log
+
+      await createNewProduct(productData);
       toast.success("Product saved as draft!");
       navigate("/vendor/products");
     } catch (error: any) {
@@ -348,7 +343,6 @@ export default function ProductAddPage() {
   };
 
   const handleSubmit = async () => {
-    // Validate required fields
     if (!formData.name.trim()) {
       toast.error("Please enter a product name");
       return;
@@ -369,37 +363,36 @@ export default function ProductAddPage() {
       toast.error("Please upload at least one product image");
       return;
     }
-
-    // Calculate base price from variants if not set directly
-    let basePrice = formData.basePrice ? parseFloat(formData.basePrice) : 0;
-    if (!basePrice && formData.variants.length > 0) {
-      // Use the minimum price from variants as base price
-      const allPrices = formData.variants.flatMap(v => 
-        v.options.map(o => parseFloat(o.price) || 0)
-      ).filter(p => p > 0);
-      if (allPrices.length > 0) {
-        basePrice = Math.min(...allPrices);
-      }
+    if (!formData.material.trim()) {
+      toast.error("Please enter material");
+      return;
+    }
+    if (!formData.storyText.trim() && !formData.storyVideoUrl.trim()) {
+      toast.error("Please add either a story text or video");
+      return;
     }
 
+    let basePrice = formData.basePrice ? parseFloat(formData.basePrice) : 0;
+    if (!basePrice && formData.variants.length > 0) {
+      const allPrices = formData.variants
+        .flatMap((v) => v.options.map((o) => parseFloat(o.price) || 0))
+        .filter((p) => p > 0);
+      if (allPrices.length > 0) basePrice = Math.min(...allPrices);
+    }
     if (basePrice <= 0) {
       toast.error("Please set a valid price for your product");
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      // Build attributes from variants and other data
+      // Build attributes in the expected format
       const attributes: Record<string, string> = {};
-      
-      // Add specifications and care instructions as attributes
-      if (formData.specifications) {
-        attributes.specifications = formData.specifications;
-      }
-      if (formData.careInstructions) {
-        attributes.careInstructions = formData.careInstructions;
-      }
+
+      // Always include material since it's required
+      attributes.material = formData.material || "";
+
+      // Include story text/video
       if (formData.storyText) {
         attributes.storyText = formData.storyText;
       }
@@ -407,25 +400,33 @@ export default function ProductAddPage() {
         attributes.storyVideoUrl = formData.storyVideoUrl;
       }
 
-      // Extract sizes and colors from variants
-      const sizes = [...new Set(formData.variants.map(v => v.size))];
-      const colors = [...new Set(formData.variants.flatMap(v => v.options.map(o => o.color)))];
-      
+      // Collect size and color from variants
+      const sizes = [...new Set(formData.variants.map((v) => v.size))];
+      const colors = [
+        ...new Set(
+          formData.variants.flatMap((v) => v.options.map((o) => o.color)),
+        ),
+      ];
+
       if (sizes.length > 0) {
         attributes.size = sizes.join(",");
-      }
-      if (colors.length > 0) {
-        attributes.color = colors.join(",");
+      } else {
+        attributes.size = "medium"; // Default size if no variants
       }
 
-      // Create product payload matching API expectations
+      if (colors.length > 0) {
+        attributes.color = colors.join(",");
+      } else {
+        attributes.color = "multi"; // Default color if no variants
+      }
+
       const productData = {
         name: formData.name.trim(),
         description: formData.description,
         basePrice: basePrice,
-        baseCompareAtPrice: formData.baseCompareAtPrice 
-          ? parseFloat(formData.baseCompareAtPrice) 
-          : undefined,
+        baseCompareAtPrice: formData.baseCompareAtPrice
+          ? parseFloat(formData.baseCompareAtPrice)
+          : 0,
         attributes,
         images: formData.imageUrls,
         categoryId: formData.categoryId,
@@ -433,51 +434,46 @@ export default function ProductAddPage() {
         productTypeId: formData.productTypeId,
       };
 
+      console.log("Submitting product data:", productData); // Debug log
+
       await createNewProduct(productData);
-      
       toast.success("Product created successfully!");
       navigate("/vendor/products");
     } catch (error: any) {
       console.error("Failed to create product:", error);
-      toast.error(error?.message || "Failed to create product. Please try again.");
+      toast.error(
+        error?.message || "Failed to create product. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Calculate total stock from variants
   const totalStock = useMemo(() => {
     return formData.variants.reduce((total, variant) => {
-      return total + variant.options.reduce((sum, opt) => sum + opt.quantity, 0);
+      return (
+        total + variant.options.reduce((sum, opt) => sum + opt.quantity, 0)
+      );
     }, 0);
   }, [formData.variants]);
 
-  // Calculate price range from variants
   const priceRange = useMemo(() => {
-    const allPrices = formData.variants.flatMap(v => 
-      v.options.map(o => parseFloat(o.price) || 0)
-    ).filter(p => p > 0);
-    
-    if (allPrices.length === 0) {
+    const allPrices = formData.variants
+      .flatMap((v) => v.options.map((o) => parseFloat(o.price) || 0))
+      .filter((p) => p > 0);
+    if (allPrices.length === 0)
       return formData.basePrice ? `$${formData.basePrice}` : "Not set";
-    }
-    
     const min = Math.min(...allPrices);
     const max = Math.max(...allPrices);
-    
-    if (min === max) {
-      return `$${min.toFixed(2)}`;
-    }
+    if (min === max) return `$${min.toFixed(2)}`;
     return `$${min.toFixed(2)} - $${max.toFixed(2)}`;
   }, [formData.variants, formData.basePrice]);
 
   return (
     <>
       <SiteHeader label="Product Management" />
-
       <div className="min-h-screen px-6">
         <div className="flex">
-          {/* Sidebar with Steps */}
           <div className="w-60 max-w-60 shrink-0">
             <div className="sticky top-8 bg-white rounded-lg p-6 dark:bg-[#303030]">
               <Steps
@@ -487,15 +483,12 @@ export default function ProductAddPage() {
                 onChange={setCurrentStep}
                 completedSteps={Array.from(
                   { length: currentStep },
-                  (_, i) => i
+                  (_, i) => i,
                 )}
               />
             </div>
           </div>
-
-          {/* Main Content */}
           <div className="flex-1 px-6 space-y-6 pb-6">
-            {/* Header */}
             <div className="bg-white rounded-md mb-6 dark:bg-[#303030]">
               <div className="mx-auto px-10 py-4 flex items-center justify-between">
                 <div className="flex items-center justify-center gap-4">
@@ -533,7 +526,6 @@ export default function ProductAddPage() {
               </div>
             </div>
 
-            {/* Step 0: Basic Information */}
             {currentStep === 0 && (
               <div className="max-w-8xl mx-auto space-y-6">
                 <Card className="p-6 dark:bg-[#303030] shadow-none">
@@ -573,21 +565,34 @@ export default function ProductAddPage() {
                             disabled={categoriesLoading}
                           >
                             <SelectTrigger className="min-h-11 mt-2">
-                              <SelectValue placeholder={
-                                categoriesLoading ? "Loading categories..." : "Select the category"
-                              } />
+                              <SelectValue
+                                placeholder={
+                                  categoriesLoading
+                                    ? "Loading categories..."
+                                    : "Select the category"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              {categories.map((cat) => (
-                                <SelectItem key={cat.id} value={cat.id}>
-                                  {cat.name}
+                              {!categoriesLoading && categories.length === 0 ? (
+                                <SelectItem
+                                  value="__empty__"
+                                  disabled
+                                  className="text-gray-500 italic"
+                                >
+                                  No categories available
                                 </SelectItem>
-                              ))}
+                              ) : (
+                                categories.map((cat) => (
+                                  <SelectItem key={cat.id} value={cat.id}>
+                                    {cat.name}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
-
                       <div className="grid grid-cols-2 gap-6">
                         <div>
                           <Label htmlFor="sub-category">
@@ -601,18 +606,34 @@ export default function ProductAddPage() {
                             disabled={!formData.categoryId || categoriesLoading}
                           >
                             <SelectTrigger className="min-h-11 mt-2">
-                              <SelectValue placeholder={
-                                !formData.categoryId 
-                                  ? "Select a category first" 
-                                  : "Select the sub category"
-                              } />
+                              <SelectValue
+                                placeholder={
+                                  !formData.categoryId
+                                    ? "Select a category first"
+                                    : categoriesLoading
+                                      ? "Loading subcategories..."
+                                      : "Select the sub category"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              {filteredSubcategories.map((sub) => (
-                                <SelectItem key={sub.id} value={sub.id}>
-                                  {sub.name}
+                              {formData.categoryId &&
+                              !categoriesLoading &&
+                              filteredSubcategories.length === 0 ? (
+                                <SelectItem
+                                  value="__empty__"
+                                  disabled
+                                  className="text-gray-500"
+                                >
+                                  No subcategories available
                                 </SelectItem>
-                              ))}
+                              ) : (
+                                filteredSubcategories.map((sub) => (
+                                  <SelectItem key={sub.id} value={sub.id}>
+                                    {sub.name}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
@@ -626,32 +647,45 @@ export default function ProductAddPage() {
                           <Select
                             value={formData.productTypeId}
                             onValueChange={(value) =>
-                              setFormData({
-                                ...formData,
-                                productTypeId: value,
-                              })
+                              setFormData({ ...formData, productTypeId: value })
                             }
-                            disabled={!formData.subcategoryId || categoriesLoading}
+                            disabled={
+                              !formData.subcategoryId || categoriesLoading
+                            }
                           >
                             <SelectTrigger className="min-h-11 mt-2">
-                              <SelectValue placeholder={
-                                !formData.subcategoryId 
-                                  ? "Select a subcategory first" 
-                                  : "Select the product type"
-                              } />
+                              <SelectValue
+                                placeholder={
+                                  !formData.subcategoryId
+                                    ? "Select a subcategory first"
+                                    : categoriesLoading
+                                      ? "Loading product types..."
+                                      : "Select the product type"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              {filteredProductTypes.map((type) => (
-                                <SelectItem key={type.id} value={type.id}>
-                                  {type.name}
+                              {formData.subcategoryId &&
+                              !categoriesLoading &&
+                              filteredProductTypes.length === 0 ? (
+                                <SelectItem
+                                  value="__empty__"
+                                  disabled
+                                  className="text-gray-500"
+                                >
+                                  No product types available
                                 </SelectItem>
-                              ))}
+                              ) : (
+                                filteredProductTypes.map((type) => (
+                                  <SelectItem key={type.id} value={type.id}>
+                                    {type.name}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
-
-                      {/* Base Price (optional - can be set from variants) */}
                       <div className="grid grid-cols-2 gap-6">
                         <div>
                           <Label htmlFor="base-price">
@@ -672,12 +706,16 @@ export default function ProductAddPage() {
                               placeholder="0.00"
                               value={formData.basePrice}
                               onChange={(e) =>
-                                setFormData({ ...formData, basePrice: e.target.value })
+                                setFormData({
+                                  ...formData,
+                                  basePrice: e.target.value,
+                                })
                               }
                               className="h-11 pl-7"
                             />
                           </div>
                         </div>
+                      
                         <div>
                           <Label htmlFor="compare-price">
                             Compare at Price (USD){" "}
@@ -697,7 +735,10 @@ export default function ProductAddPage() {
                               placeholder="0.00"
                               value={formData.baseCompareAtPrice}
                               onChange={(e) =>
-                                setFormData({ ...formData, baseCompareAtPrice: e.target.value })
+                                setFormData({
+                                  ...formData,
+                                  baseCompareAtPrice: e.target.value,
+                                })
                               }
                               className="h-11 pl-7"
                             />
@@ -707,7 +748,6 @@ export default function ProductAddPage() {
                     </div>
                   </div>
                 </Card>
-
                 <Card className="p-6 dark:bg-[#303030] shadow-none">
                   <div className="mb-6">
                     <h2 className="text-2xl font-semibold mb-2">
@@ -727,7 +767,6 @@ export default function ProductAddPage() {
                     />
                   </div>
                 </Card>
-
                 <div className="flex justify-end mt-6">
                   <Button onClick={handleNext} className="text-white w-xs h-11">
                     Save and continue
@@ -736,7 +775,6 @@ export default function ProductAddPage() {
               </div>
             )}
 
-            {/* Step 1: Product Upload */}
             {currentStep === 1 && (
               <div className="max-w-8xl mx-auto space-y-6">
                 <Card className="p-6 dark:bg-[#303030] shadow-none">
@@ -747,7 +785,6 @@ export default function ProductAddPage() {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                       Good images help customers trust and choose your product.
                     </p>
-
                     <ImageUpload
                       onImageChange={(urls) => {
                         setFormData((prev) => ({ ...prev, imageUrls: urls }));
@@ -760,7 +797,16 @@ export default function ProductAddPage() {
                     />
                   </div>
                 </Card>
+                <div className="flex justify-end mt-6">
+                  <Button onClick={handleNext} className="text-white w-xs h-11">
+                    Save and continue
+                  </Button>
+                </div>
+              </div>
+            )}
 
+            {currentStep === 2 && (
+              <div className="max-w-8xl mx-auto space-y-6">
                 <Card className="p-6 dark:bg-[#303030] shadow-none">
                   <div>
                     <h2 className="text-2xl font-semibold mb-2">
@@ -770,9 +816,8 @@ export default function ProductAddPage() {
                       We'd love to hear your story this helps buyers connect
                       with the real person behind the products.
                     </p>
-
                     <div className="mb-6">
-                      <p className="font-medium mb-4">Option A: Image + Text</p>
+                      <p className="font-medium mb-4">Option A: Text</p>
                       <TextEditor
                         value={formData.storyText}
                         onChange={(value) =>
@@ -784,14 +829,13 @@ export default function ProductAddPage() {
                         Max of 500 characters
                       </p>
                     </div>
-
                     <div>
                       <p className="font-medium mb-4">Option B: Video</p>
                       <VideoUpload
                         onVideoChange={(url) => {
                           setFormData((prev) => ({
                             ...prev,
-                            storyVideoUrl: url || undefined,
+                            storyVideoUrl: url || "",
                           }));
                         }}
                         initialUrl={formData.storyVideoUrl}
@@ -803,7 +847,6 @@ export default function ProductAddPage() {
                     </div>
                   </div>
                 </Card>
-
                 <div className="flex justify-end mt-6">
                   <Button onClick={handleNext} className="text-white w-xs h-11">
                     Save and continue
@@ -812,55 +855,6 @@ export default function ProductAddPage() {
               </div>
             )}
 
-            {/* Step 2: Additional Details */}
-            {currentStep === 2 && (
-              <div className="max-w-8xl mx-auto space-y-6">
-                <Card className="p-6 dark:bg-[#303030] shadow-none">
-                  <div>
-                    <h2 className="text-2xl font-semibold mb-2">
-                      Product Specifications{" "}
-                      <span className="text-red-500">*</span>
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                      Provide the key details that define your product—such as
-                      size, material, weight, and other specific attributes.
-                    </p>
-
-                    <TextEditor
-                      value={formData.specifications}
-                      onChange={(value) =>
-                        setFormData({ ...formData, specifications: value })
-                      }
-                      placeholder="Enter product specifications..."
-                    />
-                  </div>
-                </Card>
-
-                <Card className="p-6 dark:bg-[#303030] shadow-none">
-                  <div>
-                    <h2 className="text-2xl font-semibold mb-6">
-                      Care Instructions <span className="text-red-500">*</span>
-                    </h2>
-
-                    <TextEditor
-                      value={formData.careInstructions}
-                      onChange={(value) =>
-                        setFormData({ ...formData, careInstructions: value })
-                      }
-                      placeholder="Enter care instructions..."
-                    />
-                  </div>
-                </Card>
-
-                <div className="flex justify-end mt-6">
-                  <Button onClick={handleNext} className="text-white w-xs h-11">
-                    Save and continue
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Add Variants */}
             {currentStep === 3 && (
               <div className="max-w-8xl mx-auto">
                 <Card className="p-6 dark:bg-[#303030] shadow-none">
@@ -868,19 +862,20 @@ export default function ProductAddPage() {
                     <div>
                       <h2 className="text-2xl font-semibold">Add Variants</h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Add different sizes, colors, and prices for your product variants.
+                        Add different sizes, colors, and prices for your product
+                        variants.
                       </p>
                     </div>
                     <Button onClick={() => setShowVariantDialog(true)}>
                       <Plus className="w-4 h-4 mr-2" /> Add variant
                     </Button>
                   </div>
-
                   {formData.variants.length === 0 ? (
                     <div className="text-center py-12 text-gray-500">
                       <p>No variants added yet.</p>
                       <p className="text-sm mt-2">
-                        Click "Add variant" to create size and color options with pricing.
+                        Click "Add variant" to create size and color options
+                        with pricing.
                       </p>
                     </div>
                   ) : (
@@ -892,7 +887,7 @@ export default function ProductAddPage() {
                         >
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold">
-                              {variant.attributeName}: {variant.size}
+                              Size: {variant.size}
                             </h3>
                             <Button
                               variant="outline"
@@ -903,7 +898,6 @@ export default function ProductAddPage() {
                               Edit variant
                             </Button>
                           </div>
-
                           <div className="overflow-x-auto">
                             <table className="w-full">
                               <thead>
@@ -947,7 +941,6 @@ export default function ProductAddPage() {
                               </tbody>
                             </table>
                           </div>
-
                           <div className="grid grid-cols-2 gap-8 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                             <div>
                               <p className="text-sm text-gray-500 mb-1">
@@ -956,7 +949,7 @@ export default function ProductAddPage() {
                               <p className="text-lg font-semibold">
                                 {variant.options.reduce(
                                   (sum, opt) => sum + opt.quantity,
-                                  0
+                                  0,
                                 )}{" "}
                                 units
                               </p>
@@ -975,7 +968,6 @@ export default function ProductAddPage() {
                     </div>
                   )}
                 </Card>
-
                 <div className="flex justify-end mt-6">
                   <Button onClick={handleNext} className="text-white w-xs h-11">
                     Save and continue
@@ -984,7 +976,6 @@ export default function ProductAddPage() {
               </div>
             )}
 
-            {/* Step 4: Preview and Submit */}
             {currentStep === 4 && (
               <div className="max-w-8xl mx-auto space-y-6">
                 <Card className="p-6 dark:bg-[#303030] shadow-none">
@@ -999,13 +990,19 @@ export default function ProductAddPage() {
                       Edit
                     </Button>
                   </div>
-
                   <div className="space-y-4">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Product name</p>
-                      <p className="font-medium">{formData.name || "Not set"}</p>
+                      <p className="font-medium">
+                        {formData.name || "Not set"}
+                      </p>
                     </div>
-
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Material</p>
+                      <p className="font-medium">
+                        {formData.material || "Not set"}
+                      </p>
+                    </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <p className="text-sm text-gray-500 mb-1">Category</p>
@@ -1030,14 +1027,17 @@ export default function ProductAddPage() {
                         </p>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <p className="text-sm text-gray-500 mb-1">Price Range</p>
+                        <p className="text-sm text-gray-500 mb-1">
+                          Price Range
+                        </p>
                         <p className="font-medium">{priceRange}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500 mb-1">Total Stock</p>
+                        <p className="text-sm text-gray-500 mb-1">
+                          Total Stock
+                        </p>
                         <p className="font-medium">
                           {totalStock > 0 ? `${totalStock} units` : "Not set"}
                         </p>
@@ -1049,7 +1049,6 @@ export default function ProductAddPage() {
                         </p>
                       </div>
                     </div>
-
                     <div>
                       <p className="text-sm text-gray-500 mb-1">
                         Product description
@@ -1057,13 +1056,13 @@ export default function ProductAddPage() {
                       <div
                         className="prose max-w-none dark:prose-invert"
                         dangerouslySetInnerHTML={{
-                          __html: formData.description || "No description provided",
+                          __html:
+                            formData.description || "No description provided",
                         }}
                       />
                     </div>
                   </div>
                 </Card>
-
                 <Card className="p-6 dark:bg-[#303030] shadow-none">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold">Product Images</h2>
@@ -1076,7 +1075,6 @@ export default function ProductAddPage() {
                       Edit
                     </Button>
                   </div>
-
                   {formData.imageUrls.length > 0 ? (
                     <div className="grid grid-cols-4 gap-4">
                       {formData.imageUrls.map((url, index) => (
@@ -1092,9 +1090,30 @@ export default function ProductAddPage() {
                   ) : (
                     <p className="text-gray-500">No images uploaded</p>
                   )}
-
+                </Card>
+                <Card className="p-6 dark:bg-[#303030] shadow-none">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold">Product Story</h2>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentStep(2)}
+                    >
+                      <Pencil className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  </div>
+                  {formData.storyText && (
+                    <div className="mb-6">
+                      <p className="text-sm text-gray-500 mb-3">Story Text</p>
+                      <div
+                        className="prose max-w-none dark:prose-invert"
+                        dangerouslySetInnerHTML={{ __html: formData.storyText }}
+                      />
+                    </div>
+                  )}
                   {formData.storyVideoUrl && (
-                    <div className="mt-6">
+                    <div>
                       <p className="text-sm text-gray-500 mb-3">Story Video</p>
                       <video
                         src={formData.storyVideoUrl}
@@ -1103,56 +1122,10 @@ export default function ProductAddPage() {
                       />
                     </div>
                   )}
-
-                  {formData.storyText && (
-                    <div className="mt-6">
-                      <p className="text-sm text-gray-500 mb-3">Story Text</p>
-                      <div
-                        className="prose max-w-none dark:prose-invert"
-                        dangerouslySetInnerHTML={{ __html: formData.storyText }}
-                      />
-                    </div>
+                  {!formData.storyText && !formData.storyVideoUrl && (
+                    <p className="text-gray-500">No story added</p>
                   )}
                 </Card>
-
-                {/* Specifications Preview */}
-                {(formData.specifications || formData.careInstructions) && (
-                  <Card className="p-6 dark:bg-[#303030] shadow-none">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-xl font-semibold">Additional Details</h2>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCurrentStep(2)}
-                      >
-                        <Pencil className="w-4 h-4 mr-2" />
-                        Edit
-                      </Button>
-                    </div>
-
-                    {formData.specifications && (
-                      <div className="mb-6">
-                        <p className="text-sm text-gray-500 mb-2">Specifications</p>
-                        <div
-                          className="prose max-w-none dark:prose-invert"
-                          dangerouslySetInnerHTML={{ __html: formData.specifications }}
-                        />
-                      </div>
-                    )}
-
-                    {formData.careInstructions && (
-                      <div>
-                        <p className="text-sm text-gray-500 mb-2">Care Instructions</p>
-                        <div
-                          className="prose max-w-none dark:prose-invert"
-                          dangerouslySetInnerHTML={{ __html: formData.careInstructions }}
-                        />
-                      </div>
-                    )}
-                  </Card>
-                )}
-
-                {/* Variants Preview */}
                 {formData.variants.length > 0 && (
                   <Card className="p-6 dark:bg-[#303030] shadow-none">
                     <div className="flex items-center justify-between mb-6">
@@ -1166,7 +1139,6 @@ export default function ProductAddPage() {
                         Edit
                       </Button>
                     </div>
-
                     <div className="space-y-4">
                       {formData.variants.map((variant) => (
                         <div
@@ -1174,7 +1146,7 @@ export default function ProductAddPage() {
                           className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg"
                         >
                           <p className="font-medium mb-2">
-                            {variant.attributeName}: {variant.size}
+                            Size: {variant.size}
                           </p>
                           <div className="flex flex-wrap gap-2">
                             {variant.options.map((option) => (
@@ -1182,7 +1154,8 @@ export default function ProductAddPage() {
                                 key={option.id}
                                 className="px-3 py-1 bg-white dark:bg-gray-700 rounded text-sm"
                               >
-                                {option.color} - {option.quantity} units @ ${option.price}
+                                {option.color} - {option.quantity} units @ $
+                                {option.price}
                               </span>
                             ))}
                           </div>
@@ -1191,13 +1164,11 @@ export default function ProductAddPage() {
                     </div>
                   </Card>
                 )}
-
                 {createError && (
                   <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
                     {createError}
                   </div>
                 )}
-
                 <div className="flex justify-end mt-6">
                   <Button
                     onClick={handleSubmit}
@@ -1216,7 +1187,6 @@ export default function ProductAddPage() {
           </div>
         </div>
 
-        {/* Variant Dialog */}
         <Dialog open={showVariantDialog} onOpenChange={setShowVariantDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -1224,58 +1194,54 @@ export default function ProductAddPage() {
                 {editingVariant ? "Edit Variant" : "Add Variant"}
               </DialogTitle>
             </DialogHeader>
-
             <div className="space-y-4">
               <div>
-                <Label htmlFor="attribute-name">
-                  Attribute name <span className="text-red-500">*</span>
+                <Label htmlFor="define-size">
+                  Size <span className="text-red-500">*</span>
                 </Label>
                 <Select
-                  value={tempVariant.attributeName}
+                  value={tempVariant.size}
                   onValueChange={(value) =>
-                    setTempVariant({ ...tempVariant, attributeName: value })
+                    setTempVariant({ ...tempVariant, size: value })
                   }
                 >
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Select the attribute" />
+                    <SelectValue placeholder="Select the size" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Size">Size</SelectItem>
-                    <SelectItem value="Color">Color</SelectItem>
-                    <SelectItem value="Material">Material</SelectItem>
-                    <SelectItem value="Style">Style</SelectItem>
+                    <SelectItem value="XS">XS</SelectItem>
+                    <SelectItem value="S">S</SelectItem>
+                    <SelectItem value="M">M</SelectItem>
+                    <SelectItem value="L">L</SelectItem>
+                    <SelectItem value="XL">XL</SelectItem>
+                    <SelectItem value="XXL">XXL</SelectItem>
+                    <SelectItem value="3XL">3XL</SelectItem>
+                    <SelectItem value="One Size">One Size</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
-              {tempVariant.attributeName && (
-                <div>
-                  <Label htmlFor="define-size">
-                    Define {tempVariant.attributeName}{" "}
-                    <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="define-size"
-                    placeholder={`e.g. ${tempVariant.attributeName === 'Size' ? 'L, XL, 42' : tempVariant.attributeName === 'Color' ? 'Red, Blue' : 'Value'}`}
-                    value={tempVariant.size}
-                    onChange={(e) =>
-                      setTempVariant({ ...tempVariant, size: e.target.value })
-                    }
-                    className="mt-2"
-                  />
-                </div>
-              )}
-
+              <div>
+                <Label htmlFor="material">
+                  Material <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="material"
+                  placeholder="e.g. Kente, Leather, Cotton"
+                  value={formData.material}
+                  onChange={(e) =>
+                    setFormData({ ...formData, material: e.target.value })
+                  }
+                  className="h-11 mt-2"
+                />
+              </div>
               <div>
                 <Label>
-                  Options (Color, Quantity, Price){" "}
+                  Color Options (Color, Quantity, Price){" "}
                   <span className="text-red-500">*</span>
                 </Label>
-
-                {/* Current input row for adding new option */}
                 <div className="grid grid-cols-3 gap-3 mt-2">
                   <Input
-                    placeholder="Color/Variant"
+                    placeholder="Color name"
                     value={tempOption.color}
                     onChange={(e) =>
                       setTempOption({ ...tempOption, color: e.target.value })
@@ -1306,18 +1272,19 @@ export default function ProductAddPage() {
                     />
                   </div>
                 </div>
-
                 <Button
                   variant="default"
                   size="sm"
                   onClick={addOptionToVariant}
                   className="mt-3"
-                  disabled={!tempOption.color || !tempOption.quantity || !tempOption.price}
+                  disabled={
+                    !tempOption.color ||
+                    !tempOption.quantity ||
+                    !tempOption.price
+                  }
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add option
                 </Button>
-
-                {/* Display existing options */}
                 {tempVariant.options.length > 0 && (
                   <div className="mt-4 space-y-2">
                     {tempVariant.options.map((option) => (
@@ -1341,7 +1308,6 @@ export default function ProductAddPage() {
                   </div>
                 )}
               </div>
-
               <div>
                 <Label htmlFor="low-stock">
                   Low stock alert threshold{" "}
@@ -1362,7 +1328,6 @@ export default function ProductAddPage() {
                 />
               </div>
             </div>
-
             <DialogFooter>
               <Button
                 variant="outline"
@@ -1371,7 +1336,6 @@ export default function ProductAddPage() {
                   setEditingVariant(null);
                   setTempVariant({
                     id: "",
-                    attributeName: "",
                     size: "",
                     options: [],
                     lowStockUnit: 10,
@@ -1380,9 +1344,9 @@ export default function ProductAddPage() {
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={saveVariant}
-                disabled={!tempVariant.attributeName || !tempVariant.size || tempVariant.options.length === 0}
+                disabled={!tempVariant.size || tempVariant.options.length === 0}
               >
                 {editingVariant ? "Update" : "Add"} Variant
               </Button>

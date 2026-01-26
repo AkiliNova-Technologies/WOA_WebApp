@@ -49,7 +49,7 @@ export function EditStore() {
   const { user } = useReduxAuth();
   const {
     selectedVendor,
-    getVendor,
+    getOwnVendorProfile,
     updateVendor,
     loading: vendorLoading,
     actionLoading,
@@ -121,18 +121,29 @@ export function EditStore() {
     const loadVendorData = async () => {
       if (!user?.id) return;
       try {
-        await getVendor(user.id);
+        await getOwnVendorProfile();
       } catch (error) {
         console.error("Failed to load vendor data:", error);
         toast.error("Failed to load vendor information");
       }
     };
     loadVendorData();
-  }, [user?.id, getVendor]);
+  }, [user?.id, getOwnVendorProfile]);
 
   useEffect(() => {
     if (selectedVendor) {
-      const { street, city, country } = parseAddress(selectedVendor.businessAddress);
+      // Get street from direct field or parse from businessAddress
+      let street = selectedVendor.street || "";
+      let city = selectedVendor.city || "";
+      let country = selectedVendor.country || "";
+
+      // If not available directly, try parsing from businessAddress
+      if (!street && selectedVendor.businessAddress) {
+        const parsed = parseAddress(selectedVendor.businessAddress);
+        street = parsed.street;
+        if (!city) city = parsed.city;
+        if (!country) country = parsed.country;
+      }
 
       const category =
         (selectedVendor as any).category ||
@@ -147,9 +158,9 @@ export function EditStore() {
         "";
 
       const newFormData: StoreFormData = {
-        businessName: selectedVendor.businessName || "",
+        businessName: selectedVendor.storeName || selectedVendor.businessName || "",
         category: category,
-        businessDescription: selectedVendor.businessDescription || "",
+        businessDescription: selectedVendor.businessDescription || selectedVendor.storyText || "",
         businessEmail: selectedVendor.businessEmail || "",
         businessPhone: selectedVendor.businessPhone || "",
         businessAddress: street,
@@ -266,10 +277,14 @@ export function EditStore() {
       const updatedVendorData: any = {
         ...selectedVendor,
         businessName: formData.businessName.trim(),
+        storeName: formData.businessName.trim(),
         businessDescription: formData.businessDescription.trim(),
         businessEmail: formData.businessEmail.trim() || user?.email || "",
         businessPhone: formData.businessPhone.trim() || user?.phoneNumber || "",
         businessAddress: fullAddress,
+        street: formData.businessAddress.trim(),
+        city: formData.city,
+        country: formData.country,
         storyVideoUrl: formData.storyVideoUrl || null,
       };
 
@@ -301,7 +316,18 @@ export function EditStore() {
 
   const resetForm = () => {
     if (selectedVendor) {
-      const { street, city, country } = parseAddress(selectedVendor.businessAddress);
+      // Get street from direct field or parse from businessAddress
+      let street = selectedVendor.street || "";
+      let city = selectedVendor.city || "";
+      let country = selectedVendor.country || "";
+
+      // If not available directly, try parsing from businessAddress
+      if (!street && selectedVendor.businessAddress) {
+        const parsed = parseAddress(selectedVendor.businessAddress);
+        street = parsed.street;
+        if (!city) city = parsed.city;
+        if (!country) country = parsed.country;
+      }
 
       const category =
         (selectedVendor as any).category ||
@@ -316,9 +342,9 @@ export function EditStore() {
         "";
 
       const newFormData: StoreFormData = {
-        businessName: selectedVendor.businessName || "",
+        businessName: selectedVendor.storeName || selectedVendor.businessName || "",
         category: category,
-        businessDescription: selectedVendor.businessDescription || "",
+        businessDescription: selectedVendor.businessDescription || selectedVendor.storyText || "",
         businessEmail: selectedVendor.businessEmail || "",
         businessPhone: selectedVendor.businessPhone || "",
         businessAddress: street,
@@ -347,7 +373,7 @@ export function EditStore() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 lg:space-y-6 w-full">
       {/* ================= STORE DETAILS ================= */}
-      <Card className="w-full shadow-sm border bg-white">
+      <Card className="w-full border bg-white">
         <CardContent className="p-4 sm:p-5 lg:p-6">
           <div className="space-y-4 sm:space-y-5 lg:space-y-6">
             {/* Header */}
@@ -576,7 +602,7 @@ export function EditStore() {
       </Card>
 
       {/* ================= VENDOR STORY ================= */}
-      <Card className="w-full shadow-sm border bg-white">
+      <Card className="w-full border bg-white">
         <CardContent className="p-4 sm:p-5 lg:p-6">
           <div className="space-y-4 sm:space-y-5 lg:space-y-6">
             <div>
