@@ -75,6 +75,52 @@ export interface AdminWishlistParams {
   page?: number;
 }
 
+// Vendor Wishlist Types
+export interface VendorWishlistStats {
+  totalWishlistedProducts: number;
+  wishlistToCart: number;
+  wishlistToCartPct: string;
+  wishlistAbandonment: number;
+  wishlistAbandonmentPct: string;
+  totalWishlistedChange?: { trend: "up" | "down"; value: string };
+  wishlistToCartChange?: { trend: "up" | "down"; value: string };
+  wishlistAbandonmentChange?: { trend: "up" | "down"; value: string };
+}
+
+export interface VendorWishlistProduct {
+  id: string;
+  productId: string;
+  productName: string;
+  image?: string;
+  category: string;
+  basePrice: number;
+  wishlists: number;
+  status: "in-stock" | "limited-stock" | "out-of-stock" | "suspended";
+  description?: string;
+  totalViews?: number;
+  conversionRate?: number;
+  dateAdded: string;
+}
+
+export interface VendorWishlistResponse {
+  stats: VendorWishlistStats;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+  data: VendorWishlistProduct[];
+}
+
+export interface VendorWishlistParams {
+  search?: string;
+  status?: VendorWishlistProduct["status"];
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
 interface WishlistState {
   items: WishlistItem[];
   loading: boolean;
@@ -93,6 +139,18 @@ interface WishlistState {
     loading: boolean;
     error: string | null;
   };
+  // Vendor state
+  vendorData: {
+    stats: VendorWishlistStats | null;
+    products: VendorWishlistProduct[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+    } | null;
+    loading: boolean;
+    error: string | null;
+  };
 }
 
 const initialState: WishlistState = {
@@ -102,6 +160,13 @@ const initialState: WishlistState = {
   adding: false,
   removing: false,
   adminData: {
+    stats: null,
+    products: [],
+    pagination: null,
+    loading: false,
+    error: null,
+  },
+  vendorData: {
     stats: null,
     products: [],
     pagination: null,
@@ -194,6 +259,34 @@ export const fetchAdminWishlist = createAsyncThunk(
   }
 );
 
+// Fetch vendor wishlist
+export const fetchVendorWishlist = createAsyncThunk(
+  "wishlist/fetchVendor",
+  async (params: { vendorId: string } & VendorWishlistParams, { rejectWithValue }) => {
+    try {
+      const { vendorId, ...queryParamsObj } = params;
+      const queryParams = new URLSearchParams();
+      
+      if (queryParamsObj.search) queryParams.append("search", queryParamsObj.search);
+      if (queryParamsObj.status) queryParams.append("status", queryParamsObj.status);
+      if (queryParamsObj.startDate) queryParams.append("startDate", queryParamsObj.startDate);
+      if (queryParamsObj.endDate) queryParams.append("endDate", queryParamsObj.endDate);
+      if (queryParamsObj.page) queryParams.append("page", queryParamsObj.page.toString());
+      if (queryParamsObj.limit) queryParams.append("limit", queryParamsObj.limit.toString());
+
+      const queryString = queryParams.toString();
+      const url = `/api/v1/vendor/wishlist/${vendorId}${queryString ? `?${queryString}` : ""}`;
+      
+      const response = await api.get(url);
+      return response.data as VendorWishlistResponse;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch vendor wishlist"
+      );
+    }
+  }
+);
+
 const wishlistSlice = createSlice({
   name: "wishlist",
   initialState,
@@ -209,6 +302,18 @@ const wishlistSlice = createSlice({
     },
     clearAdminData: (state) => {
       state.adminData = {
+        stats: null,
+        products: [],
+        pagination: null,
+        loading: false,
+        error: null,
+      };
+    },
+    clearVendorError: (state) => {
+      state.vendorData.error = null;
+    },
+    clearVendorData: (state) => {
+      state.vendorData = {
         stats: null,
         products: [],
         pagination: null,
@@ -281,11 +386,34 @@ const wishlistSlice = createSlice({
       .addCase(fetchAdminWishlist.rejected, (state, action) => {
         state.adminData.loading = false;
         state.adminData.error = action.payload as string;
+      })
+
+      // Fetch vendor wishlist
+      .addCase(fetchVendorWishlist.pending, (state) => {
+        state.vendorData.loading = true;
+        state.vendorData.error = null;
+      })
+      .addCase(fetchVendorWishlist.fulfilled, (state, action) => {
+        state.vendorData.loading = false;
+        state.vendorData.stats = action.payload.stats;
+        state.vendorData.products = action.payload.data;
+        state.vendorData.pagination = action.payload.pagination;
+      })
+      .addCase(fetchVendorWishlist.rejected, (state, action) => {
+        state.vendorData.loading = false;
+        state.vendorData.error = action.payload as string;
       });
   },
 });
 
-export const { clearWishlist, clearError, clearAdminError, clearAdminData } = wishlistSlice.actions;
+export const { 
+  clearWishlist, 
+  clearError, 
+  clearAdminError, 
+  clearAdminData,
+  clearVendorError,
+  clearVendorData,
+} = wishlistSlice.actions;
 
 // Selectors
 export const selectWishlistItems = (state: { wishlist: WishlistState }) =>
@@ -311,5 +439,17 @@ export const selectAdminWishlistLoading = (state: { wishlist: WishlistState }) =
   state.wishlist.adminData.loading;
 export const selectAdminWishlistError = (state: { wishlist: WishlistState }) =>
   state.wishlist.adminData.error;
+
+// Vendor selectors
+export const selectVendorWishlistStats = (state: { wishlist: WishlistState }) =>
+  state.wishlist.vendorData.stats;
+export const selectVendorWishlistProducts = (state: { wishlist: WishlistState }) =>
+  state.wishlist.vendorData.products;
+export const selectVendorWishlistPagination = (state: { wishlist: WishlistState }) =>
+  state.wishlist.vendorData.pagination;
+export const selectVendorWishlistLoading = (state: { wishlist: WishlistState }) =>
+  state.wishlist.vendorData.loading;
+export const selectVendorWishlistError = (state: { wishlist: WishlistState }) =>
+  state.wishlist.vendorData.error;
 
 export default wishlistSlice.reducer;

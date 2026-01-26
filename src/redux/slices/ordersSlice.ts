@@ -186,6 +186,72 @@ export interface AdminOrdersParams {
   page?: number;
 }
 
+// Vendor Order Types - Updated to match actual API response
+export interface VendorOrderItem {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  productId: string;
+  productName: string;
+  productImage?: string;
+  variant?: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  status: 'pending' | 'ongoing' | 'completed' | 'returned' | 'unfulfilled' | 'failed';
+  orderedOn: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  shippingAddress?: string;
+  paymentMethod?: string;
+  trackingNumber?: string;
+}
+
+export interface VendorPerProductStats {
+  productId: string;
+  productName: string;
+  totalOrders: number;
+  totalRevenue: number;
+}
+
+export interface VendorOrderStats {
+  totalOrders: number;
+  ongoingOrders: number;
+  completedOrders: number;
+  returns: number;
+  totalRevenue: number;
+  pendingRevenue: number;
+  completedRevenue: number;
+  totalOrdersChange?: { trend: 'up' | 'down'; value: string };
+  ongoingOrdersChange?: { trend: 'up' | 'down'; value: string };
+  completedOrdersChange?: { trend: 'up' | 'down'; value: string };
+  returnsChange?: { trend: 'up' | 'down'; value: string };
+}
+
+export interface VendorOrdersParams {
+  search?: string;
+  status?: VendorOrderItem['status'];
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+// Actual API response structure
+export interface VendorOrdersApiResponse {
+  vendorId: string;
+  totalOrders: number;
+  totalRevenue: number;
+  perProduct: VendorPerProductStats[];
+  orders: VendorOrderItem[];
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+}
+
 export interface LowStockProduct {
   id: string;
   productId: string;
@@ -210,10 +276,22 @@ interface OrdersState {
   createError: string | null;
   updateLoading: boolean;
   updateError: string | null;
-  // Admin state
   adminData: {
     stats: AdminOrderStats | null;
     lineItems: AdminOrderLineItem[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      total: number;
+    } | null;
+    loading: boolean;
+    error: string | null;
+  };
+  vendorData: {
+    vendorId: string | null;
+    stats: VendorOrderStats | null;
+    perProduct: VendorPerProductStats[];
+    orders: VendorOrderItem[];
     pagination: {
       page: number;
       pageSize: number;
@@ -248,6 +326,40 @@ const initialState: OrdersState = {
     loading: false,
     error: null,
   },
+  vendorData: {
+    vendorId: null,
+    stats: null,
+    perProduct: [],
+    orders: [],
+    pagination: null,
+    loading: false,
+    error: null,
+  },
+};
+
+// Helper function to calculate vendor stats from orders
+const calculateVendorStats = (orders: VendorOrderItem[], totalRevenue: number, totalOrders: number): VendorOrderStats => {
+  const ongoingOrders = orders.filter(o => o.status === 'ongoing' || o.status === 'pending').length;
+  const completedOrders = orders.filter(o => o.status === 'completed').length;
+  const returns = orders.filter(o => o.status === 'returned').length;
+  
+  const pendingRevenue = orders
+    .filter(o => o.status === 'pending' || o.status === 'ongoing')
+    .reduce((sum, o) => sum + (o.total || 0), 0);
+  
+  const completedRevenue = orders
+    .filter(o => o.status === 'completed')
+    .reduce((sum, o) => sum + (o.total || 0), 0);
+
+  return {
+    totalOrders: totalOrders || orders.length,
+    ongoingOrders,
+    completedOrders,
+    returns,
+    totalRevenue,
+    pendingRevenue,
+    completedRevenue,
+  };
 };
 
 // Create new order with payment processing
@@ -329,6 +441,38 @@ export const fetchAdminOrders = createAsyncThunk(
   }
 );
 
+// Fetch vendor orders - Updated to handle actual API response
+export const fetchVendorOrders = createAsyncThunk(
+  'orders/fetchVendor',
+  async (params: { vendorId: string } & VendorOrdersParams, { rejectWithValue }) => {
+    try {
+      const { vendorId, ...queryParamsObj } = params;
+      const queryParams = new URLSearchParams();
+      
+      if (queryParamsObj.search) queryParams.append('search', queryParamsObj.search);
+      if (queryParamsObj.status) queryParams.append('status', queryParamsObj.status);
+      if (queryParamsObj.startDate) queryParams.append('startDate', queryParamsObj.startDate);
+      if (queryParamsObj.endDate) queryParams.append('endDate', queryParamsObj.endDate);
+      if (queryParamsObj.page) queryParams.append('page', queryParamsObj.page.toString());
+      if (queryParamsObj.limit) queryParams.append('limit', queryParamsObj.limit.toString());
+
+      const queryString = queryParams.toString();
+      const url = `/api/v1/vendor/orders/${vendorId}${queryString ? `?${queryString}` : ''}`;
+      
+      console.log('Fetching vendor orders from:', url);
+      const response = await api.get(url);
+      console.log('Vendor orders API response:', response.data);
+      
+      return response.data as VendorOrdersApiResponse;
+    } catch (error: any) {
+      console.error('Fetch vendor orders error:', error);
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to fetch vendor orders'
+      );
+    }
+  }
+);
+
 // Update order status (admin)
 export const updateOrderStatus = createAsyncThunk(
   'orders/updateStatus',
@@ -343,7 +487,7 @@ export const updateOrderStatus = createAsyncThunk(
       return rejectWithValue(
         error.response?.data?.message || 'Failed to update order status'
       );
-      }
+    }
   }
 );
 
@@ -518,6 +662,20 @@ const ordersSlice = createSlice({
         error: null,
       };
     },
+    clearVendorError: (state) => {
+      state.vendorData.error = null;
+    },
+    clearVendorData: (state) => {
+      state.vendorData = {
+        vendorId: null,
+        stats: null,
+        perProduct: [],
+        orders: [],
+        pagination: null,
+        loading: false,
+        error: null,
+      };
+    },
     updateOrderInList: (state, action: PayloadAction<Order>) => {
       const index = state.orders.findIndex(order => order.id === action.payload.id);
       if (index !== -1) {
@@ -553,7 +711,6 @@ const ordersSlice = createSlice({
       .addCase(fetchOrders.fulfilled, (state, action) => {
         state.loading = false;
         state.orders = action.payload.orders || action.payload;
-        // If response has pagination info, update filters
         if (action.payload.pagination) {
           state.filters.page = action.payload.pagination.page;
           state.filters.limit = action.payload.pagination.limit;
@@ -592,6 +749,44 @@ const ordersSlice = createSlice({
       .addCase(fetchAdminOrders.rejected, (state, action) => {
         state.adminData.loading = false;
         state.adminData.error = action.payload as string;
+      })
+
+      // Fetch vendor orders - Updated to handle actual API response
+      .addCase(fetchVendorOrders.pending, (state) => {
+        state.vendorData.loading = true;
+        state.vendorData.error = null;
+      })
+      .addCase(fetchVendorOrders.fulfilled, (state, action) => {
+        state.vendorData.loading = false;
+        
+        const response = action.payload;
+        
+        // Store the vendorId
+        state.vendorData.vendorId = response.vendorId;
+        
+        // Store orders array
+        state.vendorData.orders = response.orders || [];
+        
+        // Store perProduct stats
+        state.vendorData.perProduct = response.perProduct || [];
+        
+        // Calculate stats from the response
+        state.vendorData.stats = calculateVendorStats(
+          response.orders || [],
+          response.totalRevenue || 0,
+          response.totalOrders || 0
+        );
+        
+        // Handle pagination if provided
+        state.vendorData.pagination = response.pagination || {
+          page: 1,
+          pageSize: response.orders?.length || 10,
+          total: response.totalOrders || 0,
+        };
+      })
+      .addCase(fetchVendorOrders.rejected, (state, action) => {
+        state.vendorData.loading = false;
+        state.vendorData.error = action.payload as string;
       })
       
       // Update order status
@@ -713,6 +908,8 @@ export const {
   clearError,
   clearAdminError,
   clearAdminData,
+  clearVendorError,
+  clearVendorData,
   updateOrderInList,
 } = ordersSlice.actions;
 
@@ -735,5 +932,13 @@ export const selectAdminOrderLineItems = (state: { orders: OrdersState }) => sta
 export const selectAdminOrderPagination = (state: { orders: OrdersState }) => state.orders.adminData.pagination;
 export const selectAdminOrdersLoading = (state: { orders: OrdersState }) => state.orders.adminData.loading;
 export const selectAdminOrdersError = (state: { orders: OrdersState }) => state.orders.adminData.error;
+
+// Vendor selectors
+export const selectVendorOrderStats = (state: { orders: OrdersState }) => state.orders.vendorData.stats;
+export const selectVendorOrders = (state: { orders: OrdersState }) => state.orders.vendorData.orders;
+export const selectVendorPerProduct = (state: { orders: OrdersState }) => state.orders.vendorData.perProduct;
+export const selectVendorOrderPagination = (state: { orders: OrdersState }) => state.orders.vendorData.pagination;
+export const selectVendorOrdersLoading = (state: { orders: OrdersState }) => state.orders.vendorData.loading;
+export const selectVendorOrdersError = (state: { orders: OrdersState }) => state.orders.vendorData.error;
 
 export default ordersSlice.reducer;

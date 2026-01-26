@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   DataTable,
   type TableAction,
@@ -14,10 +14,12 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
-import { ListFilter, Download, MoreHorizontal } from "lucide-react";
+import { ListFilter, Download, MoreHorizontal, Loader2 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import images from "@/assets/images";
 import { useNavigate } from "react-router-dom";
+import { useReduxOrders, type VendorOrderItem } from "@/hooks/useReduxOrders";
+import { useReduxAuth } from "@/hooks/useReduxAuth";
 
 type OrderStatus =
   | "pending"
@@ -55,200 +57,91 @@ interface OrderData {
   [key: string]: any;
 }
 
-interface OrderStats {
-  totalOrders: number;
-  ongoingOrders: number;
-  completedOrders: number;
-  returns: number;
-  totalOrdersChange?: { trend: "up" | "down"; value: string };
-  ongoingOrdersChange?: { trend: "up" | "down"; value: string };
-  completedOrdersChange?: { trend: "up" | "down"; value: string };
-  returnsChange?: { trend: "up" | "down"; value: string };
-}
-
 export default function OrdersPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<OrderStatus[]>([]);
   const [activeTab, setActiveTab] = useState<OrderTab>("all");
-  const [dateRange, setDateRange] = useState<DateRange>("last-7-days");
+  const [dateRange, setDateRange] = useState<DateRange>("all-time");
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Mock order data
-  const mockOrders: OrderData[] = [
-    {
-      id: "1",
-      orderId: "#000001",
-      productOrdered: "African made sandals",
-      variant: "XL, Red",
-      orderedOn: "7 Jan 2025",
-      noOfItems: 1,
-      status: "pending",
-      customerName: "John Doe",
-      customerEmail: "john@example.com",
-      customerPhone: "+256700000001",
-      shippingAddress: "123 Main St, Kampala, Uganda",
-      orderTotal: 50,
-      paymentMethod: "Credit Card",
-      trackingNumber: "TRK001",
-    },
-    {
-      id: "2",
-      orderId: "#000002",
-      productOrdered: "Handcrafted leather bags",
-      variant: "M, Blue",
-      orderedOn: "14 Feb 2025",
-      noOfItems: 2,
-      status: "ongoing",
-      customerName: "Jane Smith",
-      customerEmail: "jane@example.com",
-      customerPhone: "+256700000002",
-      shippingAddress: "456 Oak Ave, Kampala, Uganda",
-      orderTotal: 120,
-      paymentMethod: "Mobile Money",
-      trackingNumber: "TRK002",
-    },
-    {
-      id: "3",
-      orderId: "#000003",
-      productOrdered: "Beaded jewelry from Kenya",
-      variant: "M, Red",
-      orderedOn: "21 Mar 2025",
-      noOfItems: 3,
-      status: "ongoing",
-      customerName: "Alice Johnson",
-      customerEmail: "alice@example.com",
-      customerPhone: "+256700000003",
-      shippingAddress: "789 Elm St, Kampala, Uganda",
-      orderTotal: 180,
-      paymentMethod: "PayPal",
-      trackingNumber: "TRK003",
-    },
-    {
-      id: "4",
-      orderId: "#000004",
-      productOrdered: "Traditional woven baskets",
-      variant: "Large",
-      orderedOn: "28 Apr 2025",
-      noOfItems: 4,
-      status: "ongoing",
-      customerName: "Bob Wilson",
-      customerEmail: "bob@example.com",
-      customerPhone: "+256700000004",
-      shippingAddress: "321 Pine Rd, Kampala, Uganda",
-      orderTotal: 240,
-      paymentMethod: "Credit Card",
-      trackingNumber: "TRK004",
-    },
-    {
-      id: "5",
-      orderId: "#000005",
-      productOrdered: "Mud cloth wall hangings",
-      variant: "Large",
-      orderedOn: "5 May 2025",
-      noOfItems: 5,
-      status: "completed",
-      customerName: "Carol Brown",
-      customerEmail: "carol@example.com",
-      customerPhone: "+256700000005",
-      shippingAddress: "654 Maple Dr, Kampala, Uganda",
-      orderTotal: 300,
-      paymentMethod: "Mobile Money",
-      trackingNumber: "TRK005",
-    },
-    {
-      id: "6",
-      orderId: "#000006",
-      productOrdered: "Carved wooden masks",
-      variant: "Handmade",
-      orderedOn: "12 Jun 2025",
-      noOfItems: 6,
-      status: "completed",
-      customerName: "David Lee",
-      customerEmail: "david@example.com",
-      customerPhone: "+256700000006",
-      shippingAddress: "987 Cedar Ln, Kampala, Uganda",
-      orderTotal: 360,
-      paymentMethod: "Bank Transfer",
-      trackingNumber: "TRK006",
-    },
-    {
-      id: "7",
-      orderId: "#000007",
-      productOrdered: "Kente cloth scarves",
-      variant: "Medium",
-      orderedOn: "19 Jul 2025",
-      noOfItems: 7,
-      status: "returned",
-      customerName: "Emma Davis",
-      customerEmail: "emma@example.com",
-      customerPhone: "+256700000007",
-      shippingAddress: "147 Birch Way, Kampala, Uganda",
-      orderTotal: 420,
-      paymentMethod: "Credit Card",
-      trackingNumber: "TRK007",
-    },
-    {
-      id: "8",
-      orderId: "#000008",
-      productOrdered: "Batik fabric",
-      variant: "Large",
-      orderedOn: "26 Aug 2025",
-      noOfItems: 8,
-      status: "unfulfilled",
-      customerName: "Frank Miller",
-      customerEmail: "frank@example.com",
-      customerPhone: "+256700000008",
-      shippingAddress: "258 Willow Ct, Kampala, Uganda",
-      orderTotal: 480,
-      paymentMethod: "Mobile Money",
-      trackingNumber: "TRK008",
-    },
-    {
-      id: "9",
-      orderId: "#000009",
-      productOrdered: "Shea butter products",
-      variant: "100g",
-      orderedOn: "2 Sep 2025",
-      noOfItems: 9,
-      status: "failed",
-      customerName: "Grace Taylor",
-      customerEmail: "grace@example.com",
-      customerPhone: "+256700000009",
-      shippingAddress: "369 Spruce Pl, Kampala, Uganda",
-      orderTotal: 540,
-      paymentMethod: "PayPal",
-      trackingNumber: "TRK009",
-    },
-  ];
+  const { user } = useReduxAuth();
+  const vendorId = user?.id || "";
 
-  const [orders] = useState<OrderData[]>(mockOrders);
+  const {
+    vendorStats,
+    vendorOrders,
+    vendorPagination,
+    vendorLoading,
+    vendorError,
+    getVendorOrders,
+    clearVendorOrdersError,
+  } = useReduxOrders();
 
-  // Calculate statistics
-  const calculateStats = (): OrderStats => {
-    const totalOrders = orders.length;
-    const ongoingOrders = orders.filter((o) => o.status === "ongoing").length;
-    const completedOrders = orders.filter(
-      (o) => o.status === "completed"
-    ).length;
-    const returns = orders.filter((o) => o.status === "returned").length;
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-    return {
-      totalOrders,
-      ongoingOrders,
-      completedOrders,
-      returns,
-      totalOrdersChange: { trend: "up", value: "10%" },
-      ongoingOrdersChange: { trend: "up", value: "10%" },
-      completedOrdersChange: { trend: "up", value: "5%" },
-      returnsChange: { trend: "up", value: "10%" },
-    };
-  };
+  // Fetch orders
+  const fetchOrders = useCallback(async () => {
+    if (!vendorId) return;
 
-  const stats = calculateStats();
+    const params: Record<string, any> = {};
+    if (debouncedSearch) params.search = debouncedSearch;
 
-  // Filter orders based on tab, search, and status filters
-  const filteredOrders = orders.filter((item) => {
-    // Tab filtering
+    if (dateRange !== "all-time") {
+      const endDate = new Date();
+      const startDate = new Date();
+      if (dateRange === "last-7-days") startDate.setDate(startDate.getDate() - 7);
+      else if (dateRange === "last-30-days") startDate.setDate(startDate.getDate() - 30);
+      params.startDate = startDate.toISOString();
+      params.endDate = endDate.toISOString();
+    }
+
+    try {
+      await getVendorOrders(vendorId, params);
+    } finally {
+      setIsInitialLoad(false);
+    }
+  }, [vendorId, debouncedSearch, dateRange, getVendorOrders]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  useEffect(() => {
+    return () => clearVendorOrdersError();
+  }, [clearVendorOrdersError]);
+
+  // Transform orders
+  const transformedOrders: OrderData[] = (vendorOrders || []).map((order: VendorOrderItem) => ({
+    id: order.id,
+    orderId: order.orderNumber || order.orderId || order.id,
+    productOrdered: order.productName || "Unknown Product",
+    variant: order.variant || "-",
+    orderedOn: order.orderedOn
+      ? new Date(order.orderedOn).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "-",
+    noOfItems: order.quantity || 0,
+    status: order.status || "pending",
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    customerPhone: order.customerPhone,
+    shippingAddress: order.shippingAddress,
+    orderTotal: order.total,
+    paymentMethod: order.paymentMethod,
+    trackingNumber: order.trackingNumber,
+  }));
+
+  // Filter orders
+  const filteredOrders = transformedOrders.filter((item) => {
     const matchesTab =
       activeTab === "all" ||
       (activeTab === "pending-confirmation" && item.status === "pending") ||
@@ -258,43 +151,28 @@ export default function OrdersPage() {
       (activeTab === "unfulfilled-failed" &&
         (item.status === "unfulfilled" || item.status === "failed"));
 
-    // Search filtering
-    const matchesSearch =
-      searchQuery === "" ||
-      item.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.productOrdered.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.customerName?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    // Status filter (additional to tab filter)
     const matchesStatus =
       selectedStatuses.length === 0 || selectedStatuses.includes(item.status);
 
-    return matchesTab && matchesSearch && matchesStatus;
+    return matchesTab && matchesStatus;
   });
 
   const handleStatusFilterChange = (status: OrderStatus) => {
     setSelectedStatuses((prev) =>
-      prev.includes(status)
-        ? prev.filter((s) => s !== status)
-        : [...prev, status]
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
     );
   };
 
   const handleTabClick = (tab: OrderTab) => {
     setActiveTab(tab);
-    if (tab !== "all") {
-      setSelectedStatuses([]);
-    }
+    if (tab !== "all") setSelectedStatuses([]);
   };
 
   const getTabButtonClass = (tab: OrderTab) => {
-    const baseClass = "px-4 py-4 text-sm font-medium whitespace-nowrap";
-
-    if (activeTab === tab) {
-      return `${baseClass} text-gray-900 dark:text-white border-b-2 border-gray-900 dark:border-white font-semibold`;
-    }
-
-    return `${baseClass} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white`;
+    const base = "px-4 py-4 text-sm font-medium whitespace-nowrap";
+    return activeTab === tab
+      ? `${base} text-gray-900 dark:text-white border-b-2 border-gray-900 dark:border-white font-semibold`
+      : `${base} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white`;
   };
 
   const clearAllFilters = () => {
@@ -302,47 +180,46 @@ export default function OrdersPage() {
     setSearchQuery("");
   };
 
-  // Order cards
+  // Stats cards
   const orderCards: CardData[] = [
     {
       title: "Total orders",
-      value: stats.totalOrders.toString(),
-      change: stats.totalOrdersChange && {
-        trend: stats.totalOrdersChange.trend,
-        value: stats.totalOrdersChange.value,
+      value: vendorStats?.totalOrders?.toString() || "0",
+      change: vendorStats?.totalOrdersChange && {
+        trend: vendorStats.totalOrdersChange.trend,
+        value: vendorStats.totalOrdersChange.value,
         description: "",
       },
     },
     {
       title: "Ongoing orders",
-      value: stats.ongoingOrders.toString(),
-      change: stats.ongoingOrdersChange && {
-        trend: stats.ongoingOrdersChange.trend,
-        value: stats.ongoingOrdersChange.value,
+      value: vendorStats?.ongoingOrders?.toString() || "0",
+      change: vendorStats?.ongoingOrdersChange && {
+        trend: vendorStats.ongoingOrdersChange.trend,
+        value: vendorStats.ongoingOrdersChange.value,
         description: "",
       },
     },
     {
       title: "Completed orders",
-      value: stats.completedOrders.toString(),
-      change: stats.completedOrdersChange && {
-        trend: stats.completedOrdersChange.trend,
-        value: stats.completedOrdersChange.value,
+      value: vendorStats?.completedOrders?.toString() || "0",
+      change: vendorStats?.completedOrdersChange && {
+        trend: vendorStats.completedOrdersChange.trend,
+        value: vendorStats.completedOrdersChange.value,
         description: "",
       },
     },
     {
       title: "Returns",
-      value: stats.returns.toString(),
-      change: stats.returnsChange && {
-        trend: stats.returnsChange.trend,
-        value: stats.returnsChange.value,
+      value: vendorStats?.returns?.toString() || "0",
+      change: vendorStats?.returnsChange && {
+        trend: vendorStats.returnsChange.trend,
+        value: vendorStats.returnsChange.value,
         description: "",
       },
     },
   ];
 
-  // Status options for filter
   const statusOptions: { value: OrderStatus; label: string }[] = [
     { value: "pending", label: "Pending" },
     { value: "ongoing", label: "Ongoing" },
@@ -352,35 +229,15 @@ export default function OrdersPage() {
     { value: "failed", label: "Failed" },
   ];
 
-  // Status configuration
   const statusConfig = {
-    pending: {
-      label: "Pending",
-      className: "bg-blue-100 text-blue-700 border-blue-300",
-    },
-    ongoing: {
-      label: "Ongoing",
-      className: "bg-yellow-100 text-yellow-700 border-yellow-300",
-    },
-    completed: {
-      label: "Completed",
-      className: "bg-green-100 text-green-700 border-green-300",
-    },
-    returned: {
-      label: "Returned",
-      className: "bg-purple-100 text-purple-700 border-purple-300",
-    },
-    unfulfilled: {
-      label: "Unfulfilled",
-      className: "bg-orange-100 text-orange-700 border-orange-300",
-    },
-    failed: {
-      label: "Failed",
-      className: "bg-red-100 text-red-700 border-red-300",
-    },
+    pending: { label: "Pending", className: "bg-blue-100 text-blue-700 border-blue-300" },
+    ongoing: { label: "Ongoing", className: "bg-yellow-100 text-yellow-700 border-yellow-300" },
+    completed: { label: "Completed", className: "bg-green-100 text-green-700 border-green-300" },
+    returned: { label: "Returned", className: "bg-purple-100 text-purple-700 border-purple-300" },
+    unfulfilled: { label: "Unfulfilled", className: "bg-orange-100 text-orange-700 border-orange-300" },
+    failed: { label: "Failed", className: "bg-red-100 text-red-700 border-red-300" },
   } as const;
 
-  // Table fields
   const orderFields: TableField<OrderData>[] = [
     {
       key: "orderId",
@@ -414,12 +271,9 @@ export default function OrdersPage() {
       key: "status",
       header: "Status",
       cell: (_, row) => {
-        const config = statusConfig[row.status];
+        const config = statusConfig[row.status] || statusConfig.pending;
         return (
-          <Badge
-            variant="outline"
-            className={`${config.className} font-medium`}
-          >
+          <Badge variant="outline" className={`${config.className} font-medium`}>
             {config.label}
           </Badge>
         );
@@ -434,21 +288,56 @@ export default function OrdersPage() {
       type: "custom",
       label: "Actions",
       icon: <MoreHorizontal className="size-5" />,
-      onClick: (order) => {
-        navigate(`/vendor/orders/${order.id}/details`);
-      },
+      onClick: (order) => navigate(`/vendor/orders/${order.id}/details`),
     },
   ];
 
-  // Empty state
   const EmptyState = () => (
     <div className="flex flex-col items-center text-center py-12">
       <div className="mb-6">
         <img src={images.EmptyFallback} alt="No orders" className="w-80" />
       </div>
-      <h3 className="text-xl font-semibold mb-2">No orders</h3>
+      <h3 className="text-xl font-semibold mb-2">No orders yet</h3>
+      <p className="text-gray-500">Orders will appear here once customers purchase your products.</p>
     </div>
   );
+
+  const LoadingState = () => (
+    <div className="flex flex-col items-center justify-center py-12">
+      <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+      <p className="mt-4 text-gray-500">Loading orders...</p>
+    </div>
+  );
+
+  const ErrorState = () => (
+    <div className="flex flex-col items-center text-center py-12">
+      <div className="mb-6">
+        <img src={images.EmptyFallback} alt="Error" className="w-80" />
+      </div>
+      <h3 className="text-xl font-semibold mb-2 text-red-600">Failed to load orders</h3>
+      <p className="text-gray-500 mb-4">{vendorError}</p>
+      <Button onClick={fetchOrders}>Retry</Button>
+    </div>
+  );
+
+  // Determine what to render
+  const renderContent = () => {
+    if (vendorLoading && isInitialLoad) return <LoadingState />;
+    if (vendorError) return <ErrorState />;
+    if (filteredOrders.length > 0) {
+      return (
+        <DataTable<OrderData>
+          data={filteredOrders}
+          fields={orderFields}
+          actions={orderActions}
+          enableSelection={true}
+          enablePagination={true}
+          pageSize={vendorPagination?.pageSize || 10}
+        />
+      );
+    }
+    return <EmptyState />;
+  };
 
   return (
     <>
@@ -458,19 +347,15 @@ export default function OrdersPage() {
           <div className="space-y-6 px-6">
             <SectionCards cards={orderCards} layout="1x4" />
 
+
             <div className="space-y-6">
-              {/* Orders Section */}
               <div className="rounded-lg border bg-white dark:bg-[#303030]">
                 {/* Header */}
                 <div className="p-6 border-b">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h2 className="text-2xl font-bold">All Orders</h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                        Manage and monitor all orders on the platform
-                      </p>
-                    </div>
-                  </div>
+                  <h2 className="text-2xl font-bold">All Orders</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                    Manage and monitor all orders on the platform
+                  </p>
                 </div>
 
                 {/* Search and Filters */}
@@ -486,51 +371,28 @@ export default function OrdersPage() {
 
                   <div className="flex flex-row items-center gap-3">
                     <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#404040]">
-                      <button
-                        className={`px-4 py-2 text-sm font-medium transition-colors ${
-                          dateRange === "last-7-days"
-                            ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
-                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
-                        } rounded-l-lg`}
-                        onClick={() => setDateRange("last-7-days")}
-                      >
-                        Last 7 days
-                      </button>
-                      <button
-                        className={`px-4 py-2 text-sm font-medium transition-colors ${
-                          dateRange === "last-30-days"
-                            ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
-                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
-                        }`}
-                        onClick={() => setDateRange("last-30-days")}
-                      >
-                        Last 30 days
-                      </button>
-                      <button
-                        className={`px-4 py-2 text-sm font-medium transition-colors ${
-                          dateRange === "all-time"
-                            ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
-                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
-                        } rounded-r-lg`}
-                        onClick={() => setDateRange("all-time")}
-                      >
-                        All time
-                      </button>
+                      {(["last-7-days", "last-30-days", "all-time"] as DateRange[]).map((range, idx) => (
+                        <button
+                          key={range}
+                          className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            dateRange === range
+                              ? "text-gray-900 dark:text-white bg-gray-100 dark:bg-[#505050]"
+                              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#484848]"
+                          } ${idx === 0 ? "rounded-l-lg" : ""} ${idx === 2 ? "rounded-r-lg" : ""}`}
+                          onClick={() => setDateRange(range)}
+                        >
+                          {range === "last-7-days" ? "Last 7 days" : range === "last-30-days" ? "Last 30 days" : "All time"}
+                        </button>
+                      ))}
                     </div>
 
-                    {/* Filter Dropdown */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="flex items-center gap-2"
-                        >
+                        <Button variant="outline" className="flex items-center gap-2">
                           <ListFilter className="w-4 h-4" />
                           Filter
                           {selectedStatuses.length > 0 && (
-                            <Badge variant="secondary" className="ml-1">
-                              {selectedStatuses.length}
-                            </Badge>
+                            <Badge variant="secondary" className="ml-1">{selectedStatuses.length}</Badge>
                           )}
                         </Button>
                       </DropdownMenuTrigger>
@@ -539,9 +401,7 @@ export default function OrdersPage() {
                           <DropdownMenuCheckboxItem
                             key={status.value}
                             checked={selectedStatuses.includes(status.value)}
-                            onCheckedChange={() =>
-                              handleStatusFilterChange(status.value)
-                            }
+                            onCheckedChange={() => handleStatusFilterChange(status.value)}
                           >
                             {status.label}
                           </DropdownMenuCheckboxItem>
@@ -549,22 +409,13 @@ export default function OrdersPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* Export Button */}
-                    <Button
-                      variant="outline"
-                      className="flex items-center gap-2"
-                    >
+                    <Button variant="outline" className="flex items-center gap-2">
                       <Download className="w-4 h-4" />
                       Export
                     </Button>
 
-                    {/* Clear Filters */}
                     {(selectedStatuses.length > 0 || searchQuery) && (
-                      <Button
-                        variant="ghost"
-                        onClick={clearAllFilters}
-                        className="text-sm"
-                      >
+                      <Button variant="ghost" onClick={clearAllFilters} className="text-sm">
                         Clear Filters
                       </Button>
                     )}
@@ -574,60 +425,27 @@ export default function OrdersPage() {
                 {/* Tab Navigation */}
                 <div className="border-b border-gray-200 dark:border-gray-700">
                   <div className="flex gap-0 px-6 overflow-x-auto">
-                    <button
-                      className={getTabButtonClass("all")}
-                      onClick={() => handleTabClick("all")}
-                    >
-                      All Orders
-                    </button>
-                    <button
-                      className={getTabButtonClass("pending-confirmation")}
-                      onClick={() => handleTabClick("pending-confirmation")}
-                    >
-                      Pending confirmation
-                    </button>
-                    <button
-                      className={getTabButtonClass("ongoing")}
-                      onClick={() => handleTabClick("ongoing")}
-                    >
-                      Ongoing
-                    </button>
-                    <button
-                      className={getTabButtonClass("completed")}
-                      onClick={() => handleTabClick("completed")}
-                    >
-                      Completed
-                    </button>
-                    <button
-                      className={getTabButtonClass("returned")}
-                      onClick={() => handleTabClick("returned")}
-                    >
-                      Returned
-                    </button>
-                    <button
-                      className={getTabButtonClass("unfulfilled-failed")}
-                      onClick={() => handleTabClick("unfulfilled-failed")}
-                    >
-                      Unfulfilled/Failed
-                    </button>
+                    {([
+                      { key: "all", label: "All Orders" },
+                      { key: "pending-confirmation", label: "Pending confirmation" },
+                      { key: "ongoing", label: "Ongoing" },
+                      { key: "completed", label: "Completed" },
+                      { key: "returned", label: "Returned" },
+                      { key: "unfulfilled-failed", label: "Unfulfilled/Failed" },
+                    ] as { key: OrderTab; label: string }[]).map((tab) => (
+                      <button
+                        key={tab.key}
+                        className={getTabButtonClass(tab.key)}
+                        onClick={() => handleTabClick(tab.key)}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Orders Table/Empty State */}
-                <div className="px-6 pb-6">
-                  {filteredOrders.length > 0 ? (
-                    <DataTable<OrderData>
-                      data={filteredOrders}
-                      fields={orderFields}
-                      actions={orderActions}
-                      enableSelection={true}
-                      enablePagination={true}
-                      pageSize={10}
-                    />
-                  ) : (
-                    <EmptyState />
-                  )}
-                </div>
+                {/* Content */}
+                <div className="px-6 pb-6">{renderContent()}</div>
               </div>
             </div>
           </div>

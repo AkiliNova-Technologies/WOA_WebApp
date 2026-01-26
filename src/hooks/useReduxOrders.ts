@@ -5,6 +5,7 @@ import {
   fetchOrders,
   fetchOrder,
   fetchAdminOrders,
+  fetchVendorOrders,
   updateOrderStatus,
   updateShippingInfo,
   cancelOrder,
@@ -20,6 +21,8 @@ import {
   clearError,
   clearAdminError,
   clearAdminData,
+  clearVendorError,
+  clearVendorData,
   updateOrderInList,
   selectOrders,
   selectSelectedOrder,
@@ -37,6 +40,12 @@ import {
   selectAdminOrderPagination,
   selectAdminOrdersLoading,
   selectAdminOrdersError,
+  selectVendorOrderStats,
+  selectVendorOrders,
+  selectVendorPerProduct,
+  selectVendorOrderPagination,
+  selectVendorOrdersLoading,
+  selectVendorOrdersError,
   type Order,
   type OrderFilters,
   type OrderStats,
@@ -47,6 +56,10 @@ import {
   type AdminOrdersParams,
   type AdminOrderStats,
   type AdminOrderLineItem,
+  type VendorOrdersParams,
+  type VendorOrderStats,
+  type VendorOrderItem,
+  type VendorPerProductStats,
 } from '@/redux/slices/ordersSlice';
 
 export function useReduxOrders() {
@@ -71,6 +84,14 @@ export function useReduxOrders() {
   const adminPagination = useAppSelector(selectAdminOrderPagination);
   const adminLoading = useAppSelector(selectAdminOrdersLoading);
   const adminError = useAppSelector(selectAdminOrdersError);
+
+  // Vendor order selectors
+  const vendorStats = useAppSelector(selectVendorOrderStats);
+  const vendorOrders = useAppSelector(selectVendorOrders);
+  const vendorPerProduct = useAppSelector(selectVendorPerProduct);
+  const vendorPagination = useAppSelector(selectVendorOrderPagination);
+  const vendorLoading = useAppSelector(selectVendorOrdersLoading);
+  const vendorError = useAppSelector(selectVendorOrdersError);
 
   // Create new order
   const createNewOrder = useCallback(async (orderData: {
@@ -118,6 +139,16 @@ export function useReduxOrders() {
       return await dispatch(fetchAdminOrders(params || {})).unwrap();
     } catch (error) {
       console.error('Failed to fetch admin orders:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
+  // Get vendor orders
+  const getVendorOrders = useCallback(async (vendorId: string, params?: VendorOrdersParams) => {
+    try {
+      return await dispatch(fetchVendorOrders({ vendorId, ...params })).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch vendor orders:', error);
       throw error;
     }
   }, [dispatch]);
@@ -314,6 +345,31 @@ export function useReduxOrders() {
     return lowStockProducts.filter(product => product.currentStock === 0);
   }, [lowStockProducts]);
 
+  // Vendor helper functions
+  const getVendorOrdersByStatus = useCallback((status: VendorOrderItem['status']): VendorOrderItem[] => {
+    return vendorOrders.filter(order => order.status === status);
+  }, [vendorOrders]);
+
+  const getVendorPendingOrders = useCallback((): VendorOrderItem[] => {
+    return vendorOrders.filter(order => order.status === 'pending');
+  }, [vendorOrders]);
+
+  const getVendorOngoingOrders = useCallback((): VendorOrderItem[] => {
+    return vendorOrders.filter(order => order.status === 'ongoing');
+  }, [vendorOrders]);
+
+  const getVendorCompletedOrders = useCallback((): VendorOrderItem[] => {
+    return vendorOrders.filter(order => order.status === 'completed');
+  }, [vendorOrders]);
+
+  const getVendorReturnedOrders = useCallback((): VendorOrderItem[] => {
+    return vendorOrders.filter(order => order.status === 'returned');
+  }, [vendorOrders]);
+
+  const getVendorUnfulfilledOrders = useCallback((): VendorOrderItem[] => {
+    return vendorOrders.filter(order => order.status === 'unfulfilled' || order.status === 'failed');
+  }, [vendorOrders]);
+
   // Utility actions
   const selectOrder = useCallback((order: Order) => {
     dispatch(setSelectedOrder(order));
@@ -341,6 +397,14 @@ export function useReduxOrders() {
 
   const clearAdminOrdersData = useCallback(() => {
     dispatch(clearAdminData());
+  }, [dispatch]);
+
+  const clearVendorOrdersError = useCallback(() => {
+    dispatch(clearVendorError());
+  }, [dispatch]);
+
+  const clearVendorOrdersData = useCallback(() => {
+    dispatch(clearVendorData());
   }, [dispatch]);
 
   const updateExistingOrder = useCallback((orderData: Order) => {
@@ -415,6 +479,27 @@ export function useReduxOrders() {
     getAdminOrders,
     clearAdminOrdersError,
     clearAdminOrdersData,
+
+    // Vendor orders state
+    vendorStats,
+    vendorOrders,
+    vendorPerProduct,
+    vendorPagination,
+    vendorLoading,
+    vendorError,
+
+    // Vendor orders actions
+    getVendorOrders,
+    clearVendorOrdersError,
+    clearVendorOrdersData,
+
+    // Vendor helper functions
+    getVendorOrdersByStatus,
+    getVendorPendingOrders,
+    getVendorOngoingOrders,
+    getVendorCompletedOrders,
+    getVendorReturnedOrders,
+    getVendorUnfulfilledOrders,
   };
 }
 
@@ -430,4 +515,8 @@ export type {
   AdminOrdersParams,
   AdminOrderStats,
   AdminOrderLineItem,
+  VendorOrdersParams,
+  VendorOrderStats,
+  VendorOrderItem,
+  VendorPerProductStats,
 };

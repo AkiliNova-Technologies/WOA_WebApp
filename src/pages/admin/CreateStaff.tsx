@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +17,23 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, ChevronDown, Loader2, User } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  Loader2,
+  User,
+  Users,
+  FolderTree,
+  Package,
+  Warehouse,
+  MapPin,
+  ShoppingCart,
+  DollarSign,
+  Star,
+  FileText,
+  HelpCircle,
+  Heart,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useReduxAdmin } from "@/hooks/useReduxAdmin";
 import { toast } from "sonner";
@@ -47,10 +63,169 @@ interface FormData {
   permissionIds: string[];
 }
 
+interface Permission {
+  id: string;
+  key: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Permission category configuration with icons and display names
+const PERMISSION_CATEGORIES = {
+  CLIENT_MANAGEMENT: {
+    name: "Client Management",
+    icon: Users,
+    keywords: ["CLIENT"],
+    description: "Manage customer accounts and their statuses",
+  },
+  SELLER_MANAGEMENT: {
+    name: "Seller Management",
+    icon: Users,
+    keywords: ["SELLER"],
+    description: "Manage seller applications and accounts",
+  },
+  STAFF_MANAGEMENT: {
+    name: "Staff Management",
+    icon: User,
+    keywords: ["STAFF"],
+    description: "Manage internal staff members",
+  },
+  CATEGORY_MANAGEMENT: {
+    name: "Category Management",
+    icon: FolderTree,
+    keywords: ["CATEGORY"],
+    description: "Manage product categories and attributes",
+  },
+  PRODUCT_MANAGEMENT: {
+    name: "Product Management",
+    icon: Package,
+    keywords: ["PRODUCT"],
+    description: "Manage product listings and approvals",
+  },
+  WAREHOUSE_MANAGEMENT: {
+    name: "Warehouse Management",
+    icon: Warehouse,
+    keywords: ["WAREHOUSE"],
+    description: "Manage warehouse locations and operations",
+  },
+  DOZ_MANAGEMENT: {
+    name: "Drop Off Zone (DOZ) Management",
+    icon: MapPin,
+    keywords: ["DOZ"],
+    description: "Manage drop-off zones and their operations",
+  },
+  ORDER_MANAGEMENT: {
+    name: "Order Management",
+    icon: ShoppingCart,
+    keywords: ["ORDER"],
+    description: "Manage and track platform orders",
+  },
+  CART_MANAGEMENT: {
+    name: "Cart Management",
+    icon: ShoppingCart,
+    keywords: ["CART"],
+    description: "Access cart analytics and recovery",
+  },
+  WISHLIST_MANAGEMENT: {
+    name: "Wishlist Management",
+    icon: Heart,
+    keywords: ["WISHLIST"],
+    description: "Access wishlist analytics",
+  },
+  REVENUE_MANAGEMENT: {
+    name: "Revenue & Financials",
+    icon: DollarSign,
+    keywords: ["REVENUE"],
+    description: "Access revenue dashboards and financials",
+  },
+  REVIEWS_MANAGEMENT: {
+    name: "Reviews & Ratings",
+    icon: Star,
+    keywords: ["REVIEW"],
+    description: "Manage customer reviews and ratings",
+  },
+  COMPLIANCE_MANAGEMENT: {
+    name: "Compliance Reports",
+    icon: FileText,
+    keywords: ["COMPLIANCE"],
+    description: "Manage compliance cases and reports",
+  },
+  HELPDESK_MANAGEMENT: {
+    name: "Help Desk",
+    icon: HelpCircle,
+    keywords: ["HELPDESK"],
+    description: "Manage support tickets",
+  },
+} as const;
+
+type CategoryKey = keyof typeof PERMISSION_CATEGORIES;
+
+// Function to categorize a permission based on its key
+const categorizePermission = (permission: Permission): CategoryKey | null => {
+  const key = permission.key.toUpperCase();
+
+  for (const [categoryKey, config] of Object.entries(PERMISSION_CATEGORIES)) {
+    if (config.keywords.some((keyword) => key.includes(keyword))) {
+      return categoryKey as CategoryKey;
+    }
+  }
+
+  return null;
+};
+
+// Function to get action type from permission key
+const getActionType = (key: string): string => {
+  if (key.startsWith("READ_")) return "read";
+  if (key.startsWith("CREATE_")) return "create";
+  if (key.startsWith("UPDATE_")) return "update";
+  if (key.startsWith("DELETE_")) return "delete";
+  if (key.startsWith("APPROVE_")) return "approve";
+  if (key.startsWith("REJECT_")) return "reject";
+  if (key.startsWith("SUSPEND_")) return "suspend";
+  if (key.startsWith("REACTIVATE_")) return "reactivate";
+  if (key.startsWith("CLOSE_")) return "close";
+  if (key.startsWith("DEACTIVATE_")) return "deactivate";
+  if (key.startsWith("REPLY_")) return "reply";
+  return "other";
+};
+
+// Function to format permission name for display (shorter version)
+const formatPermissionLabel = (permission: Permission): string => {
+  const key = permission.key;
+
+  // Extract the action part
+  const actions: Record<string, string> = {
+    READ_: "View",
+    CREATE_: "Create",
+    UPDATE_: "Update",
+    DELETE_: "Delete",
+    APPROVE_: "Approve",
+    REJECT_: "Reject",
+    SUSPEND_: "Suspend",
+    REACTIVATE_: "Reactivate",
+    CLOSE_: "Close",
+    DEACTIVATE_: "Deactivate",
+    REPLY_TO_: "Reply to",
+  };
+
+  for (const [prefix, label] of Object.entries(actions)) {
+    if (key.startsWith(prefix)) {
+      return label;
+    }
+  }
+
+  // Special cases
+  if (key.includes("ORDER_STATUS")) return "Update Status";
+  if (key.includes("_STATUS")) return "Update Status";
+
+  return permission.name;
+};
+
 export default function AdminCreateStaffPage() {
   const navigate = useNavigate();
 
-  // Use the admin hook
   const {
     roles,
     permissions,
@@ -62,7 +237,6 @@ export default function AdminCreateStaffPage() {
     clearAllErrors,
   } = useReduxAdmin();
 
-  // Form state
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
     lastName: "",
@@ -74,13 +248,9 @@ export default function AdminCreateStaffPage() {
     permissionIds: [],
   });
 
-  // State for draft saving
   const [isSavingDraft, setIsSavingDraft] = useState(false);
-
-  // Collapsible states - will be dynamic based on permission modules
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
-  // Departments for e-commerce platform
   const departments = [
     { id: "management", name: "Management" },
     { id: "operations", name: "Operations" },
@@ -94,42 +264,81 @@ export default function AdminCreateStaffPage() {
     { id: "content", name: "Content & SEO" },
   ];
 
-  // Group permissions by module
-  const groupedPermissions = permissions.reduce(
-    (acc, permission) => {
-      const module = permission.module || "other";
-      if (!acc[module]) {
-        acc[module] = [];
-      }
-      acc[module].push(permission);
-      return acc;
-    },
-    {} as Record<string, typeof permissions>,
-  );
+  // Group permissions by category
+  const categorizedPermissions = useMemo(() => {
+    const grouped: Record<CategoryKey, Permission[]> = {} as Record<
+      CategoryKey,
+      Permission[]
+    >;
 
-  // Initialize collapsible sections when permissions load
+    // Initialize all categories
+    Object.keys(PERMISSION_CATEGORIES).forEach((key) => {
+      grouped[key as CategoryKey] = [];
+    });
+
+    // Categorize each permission
+    permissions.forEach((permission: Permission) => {
+      const category = categorizePermission(permission);
+      if (category) {
+        grouped[category].push(permission);
+      }
+    });
+
+    // Sort permissions within each category by action type for consistent ordering
+    const actionOrder = [
+      "read",
+      "create",
+      "update",
+      "approve",
+      "reject",
+      "suspend",
+      "reactivate",
+      "deactivate",
+      "close",
+      "delete",
+      "reply",
+      "other",
+    ];
+
+    Object.keys(grouped).forEach((key) => {
+      grouped[key as CategoryKey].sort((a, b) => {
+        const aAction = getActionType(a.key);
+        const bAction = getActionType(b.key);
+        return actionOrder.indexOf(aAction) - actionOrder.indexOf(bAction);
+      });
+    });
+
+    return grouped;
+  }, [permissions]);
+
+  // Get non-empty categories
+  const activeCategories = useMemo(() => {
+    return Object.entries(categorizedPermissions).filter(
+      ([_, perms]) => perms.length > 0
+    ) as [CategoryKey, Permission[]][];
+  }, [categorizedPermissions]);
+
+  // Initialize collapsible sections
   useEffect(() => {
-    if (permissions.length > 0) {
-      const sections = Object.keys(groupedPermissions).reduce(
-        (acc, module) => {
-          acc[module] = false; // Closed by default to match screenshot
+    if (activeCategories.length > 0) {
+      const sections = activeCategories.reduce(
+        (acc, [category]) => {
+          acc[category] = false;
           return acc;
         },
-        {} as Record<string, boolean>,
+        {} as Record<string, boolean>
       );
       setOpenSections(sections);
     }
-  }, [permissions.length]);
+  }, [activeCategories.length]);
 
-  // Handle form input changes
   const handleInputChange = (
     field: keyof FormData,
-    value: string | string[],
+    value: string | string[]
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Handle individual permission toggle
   const handlePermissionToggle = (permissionId: string) => {
     setFormData((prev) => {
       const isSelected = prev.permissionIds.includes(permissionId);
@@ -142,29 +351,27 @@ export default function AdminCreateStaffPage() {
     });
   };
 
-  // Handle module permission toggle (toggle all permissions in a module)
-  const handleModuleToggle = (module: string) => {
-    const modulePermissions = groupedPermissions[module] || [];
-    const modulePermissionIds = modulePermissions.map((p) => p.id);
+  const handleCategoryToggle = (category: CategoryKey) => {
+    const categoryPermissions = categorizedPermissions[category] || [];
+    const categoryPermissionIds = categoryPermissions.map((p) => p.id);
 
-    const allModulePermissionsSelected = modulePermissionIds.every((id) =>
-      formData.permissionIds.includes(id),
+    const allSelected = categoryPermissionIds.every((id) =>
+      formData.permissionIds.includes(id)
     );
 
     setFormData((prev) => ({
       ...prev,
-      permissionIds: allModulePermissionsSelected
-        ? prev.permissionIds.filter((id) => !modulePermissionIds.includes(id))
+      permissionIds: allSelected
+        ? prev.permissionIds.filter((id) => !categoryPermissionIds.includes(id))
         : [
             ...prev.permissionIds,
-            ...modulePermissionIds.filter(
-              (id) => !prev.permissionIds.includes(id),
+            ...categoryPermissionIds.filter(
+              (id) => !prev.permissionIds.includes(id)
             ),
           ],
     }));
   };
 
-  // Toggle collapsible section
   const toggleSection = (sectionId: string) => {
     setOpenSections((prev) => ({
       ...prev,
@@ -172,12 +379,9 @@ export default function AdminCreateStaffPage() {
     }));
   };
 
-  // Handle save as draft
   const handleSaveAsDraft = async () => {
     try {
       setIsSavingDraft(true);
-      // Implement draft saving logic here
-      // For now, we'll just save to localStorage
       localStorage.setItem("staffDraft", JSON.stringify(formData));
       toast.success("Draft saved successfully");
     } catch (error) {
@@ -188,10 +392,8 @@ export default function AdminCreateStaffPage() {
     }
   };
 
-  // Handle form submission
   const handleSubmit = async () => {
     try {
-      // Validate required fields
       if (!formData.firstName.trim()) {
         toast.error("First name is required");
         return;
@@ -209,7 +411,6 @@ export default function AdminCreateStaffPage() {
         return;
       }
 
-      // Prepare the request body according to API spec
       const adminData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -225,18 +426,13 @@ export default function AdminCreateStaffPage() {
             : undefined,
       };
 
-      console.log("Submitting admin data:", adminData);
-
       await createNewAdmin(adminData);
-
-      // Clear draft from localStorage
       localStorage.removeItem("staffDraft");
 
       toast.success("Staff member created successfully!", {
         description: "An invitation email has been sent to the staff member.",
       });
 
-      // Navigate back to staff list
       navigate("/admin/users/staff");
     } catch (error: any) {
       console.error("Failed to create admin:", error);
@@ -244,24 +440,36 @@ export default function AdminCreateStaffPage() {
     }
   };
 
-  // Check if all permissions in a module are selected
-  const isModuleSelected = (module: string) => {
-    const modulePermissions = groupedPermissions[module] || [];
-    if (modulePermissions.length === 0) return false;
-
-    return modulePermissions.every((p) =>
-      formData.permissionIds.includes(p.id),
+  const isCategorySelected = (category: CategoryKey) => {
+    const categoryPermissions = categorizedPermissions[category] || [];
+    if (categoryPermissions.length === 0) return false;
+    return categoryPermissions.every((p) =>
+      formData.permissionIds.includes(p.id)
     );
   };
 
-  // Check if form is valid
+  const isCategoryPartiallySelected = (category: CategoryKey) => {
+    const categoryPermissions = categorizedPermissions[category] || [];
+    if (categoryPermissions.length === 0) return false;
+    const selectedCount = categoryPermissions.filter((p) =>
+      formData.permissionIds.includes(p.id)
+    ).length;
+    return selectedCount > 0 && selectedCount < categoryPermissions.length;
+  };
+
+  const getSelectedCountForCategory = (category: CategoryKey) => {
+    const categoryPermissions = categorizedPermissions[category] || [];
+    return categoryPermissions.filter((p) =>
+      formData.permissionIds.includes(p.id)
+    ).length;
+  };
+
   const isFormValid =
     formData.firstName.trim() !== "" &&
     formData.lastName.trim() !== "" &&
     formData.email.trim() !== "" &&
     formData.role.trim() !== "";
 
-  // Fetch roles and permissions on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -272,7 +480,6 @@ export default function AdminCreateStaffPage() {
       }
     };
 
-    // Try to load draft from localStorage
     const savedDraft = localStorage.getItem("staffDraft");
     if (savedDraft) {
       try {
@@ -286,24 +493,15 @@ export default function AdminCreateStaffPage() {
 
     fetchData();
 
-    // Cleanup errors on unmount
     return () => {
       clearAllErrors();
     };
   }, []);
 
-  // Format module name for display
-  const formatModuleName = (module: string): string => {
-    return module
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
-
   return (
     <>
       <SiteHeader label="Staff Management" />
-      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a]">
+      <div className="min-h-screen">
         {/* Header Bar */}
         <Card className="my-6 mx-6 py-4 px-6">
           <div className="flex items-center justify-between">
@@ -360,19 +558,16 @@ export default function AdminCreateStaffPage() {
         </Card>
 
         <div className="max-w-8xl mx-auto px-6 py-8">
-          {/* Loading State */}
-          {loading && (
+          {/* {loading && (
             <Alert className="mb-6">
               <Loader2 className="h-4 w-4 animate-spin" />
               <AlertDescription>
                 Loading roles and permissions...
               </AlertDescription>
             </Alert>
-          )}
+          )} */}
 
-          {/* Main Content */}
           <div className="space-y-6">
-            {/* Title */}
             <div className="space-y-1">
               <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
                 Create new staff member
@@ -384,13 +579,10 @@ export default function AdminCreateStaffPage() {
             </div>
 
             {/* Profile Section */}
-            <Card className="border border-gray-200 dark:border-gray-800 ">
+            <Card className="border border-gray-200 dark:border-gray-800">
               <CardContent className="p-6">
                 <div className="flex items-center gap-2 mb-6">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900">
-                    <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-base text-xl font-semibold text-gray-900 dark:text-white">
                     Profile
                   </h2>
                 </div>
@@ -459,11 +651,11 @@ export default function AdminCreateStaffPage() {
                       htmlFor="phoneNumber"
                       className="text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
-                      Phone Number <span className="text-red-500">*</span>
+                      Phone Number
                     </Label>
                     <Input
                       id="phoneNumber"
-                      placeholder="e.g. Doe"
+                      placeholder="e.g. +1 234 567 8900"
                       value={formData.phoneNumber}
                       onChange={(e) =>
                         handleInputChange("phoneNumber", e.target.value)
@@ -485,7 +677,7 @@ export default function AdminCreateStaffPage() {
                       disabled={createLoading}
                     >
                       <SelectTrigger className="min-h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700">
-                        <SelectValue placeholder="e.g. Marketing" />
+                        <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent className="bg-white dark:bg-gray-900">
                         {departments.map((dept) => (
@@ -499,7 +691,7 @@ export default function AdminCreateStaffPage() {
 
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Role
+                      Role <span className="text-red-500">*</span>
                     </Label>
                     <Select
                       value={formData.role}
@@ -509,7 +701,7 @@ export default function AdminCreateStaffPage() {
                       disabled={createLoading}
                     >
                       <SelectTrigger className="min-h-10 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700">
-                        <SelectValue placeholder="e.g. Junior Marketing" />
+                        <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent className="bg-white dark:bg-gray-900">
                         {roles.map((role) => (
@@ -526,9 +718,20 @@ export default function AdminCreateStaffPage() {
 
             {/* Assign Permissions Section */}
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Assign Permissions
-              </h2>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Assign Permissions
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Select specific permissions for this staff member
+                  </p>
+                </div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {formData.permissionIds.length} of {permissions.length}{" "}
+                  permissions selected
+                </div>
+              </div>
 
               {permissions.length === 0 && !loading ? (
                 <Alert>
@@ -537,186 +740,113 @@ export default function AdminCreateStaffPage() {
                   </AlertDescription>
                 </Alert>
               ) : (
-                <div className="space-y-4">
-                  {/* Permission Modules */}
-                  {Object.entries(groupedPermissions).map(
-                    ([module, modulePermissions]) => (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {activeCategories.map(([category, categoryPermissions]) => {
+                    const config = PERMISSION_CATEGORIES[category];
+                    const IconComponent = config.icon;
+                    const isSelected = isCategorySelected(category);
+                    const isPartial = isCategoryPartiallySelected(category);
+                    const selectedCount = getSelectedCountForCategory(category);
+
+                    return (
                       <Collapsible
-                        key={module}
-                        open={openSections[module]}
-                        onOpenChange={() => toggleSection(module)}
+                        key={category}
+                        open={openSections[category]}
+                        onOpenChange={() => toggleSection(category)}
                       >
-                        <Card className="border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                        <Card className="border border-gray-200 dark:border-gray-800 overflow-hidden">
                           <CollapsibleTrigger asChild>
-                            <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                            <div className="flex items-center justify-between p-4 cursor-pointerdark:hover:bg-gray-900/50 transition-colors">
                               <div className="flex items-center gap-3">
                                 <Checkbox
-                                  checked={isModuleSelected(module)}
+                                  checked={isSelected}
+                                  ref={(el) => {
+                                    if (el) {
+                                      (el as HTMLButtonElement).dataset.state =
+                                        isPartial
+                                          ? "indeterminate"
+                                          : isSelected
+                                            ? "checked"
+                                            : "unchecked";
+                                    }
+                                  }}
                                   onCheckedChange={() =>
-                                    handleModuleToggle(module)
+                                    handleCategoryToggle(category)
                                   }
                                   onClick={(e) => e.stopPropagation()}
-                                  className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
-                                  aria-label={`Toggle all ${formatModuleName(module)} permissions`}
+                                  className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white data-[state=indeterminate]:bg-gray-400 data-[state=indeterminate]:border-gray-400"
+                                  aria-label={`Toggle all ${config.name} permissions`}
                                 />
-                                <div>
-                                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {formatModuleName(module)}
-                                  </h3>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800">
+                                    <IconComponent className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                  </div>
+                                  <div>
+                                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                      {config.name}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      {selectedCount} of{" "}
+                                      {categoryPermissions.length} selected
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                               <ChevronDown
-                                className={`h-4 w-4 text-gray-500 transition-transform ${
-                                  openSections[module] ? "rotate-180" : ""
+                                className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${
+                                  openSections[category] ? "rotate-180" : ""
                                 }`}
                               />
                             </div>
                           </CollapsibleTrigger>
 
                           <CollapsibleContent>
-                            <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/30 p-4">
-                              <div className="space-y-3">
-                                {/* Sub-category headers (if applicable) */}
-                                {modulePermissions.some((p) =>
-                                  p.name.includes("Management"),
-                                ) && (
-                                  <div className="space-y-3">
-                                    <div className="flex items-center gap-3 pb-2">
-                                      <Checkbox
-                                        checked={modulePermissions
-                                          .filter((p) =>
-                                            p.name.includes("Management"),
-                                          )
-                                          .every((p) =>
-                                            formData.permissionIds.includes(
-                                              p.id,
-                                            ),
-                                          )}
-                                        onCheckedChange={() => {
-                                          const mgmtPerms = modulePermissions
-                                            .filter((p) =>
-                                              p.name.includes("Management"),
-                                            )
-                                            .map((p) => p.id);
-                                          const allSelected = mgmtPerms.every(
-                                            (id) =>
-                                              formData.permissionIds.includes(
-                                                id,
-                                              ),
-                                          );
-                                          setFormData((prev) => ({
-                                            ...prev,
-                                            permissionIds: allSelected
-                                              ? prev.permissionIds.filter(
-                                                  (id) =>
-                                                    !mgmtPerms.includes(id),
-                                                )
-                                              : [
-                                                  ...prev.permissionIds,
-                                                  ...mgmtPerms.filter(
-                                                    (id) =>
-                                                      !prev.permissionIds.includes(
-                                                        id,
-                                                      ),
-                                                  ),
-                                                ],
-                                          }));
-                                        }}
-                                        className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
-                                      />
-                                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                        {
-                                          modulePermissions
-                                            .find((p) =>
-                                              p.name.includes("Management"),
-                                            )
-                                            ?.name.split(" ")[0]
-                                        }{" "}
-                                        Management
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pl-7">
-                                      {modulePermissions
-                                        .filter((p) =>
-                                          p.name.includes("Management"),
-                                        )
-                                        .map((permission) => (
-                                          <div
-                                            key={permission.id}
-                                            className="flex items-center gap-2"
-                                          >
-                                            <Checkbox
-                                              id={permission.id}
-                                              checked={formData.permissionIds.includes(
-                                                permission.id,
-                                              )}
-                                              onCheckedChange={() =>
-                                                handlePermissionToggle(
-                                                  permission.id,
-                                                )
-                                              }
-                                              disabled={createLoading}
-                                              className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
-                                            />
-                                            <Label
-                                              htmlFor={permission.id}
-                                              className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-                                            >
-                                              {permission.name.replace(
-                                                /.*Management\s*/,
-                                                "",
-                                              )}
-                                            </Label>
-                                          </div>
-                                        ))}
+                            <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/30 p-4 -mt-5">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                {config.description}
+                              </p>
+                              <div className="grid grid-cols-2 sm:grid-cols-1 gap-3">
+                                {categoryPermissions.map((permission) => (
+                                  <div
+                                    key={permission.id}
+                                    className="flex items-start gap-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+                                  >
+                                    <Checkbox
+                                      id={permission.id}
+                                      checked={formData.permissionIds.includes(
+                                        permission.id
+                                      )}
+                                      onCheckedChange={() =>
+                                        handlePermissionToggle(permission.id)
+                                      }
+                                      disabled={createLoading}
+                                      className="mt-0.5 data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <Label
+                                        htmlFor={permission.id}
+                                        className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer block"
+                                      >
+                                        {formatPermissionLabel(permission)}
+                                      </Label>
+                                      {permission.description && (
+                                        <p
+                                          className="text-xs text-gray-500 dark:text-gray-400 truncate"
+                                          title={permission.description}
+                                        >
+                                          {permission.description}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
-                                )}
-
-                                {/* Regular permissions */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                                  {modulePermissions
-                                    .filter(
-                                      (p) =>
-                                        !p.name.includes("Management") ||
-                                        !modulePermissions.some((mp) =>
-                                          mp.name.includes("Management"),
-                                        ),
-                                    )
-                                    .map((permission) => (
-                                      <div
-                                        key={permission.id}
-                                        className="flex items-center gap-2"
-                                      >
-                                        <Checkbox
-                                          id={permission.id}
-                                          checked={formData.permissionIds.includes(
-                                            permission.id,
-                                          )}
-                                          onCheckedChange={() =>
-                                            handlePermissionToggle(
-                                              permission.id,
-                                            )
-                                          }
-                                          disabled={createLoading}
-                                          className="data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 dark:data-[state=checked]:bg-white dark:data-[state=checked]:border-white"
-                                        />
-                                        <Label
-                                          htmlFor={permission.id}
-                                          className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-                                        >
-                                          {permission.name}
-                                        </Label>
-                                      </div>
-                                    ))}
-                                </div>
+                                ))}
                               </div>
                             </div>
                           </CollapsibleContent>
                         </Card>
                       </Collapsible>
-                    ),
-                  )}
+                    );
+                  })}
                 </div>
               )}
             </div>

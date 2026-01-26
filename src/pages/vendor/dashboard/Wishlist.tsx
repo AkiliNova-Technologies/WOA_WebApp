@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DataTable,
   type TableAction,
@@ -14,10 +14,12 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Search } from "@/components/ui/search";
-import { ListFilter, Download, MoreHorizontal } from "lucide-react";
+import { ListFilter, Download, MoreHorizontal, Loader2 } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import images from "@/assets/images";
 import { useNavigate } from "react-router-dom";
+import { useReduxWishlist, type VendorWishlistProduct } from "@/hooks/useReduxWishlists";
+import { useReduxAuth } from "@/hooks/useReduxAuth";
 
 type WishlistStatus =
   | "in-stock"
@@ -32,6 +34,7 @@ type WishlistTab =
   | "suspended";
 type DateRange = "last-7-days" | "last-30-days" | "all-time";
 
+// Display format for table
 interface WishlistData {
   id: string;
   productName: string;
@@ -47,154 +50,90 @@ interface WishlistData {
   [key: string]: any;
 }
 
-interface WishlistStats {
-  totalWishlistedProducts: number;
-  wishlistToCart: string;
-  wishlistAbandonment: string;
-  totalWishlistedChange?: { trend: "up" | "down"; value: string };
-  wishlistToCartChange?: { trend: "up" | "down"; value: string };
-  wishlistAbandonmentChange?: { trend: "up" | "down"; value: string };
-}
-
 export default function VendorWishlistPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatuses, setSelectedStatuses] = useState<WishlistStatus[]>(
-    []
-  );
+  const [selectedStatuses, setSelectedStatuses] = useState<WishlistStatus[]>([]);
   const [activeTab, setActiveTab] = useState<WishlistTab>("all");
   const [dateRange, setDateRange] = useState<DateRange>("last-7-days");
 
-  // Mock wishlist data
-  const mockWishlists: WishlistData[] = [
-    {
-      id: "1",
-      productName: "African made sandals",
-      category: "Fashion & Apparel",
-      basePrice: 20,
-      wishlists: 10,
-      status: "in-stock",
-      image: "/products/sandals.jpg",
-      description: "Handcrafted African sandals made with premium materials",
-      totalViews: 150,
-      conversionRate: 12,
-      dateAdded: "7 Jan 2025",
-    },
-    {
-      id: "2",
-      productName: "Hand-crafted leather bag",
-      category: "Fashion & Apparel",
-      basePrice: 45,
-      wishlists: 10,
-      status: "limited-stock",
-      image: "/products/leather-bag.jpg",
-      description: "Premium handcrafted leather bag with elegant design",
-      totalViews: 200,
-      conversionRate: 15,
-      dateAdded: "14 Feb 2025",
-    },
-    {
-      id: "3",
-      productName: "Eco-friendly Jewerly",
-      category: "Home Decor",
-      basePrice: 13,
-      wishlists: 10,
-      status: "out-of-stock",
-      image: "/products/jewelry.jpg",
-      description: "Sustainable and eco-friendly jewelry collection",
-      totalViews: 120,
-      conversionRate: 8,
-      dateAdded: "21 Mar 2025",
-    },
-    {
-      id: "4",
-      productName: "Artisan beaded necklace",
-      category: "Jewelry & Accessories",
-      basePrice: 400,
-      wishlists: 10,
-      status: "suspended",
-      image: "/products/necklace.jpg",
-      description: "Artisan crafted beaded necklace with traditional patterns",
-      totalViews: 90,
-      conversionRate: 5,
-      dateAdded: "28 Apr 2025",
-    },
-    {
-      id: "5",
-      productName: "Traditional woven baskets",
-      category: "Home Decor",
-      basePrice: 25,
-      wishlists: 8,
-      status: "in-stock",
-      image: "/products/baskets.jpg",
-      description: "Handwoven traditional baskets for storage and decoration",
-      totalViews: 180,
-      conversionRate: 10,
-      dateAdded: "5 May 2025",
-    },
-    {
-      id: "6",
-      productName: "Kente cloth scarves",
-      category: "Fashion & Apparel",
-      basePrice: 30,
-      wishlists: 12,
-      status: "in-stock",
-      image: "/products/kente.jpg",
-      description: "Authentic Kente cloth scarves with vibrant colors",
-      totalViews: 220,
-      conversionRate: 18,
-      dateAdded: "12 Jun 2025",
-    },
-    {
-      id: "7",
-      productName: "Carved wooden masks",
-      category: "Home Decor",
-      basePrice: 100,
-      wishlists: 6,
-      status: "limited-stock",
-      image: "/products/masks.jpg",
-      description: "Hand-carved wooden masks with cultural significance",
-      totalViews: 95,
-      conversionRate: 6,
-      dateAdded: "19 Jul 2025",
-    },
-    {
-      id: "8",
-      productName: "Batik fabric",
-      category: "Fashion & Apparel",
-      basePrice: 35,
-      wishlists: 9,
-      status: "in-stock",
-      image: "/products/batik.jpg",
-      description: "Beautiful batik fabric with intricate patterns",
-      totalViews: 165,
-      conversionRate: 14,
-      dateAdded: "26 Aug 2025",
-    },
-  ];
+  
+  const { user } = useReduxAuth();
+  const vendorId = user?.id || "";
 
-  const [wishlists] = useState<WishlistData[]>(mockWishlists);
+  // Redux hooks
+  const {
+    vendorStats,
+    vendorProducts,
+    vendorPagination,
+    vendorLoading,
+    vendorError,
+    getVendorWishlist,
+    clearVendorWishlistError,
+  } = useReduxWishlist();
 
-  // Calculate statistics
-  const calculateStats = (): WishlistStats => {
-    const totalWishlistedProducts = wishlists.length;
-    const wishlistToCart = "12%";
-    const wishlistAbandonment = "27%";
+  // Fetch vendor wishlist on mount and when filters change
+  useEffect(() => {
+    if (vendorId) {
+      const params: {
+        search?: string;
+        status?: WishlistStatus;
+        startDate?: string;
+        endDate?: string;
+        page?: number;
+      } = {};
 
-    return {
-      totalWishlistedProducts,
-      wishlistToCart,
-      wishlistAbandonment,
-      totalWishlistedChange: { trend: "up", value: "10%" },
-      wishlistToCartChange: { trend: "up", value: "10%" },
-      wishlistAbandonmentChange: { trend: "up", value: "5%" },
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
+
+      // Calculate date range
+      if (dateRange !== "all-time") {
+        const endDate = new Date();
+        const startDate = new Date();
+        if (dateRange === "last-7-days") {
+          startDate.setDate(startDate.getDate() - 7);
+        } else if (dateRange === "last-30-days") {
+          startDate.setDate(startDate.getDate() - 30);
+        }
+        params.startDate = startDate.toISOString();
+        params.endDate = endDate.toISOString();
+      }
+
+      getVendorWishlist(vendorId, params);
+    }
+  }, [vendorId, searchQuery, dateRange, getVendorWishlist]);
+
+  // Clear errors on unmount
+  useEffect(() => {
+    return () => {
+      clearVendorWishlistError();
     };
-  };
+  }, [clearVendorWishlistError]);
 
-  const stats = calculateStats();
+  // Transform vendor wishlist products to display format
+  const transformedWishlists: WishlistData[] = vendorProducts.map((product: VendorWishlistProduct) => ({
+    id: product.id,
+    productName: product.productName,
+    category: product.category,
+    basePrice: product.basePrice,
+    wishlists: product.wishlists,
+    status: product.status,
+    image: product.image,
+    description: product.description,
+    totalViews: product.totalViews,
+    conversionRate: product.conversionRate,
+    dateAdded: product.dateAdded
+      ? new Date(product.dateAdded).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : undefined,
+  }));
 
-  // Filter wishlists based on tab, search, and status filters
-  const filteredWishlists = wishlists.filter((item) => {
+  // Filter wishlists based on tab and status filters (client-side filtering for tabs)
+  const filteredWishlists = transformedWishlists.filter((item) => {
     // Tab filtering
     const matchesTab =
       activeTab === "all" ||
@@ -203,17 +142,11 @@ export default function VendorWishlistPage() {
       (activeTab === "out-of-stock" && item.status === "out-of-stock") ||
       (activeTab === "suspended" && item.status === "suspended");
 
-    // Search filtering
-    const matchesSearch =
-      searchQuery === "" ||
-      item.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase());
-
     // Status filter (additional to tab filter)
     const matchesStatus =
       selectedStatuses.length === 0 || selectedStatuses.includes(item.status);
 
-    return matchesTab && matchesSearch && matchesStatus;
+    return matchesTab && matchesStatus;
   });
 
   const handleStatusFilterChange = (status: WishlistStatus) => {
@@ -246,32 +179,32 @@ export default function VendorWishlistPage() {
     setSearchQuery("");
   };
 
-  // Wishlist cards
+  // Wishlist cards using vendorStats from API
   const wishlistCards: CardData[] = [
     {
       title: "Total wishlisted products",
-      value: stats.totalWishlistedProducts.toString(),
-      change: stats.totalWishlistedChange && {
-        trend: stats.totalWishlistedChange.trend,
-        value: stats.totalWishlistedChange.value,
+      value: vendorStats?.totalWishlistedProducts?.toString() || "0",
+      change: vendorStats?.totalWishlistedChange && {
+        trend: vendorStats.totalWishlistedChange.trend,
+        value: vendorStats.totalWishlistedChange.value,
         description: "",
       },
     },
     {
       title: "Wishlist to Cart",
-      value: stats.wishlistToCart,
-      change: stats.wishlistToCartChange && {
-        trend: stats.wishlistToCartChange.trend,
-        value: stats.wishlistToCartChange.value,
+      value: vendorStats?.wishlistToCartPct || "0%",
+      change: vendorStats?.wishlistToCartChange && {
+        trend: vendorStats.wishlistToCartChange.trend,
+        value: vendorStats.wishlistToCartChange.value,
         description: "",
       },
     },
     {
       title: "Wishlist Abandonment",
-      value: stats.wishlistAbandonment,
-      change: stats.wishlistAbandonmentChange && {
-        trend: stats.wishlistAbandonmentChange.trend,
-        value: stats.wishlistAbandonmentChange.value,
+      value: vendorStats?.wishlistAbandonmentPct || "0%",
+      change: vendorStats?.wishlistAbandonmentChange && {
+        trend: vendorStats.wishlistAbandonmentChange.trend,
+        value: vendorStats.wishlistAbandonmentChange.value,
         description: "",
       },
     },
@@ -354,7 +287,7 @@ export default function VendorWishlistPage() {
     {
       key: "basePrice",
       header: "Base Price (USD)",
-      cell: (value) => <span>{value as number}</span>,
+      cell: (value) => <span>${(value as number).toFixed(2)}</span>,
       align: "center",
     },
     {
@@ -400,6 +333,28 @@ export default function VendorWishlistPage() {
         <img src={images.EmptyFallback} alt="No wishlists" className="w-80" />
       </div>
       <h3 className="text-xl font-semibold mb-2">No wishlisted products</h3>
+    </div>
+  );
+
+  // Loading state
+  const LoadingState = () => (
+    <div className="flex flex-col items-center justify-center py-12">
+      <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+      <p className="mt-4 text-gray-500">Loading wishlists...</p>
+    </div>
+  );
+
+  // Error state
+  const ErrorState = () => (
+    <div className="flex flex-col items-center text-center py-12">
+      <div className="mb-6">
+        <img src={images.EmptyFallback} alt="Error" className="w-80" />
+      </div>
+      <h3 className="text-xl font-semibold mb-2 text-red-600">
+        Failed to load wishlists
+      </h3>
+      <p className="text-gray-500 mb-4">{vendorError}</p>
+      <Button onClick={() => getVendorWishlist(vendorId)}>Retry</Button>
     </div>
   );
 
@@ -561,16 +516,20 @@ export default function VendorWishlistPage() {
                   </div>
                 </div>
 
-                {/* Wishlists Table/Empty State */}
+                {/* Wishlists Table/Loading/Error/Empty State */}
                 <div className="px-6 pb-6">
-                  {filteredWishlists.length > 0 ? (
+                  {vendorLoading ? (
+                    <LoadingState />
+                  ) : vendorError ? (
+                    <ErrorState />
+                  ) : filteredWishlists.length > 0 ? (
                     <DataTable<WishlistData>
                       data={filteredWishlists}
                       fields={wishlistFields}
                       actions={wishlistActions}
                       enableSelection={true}
                       enablePagination={true}
-                      pageSize={10}
+                      pageSize={vendorPagination?.pageSize || 10}
                     />
                   ) : (
                     <EmptyState />

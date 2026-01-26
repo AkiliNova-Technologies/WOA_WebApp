@@ -1,4 +1,3 @@
-// hooks/useWishlist.ts
 import { useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import {
@@ -7,6 +6,7 @@ import {
   removeFromWishlist,
   moveToCart,
   fetchAdminWishlist,
+  fetchVendorWishlist,
   selectWishlistItems,
   selectWishlistLoading,
   selectWishlistError,
@@ -17,14 +17,24 @@ import {
   selectAdminWishlistPagination,
   selectAdminWishlistLoading,
   selectAdminWishlistError,
+  selectVendorWishlistStats,
+  selectVendorWishlistProducts,
+  selectVendorWishlistPagination,
+  selectVendorWishlistLoading,
+  selectVendorWishlistError,
   clearWishlist,
   clearError as clearWishlistError,
   clearAdminError,
   clearAdminData,
+  clearVendorError,
+  clearVendorData,
   type WishlistItem,
   type AdminWishlistParams,
   type AdminWishlistStats,
   type AdminWishlistProduct,
+  type VendorWishlistParams,
+  type VendorWishlistStats,
+  type VendorWishlistProduct,
 } from '@/redux/slices/wishlistSlice';
 
 export function useReduxWishlist() {
@@ -43,6 +53,13 @@ export function useReduxWishlist() {
   const adminPagination = useAppSelector(selectAdminWishlistPagination);
   const adminLoading = useAppSelector(selectAdminWishlistLoading);
   const adminError = useAppSelector(selectAdminWishlistError);
+
+  // Vendor wishlist selectors
+  const vendorStats = useAppSelector(selectVendorWishlistStats);
+  const vendorProducts = useAppSelector(selectVendorWishlistProducts);
+  const vendorPagination = useAppSelector(selectVendorWishlistPagination);
+  const vendorLoading = useAppSelector(selectVendorWishlistLoading);
+  const vendorError = useAppSelector(selectVendorWishlistError);
 
   // User wishlist actions
   const getWishlist = useCallback(async () => {
@@ -92,6 +109,16 @@ export function useReduxWishlist() {
     }
   }, [dispatch]);
 
+  // Vendor wishlist actions
+  const getVendorWishlist = useCallback(async (vendorId: string, params?: VendorWishlistParams) => {
+    try {
+      return await dispatch(fetchVendorWishlist({ vendorId, ...params })).unwrap();
+    } catch (error) {
+      console.error('Failed to fetch vendor wishlist:', error);
+      throw error;
+    }
+  }, [dispatch]);
+
   // Helper functions
   const isInWishlist = useCallback((productId: string): boolean => {
     return items.some(item => item.productId === productId);
@@ -116,6 +143,31 @@ export function useReduxWishlist() {
     }
   }, [addItem, removeItem, getWishlistItem]);
 
+  // Vendor helper functions
+  const getVendorProductsByStatus = useCallback((status: VendorWishlistProduct["status"]): VendorWishlistProduct[] => {
+    return vendorProducts.filter(product => product.status === status);
+  }, [vendorProducts]);
+
+  const getVendorInStockProducts = useCallback((): VendorWishlistProduct[] => {
+    return vendorProducts.filter(product => product.status === "in-stock");
+  }, [vendorProducts]);
+
+  const getVendorLimitedStockProducts = useCallback((): VendorWishlistProduct[] => {
+    return vendorProducts.filter(product => product.status === "limited-stock");
+  }, [vendorProducts]);
+
+  const getVendorOutOfStockProducts = useCallback((): VendorWishlistProduct[] => {
+    return vendorProducts.filter(product => product.status === "out-of-stock");
+  }, [vendorProducts]);
+
+  const getVendorSuspendedProducts = useCallback((): VendorWishlistProduct[] => {
+    return vendorProducts.filter(product => product.status === "suspended");
+  }, [vendorProducts]);
+
+  const getVendorTotalWishlists = useCallback((): number => {
+    return vendorProducts.reduce((total, product) => total + product.wishlists, 0);
+  }, [vendorProducts]);
+
   // Utility actions
   const clearAllItems = useCallback(() => {
     dispatch(clearWishlist());
@@ -131,6 +183,14 @@ export function useReduxWishlist() {
 
   const clearAdminWishlistData = useCallback(() => {
     dispatch(clearAdminData());
+  }, [dispatch]);
+
+  const clearVendorWishlistError = useCallback(() => {
+    dispatch(clearVendorError());
+  }, [dispatch]);
+
+  const clearVendorWishlistData = useCallback(() => {
+    dispatch(clearVendorData());
   }, [dispatch]);
 
   return {
@@ -168,6 +228,26 @@ export function useReduxWishlist() {
     getAdminWishlist,
     clearAdminWishlistError,
     clearAdminWishlistData,
+
+    // Vendor wishlist state
+    vendorStats,
+    vendorProducts,
+    vendorPagination,
+    vendorLoading,
+    vendorError,
+
+    // Vendor wishlist actions
+    getVendorWishlist,
+    clearVendorWishlistError,
+    clearVendorWishlistData,
+
+    // Vendor helper functions
+    getVendorProductsByStatus,
+    getVendorInStockProducts,
+    getVendorLimitedStockProducts,
+    getVendorOutOfStockProducts,
+    getVendorSuspendedProducts,
+    getVendorTotalWishlists,
   };
 }
 
@@ -177,4 +257,7 @@ export type {
   AdminWishlistParams,
   AdminWishlistStats,
   AdminWishlistProduct,
+  VendorWishlistParams,
+  VendorWishlistStats,
+  VendorWishlistProduct,
 };
