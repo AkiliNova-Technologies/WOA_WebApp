@@ -340,7 +340,7 @@ export default function AdminOrdersPage() {
       label: "View Order Details",
       icon: <Eye className="size-4" />,
       onClick: (item) => {
-        navigate(`/admin/orders/${item.subOrderId}`);
+        navigate(`/admin/products/orders/${item.subOrderId}`);
       },
     },
   ];

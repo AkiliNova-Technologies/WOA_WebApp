@@ -100,15 +100,18 @@ export interface Product {
 
 export interface CreateProductData {
   name: string;
-  description?: string;
-  basePrice: number;
-  baseCompareAtPrice?: number;
-  attributes: Record<string, string>;
-  images?: string[];
+  description: string;
+  storyText?: string;
+  storyVideoUrl?: string;
+  attributes?: Record<string, string>;
+  images: string[];
   categoryId: string;
   subcategoryId: string;
-  productTypeId: string;
+  productTypeId?: string;
+  basePrice: number;
+  baseCompareAtPrice: number;
 }
+
 
 export interface UpdateProductData {
   name?: string;
