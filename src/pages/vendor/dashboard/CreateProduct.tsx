@@ -392,7 +392,8 @@ export default function ProductAddPage() {
       }
     });
 
-    return Object.keys(attributesToSend).length > 0 ? attributesToSend : undefined;
+    // Always return an object (empty or with values) since backend expects it
+    return attributesToSend;
   }, [attributes, attributeValues]);
 
   const handleNext = useCallback(() => {
@@ -441,8 +442,8 @@ export default function ProductAddPage() {
     setIsSubmitting(true);
 
     try {
-      const attributesToSend = buildAttributes();
-
+      const builtAttributes = buildAttributes();
+      
       const productData = {
         name: formData.name.trim(),
         description: formData.description || "",
@@ -456,10 +457,12 @@ export default function ProductAddPage() {
         categoryId: formData.categoryId || "",
         subcategoryId: formData.subcategoryId || "",
         productTypeId: formData.productTypeId || "",
-        ...(attributesToSend && { attributes: attributesToSend }),
+        attributes: builtAttributes,
       };
 
-      console.log("Saving draft:", productData);
+      // Debug: verify attributes is present
+      console.log("Saving draft - attributes:", builtAttributes);
+      console.log("Saving draft - full payload:", JSON.stringify(productData, null, 2));
 
       await createNewProduct(productData);
       toast.success("Product saved as draft!");
@@ -517,8 +520,8 @@ export default function ProductAddPage() {
     setIsSubmitting(true);
 
     try {
-      const attributesToSend = buildAttributes();
-
+      const builtAttributes = buildAttributes();
+      
       const productData = {
         name: formData.name.trim(),
         description: formData.description || "",
@@ -532,10 +535,12 @@ export default function ProductAddPage() {
         categoryId: formData.categoryId,
         subcategoryId: formData.subcategoryId,
         productTypeId: formData.productTypeId || "",
-        ...(attributesToSend && { attributes: attributesToSend }),
+        attributes: builtAttributes,
       };
 
-      console.log("Submitting product:", productData);
+      // Debug: verify attributes is present
+      console.log("Submitting product - attributes:", builtAttributes);
+      console.log("Submitting product - full payload:", JSON.stringify(productData, null, 2));
 
       await createNewProduct(productData);
       toast.success("Product created successfully!");

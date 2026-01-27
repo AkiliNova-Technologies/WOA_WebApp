@@ -103,7 +103,7 @@ export interface CreateProductData {
   description: string;
   storyText?: string;
   storyVideoUrl?: string;
-  attributes?: Record<string, string>;
+  attributes: Record<string, string>;
   images: string[];
   categoryId: string;
   subcategoryId: string;

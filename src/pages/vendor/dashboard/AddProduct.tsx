@@ -123,7 +123,7 @@ const INITIAL_OPTION: VariantOption = {
   sku: "",
 };
 
-export default function AddProductPage() {
+export default function ProductAddPage() {
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -392,7 +392,8 @@ export default function AddProductPage() {
       }
     });
 
-    return Object.keys(attributesToSend).length > 0 ? attributesToSend : undefined;
+    // Always return an object (empty or with values) since backend expects it
+    return attributesToSend;
   }, [attributes, attributeValues]);
 
   const handleNext = useCallback(() => {
@@ -441,8 +442,6 @@ export default function AddProductPage() {
     setIsSubmitting(true);
 
     try {
-      const attributesToSend = buildAttributes();
-
       const productData = {
         name: formData.name.trim(),
         description: formData.description || "",
@@ -456,7 +455,7 @@ export default function AddProductPage() {
         categoryId: formData.categoryId || "",
         subcategoryId: formData.subcategoryId || "",
         productTypeId: formData.productTypeId || "",
-        ...(attributesToSend && { attributes: attributesToSend }),
+        attributes: buildAttributes(),
       };
 
       console.log("Saving draft:", productData);
@@ -517,8 +516,6 @@ export default function AddProductPage() {
     setIsSubmitting(true);
 
     try {
-      const attributesToSend = buildAttributes();
-
       const productData = {
         name: formData.name.trim(),
         description: formData.description || "",
@@ -532,7 +529,7 @@ export default function AddProductPage() {
         categoryId: formData.categoryId,
         subcategoryId: formData.subcategoryId,
         productTypeId: formData.productTypeId || "",
-        ...(attributesToSend && { attributes: attributesToSend }),
+        attributes: buildAttributes(),
       };
 
       console.log("Submitting product:", productData);
